@@ -302,9 +302,23 @@ def ensure_reservation_pricing_columns(cur):
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS applied_privilege_slug VARCHAR(80)",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS applied_privilege_name VARCHAR(80)",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS points_redeemed INTEGER DEFAULT 0",
     ]
     for statement in statements:
         _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="reservation_pricing_alter")
+
+
+def ensure_hourly_room_rate_columns(cur):
+    """Add optional short-stay rates without changing existing overnight pricing."""
+    statements = [
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_3_hours NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_6_hours NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_12_hours NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS stay_duration_hours INTEGER",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS rate_type VARCHAR(20) DEFAULT 'overnight'",
+    ]
+    for statement in statements:
+        _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="hourly_rates_alter")
 
 
 def ensure_reservation_time_columns(cur):

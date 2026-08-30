@@ -77,6 +77,9 @@ CREATE TABLE IF NOT EXISTS rooms (
     max_adults INTEGER DEFAULT 2,
     max_children INTEGER DEFAULT 0,
     price_per_night DECIMAL(10, 2) NOT NULL,
+    rate_3_hours DECIMAL(10, 2) DEFAULT 0,
+    rate_6_hours DECIMAL(10, 2) DEFAULT 0,
+    rate_12_hours DECIMAL(10, 2) DEFAULT 0,
     status VARCHAR(20) DEFAULT 'Available' CHECK (status IN ('Available', 'Occupied', 'Maintenance', 'Cleaning')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

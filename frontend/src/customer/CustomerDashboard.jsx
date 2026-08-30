@@ -77,26 +77,31 @@ export default function CustomerDashboard() {
     today.setHours(0, 0, 0, 0);
 
     const bookings = user?.bookings || [];
+    const isUnpaidOnline = (booking) =>
+      String(booking.status || '').toUpperCase() === 'PENDING' &&
+      ['card', 'gcash', 'maya', 'qrph', 'online'].includes(String(booking.paymentMethod || '').toLowerCase());
     const nextStay =
       bookings
         .filter((booking) => {
           const checkIn = booking.checkInDate ? new Date(`${booking.checkInDate}T00:00:00`) : null;
-          return checkIn && checkIn >= today && booking.status !== "CANCELLED";
+          return checkIn && checkIn >= today && booking.status !== "CANCELLED" && !isUnpaidOnline(booking);
         })
         .sort((a, b) => String(a.checkInDate || "").localeCompare(String(b.checkInDate || "")))[0] || null;
 
     const upcomingCount = bookings.filter((booking) => {
       const checkIn = booking.checkInDate ? new Date(`${booking.checkInDate}T00:00:00`) : null;
-      return checkIn && checkIn >= today && booking.status !== "CANCELLED";
+      return checkIn && checkIn >= today && booking.status !== "CANCELLED" && !isUnpaidOnline(booking);
     }).length;
 
     const activeCount = bookings.filter((booking) => {
       const checkIn = booking.checkInDate ? new Date(`${booking.checkInDate}T00:00:00`) : null;
       const checkOut = booking.checkOutDate ? new Date(`${booking.checkOutDate}T00:00:00`) : null;
-      return checkIn && checkOut && checkIn <= today && checkOut >= today && booking.status !== "CANCELLED";
+      return checkIn && checkOut && checkIn <= today && checkOut >= today && booking.status !== "CANCELLED" && !isUnpaidOnline(booking);
     }).length;
 
-    const totalSpend = bookings.reduce((sum, booking) => sum + Number(booking.totalPrice || 0), 0);
+    const totalSpend = bookings
+      .filter((booking) => ['COMPLETED', 'CHECKED_OUT'].includes(String(booking.status || '').toUpperCase()))
+      .reduce((sum, booking) => sum + Number(booking.totalPrice || 0), 0);
 
     return {
       nextStay,
@@ -224,7 +229,7 @@ export default function CustomerDashboard() {
                 <p className="mt-1 text-xs text-zinc-500">Explore available suites and reserve your next visit.</p>
                 <button
                   type="button"
-                  onClick={() => navigate("/vision-suites")}
+                  onClick={() => navigate("/vision-suites?viewMode=room")}
                   className="mt-5 rounded-xl bg-emerald-700 px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-800"
                 >
                   Explore Suites
@@ -265,7 +270,7 @@ export default function CustomerDashboard() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate("/vision-suites")}
+                  onClick={() => navigate("/vision-suites?viewMode=room")}
                   className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50/60 px-4 py-3 text-left transition-colors hover:bg-emerald-50 hover:border-emerald-100"
                 >
                   <span className="flex items-center gap-2.5 text-xs font-medium text-zinc-800">

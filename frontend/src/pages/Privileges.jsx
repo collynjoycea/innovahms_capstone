@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   CreditCard,
   Crown,
   Loader2,
+  QrCode,
+  X,
   Sparkles,
   Star,
 } from "lucide-react";
@@ -22,13 +23,13 @@ const fallbackPackages = [
     description: "Entry access to member pricing and elevated guest benefits.",
     monthlyPrice: 1,
     annualPrice: 1,
-    bonusPoints: 500,
+    bonusPoints: 1,
     isPopular: false,
     perks: [
       "Member-only room rate previews",
-      "5% dining and add-on discount",
+      "1% dining and add-on discount",
       "Priority support queue",
-      "500 welcome points on activation",
+      "1 welcome points on activation",
     ],
   },
   {
@@ -39,12 +40,14 @@ const fallbackPackages = [
     monthlyPrice: 799,
     annualPrice: 7990,
     bonusPoints: 1500,
+    monthlyBonusPoints: 125,
+    annualBonusPoints: 1500,
     isPopular: true,
     perks: [
       "Everything in Silver",
       "10% member booking discount",
       "Upgrade priority on eligible stays",
-      "1,500 bonus points every successful renewal",
+      "125 monthly or 1,500 annual bonus points",
     ],
   },
   {
@@ -55,13 +58,15 @@ const fallbackPackages = [
     monthlyPrice: 1499,
     annualPrice: 14990,
     bonusPoints: 4000,
+    monthlyBonusPoints: 400,
+    annualBonusPoints: 4000,
     isPopular: false,
     perks: [
       "Everything in Gold",
       "15% member booking discount",
       "Late checkout priority requests",
       "Dedicated privilege support line",
-      "4,000 bonus points every successful renewal",
+      "400 monthly or 4,000 annual bonus points",
     ],
   },
 ];
@@ -124,6 +129,53 @@ const persistCustomerSummary = (summary) => {
   window.dispatchEvent(new Event("userUpdated"));
 };
 
+function PrivilegeQrModal({ data, customerId, onPaid, onClose }) {
+  const [paid, setPaid] = useState(false);
+
+  useEffect(() => {
+    if (!data?.linkId || !customerId) return undefined;
+    setPaid(false);
+    let settled = false;
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/customer/privileges/verify/${data.linkId}?customer_id=${customerId}`);
+        const payload = await response.json().catch(() => ({}));
+        if (!settled && response.ok && payload.status === "paid") {
+          settled = true;
+          setPaid(true);
+          clearInterval(timer);
+          setTimeout(() => onPaid(payload), 900);
+        }
+      } catch {
+        // Continue polling while the QR payment is pending.
+      }
+    };
+    const timer = setInterval(poll, 4000);
+    poll();
+    return () => clearInterval(timer);
+  }, [data?.linkId, customerId, onPaid]);
+
+  if (!data) return null;
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl dark:bg-slate-900 dark:text-white">
+        <button type="button" onClick={onClose} className="float-right rounded p-1 text-slate-400"><X size={18} /></button>
+        {paid ? (
+          <><CheckCircle2 size={48} className="mx-auto mb-3 text-emerald-500" /><h3 className="text-xl font-bold">Payment Confirmed</h3></>
+        ) : (
+          <>
+            <QrCode size={30} className="mx-auto mb-2 text-emerald-500" />
+            <h3 className="text-xl font-bold">Scan to Pay</h3>
+            <p className="mb-4 mt-1 text-sm text-slate-500">QR Ph • {formatPhp(data.amount)}</p>
+            {data.qrCodeUrl ? <img src={data.qrCodeUrl} alt="QR Ph payment code" className="mx-auto h-56 w-56 rounded-xl bg-white p-3" /> : <Loader2 className="mx-auto my-16 animate-spin" />}
+            <p className="mt-4 text-xs text-slate-500">Scan using GCash, Maya, or your banking app.</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Privileges() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -135,9 +187,12 @@ export default function Privileges() {
   const [paymentLoading, setPaymentLoading] = useState("");
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [billingCycleModalOpen, setBillingCycleModalOpen] = useState(false);
+  const [billingSelection, setBillingSelection] = useState(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentSelection, setPaymentSelection] = useState(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("gcash");
+  const [qrPayment, setQrPayment] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -214,11 +269,7 @@ export default function Privileges() {
           setSubscription(data.subscription || data.summary?.privilege || null);
           persistCustomerSummary(data.summary);
         }
-        setMessage(
-          data.isSimulated
-            ? "Simulated privilege payment confirmed. Your customer benefits are now active."
-            : "Privilege payment confirmed. Your customer benefits are now active."
-        );
+        setMessage("Privilege payment confirmed. Your customer benefits are now active.");
         setSearchParams({});
         await load();
       } catch (err) {
@@ -278,6 +329,11 @@ export default function Privileges() {
         packageId: pkg.id,
         billingCycle,
       }));
+      if (data.isQrPayment && data.qrCodeUrl) {
+        setQrPayment({ ...data, linkId: data.linkId || data.intentId, amount: data.amount || 0 });
+        return;
+      }
+      if (!data.checkoutUrl) throw new Error("PayMongo did not return a checkout URL.");
       window.location.href = data.checkoutUrl;
     } catch (err) {
       setError(err.message || "Unable to start privilege checkout.");
@@ -285,10 +341,22 @@ export default function Privileges() {
     }
   };
 
+  const finishQrPayment = async () => {
+    setQrPayment(null);
+    localStorage.removeItem(PENDING_PAYMENT_KEY);
+    setMessage("Privilege payment confirmed. Your customer benefits are now active.");
+    await load();
+  };
+
   const openPaymentMethodModal = (pkg, billingCycle) => {
     setPaymentSelection({ pkg, billingCycle });
     setSelectedPaymentMethod("gcash");
     setPaymentModalOpen(true);
+  };
+
+  const openBillingCycleModal = (pkg) => {
+    setBillingSelection(pkg);
+    setBillingCycleModalOpen(true);
   };
 
   const handleCancelPrivilege = async () => {
@@ -321,6 +389,49 @@ export default function Privileges() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-[#080d0b] dark:text-[#EEEEEE] font-sans selection:bg-[#2FA084]/30">
+      <PrivilegeQrModal data={qrPayment} customerId={customerId} onPaid={finishQrPayment} onClose={() => setQrPayment(null)} />
+
+      {/* BILLING CYCLE MODAL - Silver keeps its existing thesis tryout flow. */}
+      {billingCycleModalOpen && billingSelection ? (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-[#243B33] dark:bg-[#0e1a16]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-mono tracking-widest text-[#1F6F5F] dark:text-[#6FCF97] uppercase">Billing Cycle</p>
+                <h3 className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">Choose {billingSelection.name} billing</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBillingCycleModalOpen(false)}
+                className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 dark:border-[#243B33] dark:text-gray-300 dark:hover:bg-[#182924]"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {[
+                { key: "MONTHLY", label: "Monthly", price: billingSelection.monthlyPrice, points: billingSelection.monthlyBonusPoints, note: "Billed every month" },
+                { key: "ANNUAL", label: "Annual", price: billingSelection.annualPrice, points: billingSelection.annualBonusPoints, note: "Billed once per year" },
+              ].map((cycle) => (
+                <button
+                  key={cycle.key}
+                  type="button"
+                  onClick={() => {
+                    setBillingCycleModalOpen(false);
+                    openPaymentMethodModal(billingSelection, cycle.key);
+                  }}
+                  className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-left transition hover:border-emerald-500 hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/5 dark:hover:bg-emerald-500/10"
+                >
+                  <span className="block text-sm font-semibold text-emerald-900 dark:text-emerald-300">{cycle.label}</span>
+                  <span className="mt-2 block text-lg font-bold text-gray-900 dark:text-white">{formatPhp(cycle.price)}</span>
+                  <span className="mt-1 block text-[11px] text-gray-500 dark:text-gray-400">{cycle.note} • {Number(cycle.points || 0).toLocaleString()} bonus points</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
       
       {/* PAYMENT METHOD MODAL */}
       {paymentModalOpen && paymentSelection ? (
@@ -379,34 +490,27 @@ export default function Privileges() {
       {/* CANCEL MODAL */}
       {cancelModalOpen ? (
         <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-[#243B33] dark:bg-[#0e1a16]">
-            <div className="flex items-start gap-4">
-              <div className="rounded-xl bg-red-100 p-3 text-red-600 dark:bg-red-500/10 dark:text-red-400">
-                <AlertTriangle size={22} />
-              </div>
-              <div>
-                <p className="text-[11px] font-mono tracking-widest text-red-600 dark:text-red-400 uppercase">Cancel Privilege</p>
-                <h3 className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">
-                  Stop {subscription?.packageName || "current"} privilege access?
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-                  This will cancel your active privilege tier and remove its member booking discounts from future reservations.
-                </p>
-              </div>
+          <div className="w-full max-w-md rounded-2xl border border-emerald-200 bg-white p-6 shadow-2xl dark:border-emerald-500/30 dark:bg-[#0e1a16]">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Membership Confirmation</p>
+              <h3 className="mt-2 text-xl font-semibold text-gray-900 dark:text-white">Cancel membership?</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                Your {subscription?.packageName || "current"} membership will be cancelled. Member discounts will no longer apply to future bookings.
+              </p>
             </div>
             <div className="mt-6 flex gap-3">
               <button
                 type="button"
                 onClick={() => setCancelModalOpen(false)}
-                className="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-gray-700 hover:bg-gray-50 dark:border-[#243B33] dark:text-gray-300 dark:hover:bg-[#182924]"
+                className="flex-1 rounded-xl border border-emerald-200 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-emerald-800 hover:bg-emerald-50 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
               >
-                Keep Tier
+                Keep Membership
               </button>
               <button
                 type="button"
                 onClick={handleCancelPrivilege}
                 disabled={cancelLoading}
-                className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-white hover:bg-red-700 disabled:opacity-60"
+                className="flex-1 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-white hover:bg-emerald-800 disabled:opacity-60"
               >
                 {cancelLoading ? "Cancelling..." : "Confirm Cancel"}
               </button>
@@ -441,7 +545,7 @@ export default function Privileges() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate("/vision-suites")}
+                onClick={() => navigate("/vision-suites?viewMode=room")}
                 className="inline-flex items-center gap-2 rounded-xl border border-[#243B33] bg-[#0c1612]/60 hover:bg-[#182924] text-gray-200 px-6 py-3 text-xs font-medium uppercase tracking-wider transition-all"
               >
                 Browse Rooms
@@ -531,7 +635,11 @@ export default function Privileges() {
                       <Crown size={18} className="text-[#1F6F5F] dark:text-[#6FCF97]" />
                       <div>
                         <p className="text-[10px] font-mono uppercase text-gray-500 dark:text-gray-400">Bonus Points</p>
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{Number(pkg.bonusPoints || 0).toLocaleString()} pts</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {pkg.slug === "gold" || pkg.slug === "platinum"
+                            ? `${Number(pkg.monthlyBonusPoints || 0).toLocaleString()} monthly / ${Number(pkg.annualBonusPoints || 0).toLocaleString()} annual`
+                            : `${Number(pkg.bonusPoints || 0).toLocaleString()} pts`}
+                        </p>
                       </div>
                     </div>
 
@@ -549,7 +657,13 @@ export default function Privileges() {
                     <div className="grid grid-cols-2 gap-2.5">
                       <button
                         type="button"
-                        onClick={() => openPaymentMethodModal(pkg, isCurrent ? "MONTHLY" : "ANNUAL")}
+                        onClick={() => {
+                          if (["gold", "platinum"].includes(String(pkg.slug).toLowerCase())) {
+                            openBillingCycleModal(pkg);
+                            return;
+                          }
+                          openPaymentMethodModal(pkg, isCurrent ? "MONTHLY" : "ANNUAL");
+                        }}
                         disabled={Boolean(paymentLoading) || cancelLoading}
                         className="rounded-xl bg-[#1F6F5F] hover:bg-[#288B77] text-white py-2.5 text-[11px] font-medium uppercase tracking-wider transition-all disabled:opacity-60"
                       >

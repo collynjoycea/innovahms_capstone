@@ -460,8 +460,14 @@ export default function Booking() {
   const [checkOut, setCheckOut] = useState(tomorrow);
   const [checkInTime, setCheckInTime] = useState('14:00');
   const [checkOutTime, setCheckOutTime] = useState('12:00');
+  const [durationHours, setDurationHours] = useState(() => {
+    const value = Number(params.get('duration'));
+    return [3, 6, 12].includes(value) ? value : 0;
+  });
   const [guests, setGuests] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [useAllPoints, setUseAllPoints] = useState(false);
+  const [pointsToUse, setPointsToUse] = useState('');
   const [preferences, setPreferences] = useState([]);
   const [specialRequests, setSpecialRequests] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -498,7 +504,7 @@ export default function Booking() {
     if (!roomId) return undefined;
     let dead = false;
     setLoadingRoom(true);
-    fetch('/api/rooms')
+    fetch(`/api/rooms?room_id=${encodeURIComponent(roomId)}`)
       .then((r) => r.json())
       .then((d) => {
         if (!dead) setRoom((d.rooms || []).find((x) => String(x.id) === String(roomId)) || null);
@@ -532,6 +538,15 @@ export default function Booking() {
       });
     return () => { dead = true; };
   }, [room?.id]);
+
+  useEffect(() => {
+    if (!durationHours || !checkIn || !checkInTime) return;
+    const start = new Date(`${checkIn}T${checkInTime}`);
+    if (Number.isNaN(start.getTime())) return;
+    start.setHours(start.getHours() + durationHours);
+    setCheckOut(formatDateValue(start));
+    setCheckOutTime(`${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`);
+  }, [durationHours, checkIn, checkInTime]);
 
   useEffect(() => {
     if (!sessionUser?.id) { setMembership(null); return undefined; }
@@ -611,21 +626,27 @@ export default function Booking() {
       return;
     }
     const parsedCheckOut = parseDateValue(checkOut);
-    if (!parsedCheckOut || isCheckOutDateDisabled(parsedCheckOut, checkIn)) {
+    if (!durationHours && (!parsedCheckOut || isCheckOutDateDisabled(parsedCheckOut, checkIn))) {
       const nextCheckOut = findNextAvailableCheckOut(checkIn);
       if (nextCheckOut !== checkOut) setCheckOut(nextCheckOut);
     }
-  }, [room?.id, blockedRanges, checkIn, checkOut, today]);
+  }, [room?.id, blockedRanges, checkIn, checkOut, today, durationHours]);
 
-  const nights = Math.max(0, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000));
-  const baseTotal = room ? nights * Number(room.price || 0) : 0;
+  const nights = durationHours ? 1 : Math.max(0, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000));
+  const selectedHourlyRate = durationHours ? Number(room?.[`rate${durationHours}Hours`] || 0) : Number(room?.price || 0);
+  const baseTotal = room ? (durationHours ? selectedHourlyRate : nights * selectedHourlyRate) : 0;
   const activePrivilege = membership?.privilege?.isActive ? membership.privilege : null;
   const discountPercent = Number(membership?.bookingPrivilege?.discountPercent || 0);
   const discountAmount = discountPercent ? Number((baseTotal * discountPercent / 100).toFixed(2)) : 0;
   const subtotalAfterDiscount = Number(Math.max(0, baseTotal - discountAmount).toFixed(2));
   const vatAmount = Number((subtotalAfterDiscount * (VAT_PERCENT / 100)).toFixed(2));
   const taxAmount = Number((subtotalAfterDiscount * (TAX_PERCENT / 100)).toFixed(2));
-  const total = Number((subtotalAfterDiscount + vatAmount + taxAmount).toFixed(2));
+  const totalBeforePoints = Number((subtotalAfterDiscount + vatAmount + taxAmount).toFixed(2));
+  const availablePoints = Math.max(0, Number(membership?.points ?? membership?.pointsBalance?.total ?? 0));
+  const requestedPoints = useAllPoints ? availablePoints : Math.max(0, Math.floor(Number(pointsToUse) || 0));
+  const pointsRedeemed = Math.min(availablePoints, requestedPoints, Math.floor(totalBeforePoints));
+  const pointsDiscountAmount = Number(pointsRedeemed.toFixed(2));
+  const total = Number(Math.max(0, totalBeforePoints - pointsDiscountAmount).toFixed(2));
 
   const togglePref = (value) => setPreferences((prev) => prev.includes(value) ? prev.filter((x) => x !== value) : [...prev, value]);
 
@@ -644,9 +665,10 @@ export default function Booking() {
       return;
     }
     if (!room) { setError('No room selected.'); return; }
-    if (nights < 1) { setError('Check-out must be after check-in.'); return; }
+    if (!durationHours && nights < 1) { setError('Check-out must be after check-in.'); return; }
+    if (durationHours && selectedHourlyRate <= 0) { setError(`The ${durationHours}-hour rate is not configured for this room.`); return; }
     if (isCheckInDateDisabled(parseDateValue(checkIn))) { setError('Selected check-in date is no longer available.'); return; }
-    if (isCheckOutDateDisabled(parseDateValue(checkOut), checkIn)) { setError('Selected stay overlaps an existing booking. Please choose different dates.'); return; }
+    if (!durationHours && isCheckOutDateDisabled(parseDateValue(checkOut), checkIn)) { setError('Selected stay overlaps an existing booking. Please choose different dates.'); return; }
 
     setSubmitting(true);
     try {
@@ -660,8 +682,11 @@ export default function Booking() {
           checkOut,
           checkInTime,
           checkOutTime,
+          durationHours,
           guests,
           paymentMethod,
+          pointsToUse: pointsRedeemed,
+          useAllPoints,
           specialRequests: [preferences.join(', '), specialRequests].filter(Boolean).join(' | '),
         }),
       });
@@ -676,8 +701,14 @@ export default function Booking() {
           body: JSON.stringify({ reservationId: body.bookingId, paymentMethod }),
         });
         const pay = await payRes.json().catch(() => ({}));
-        if (payRes.status === 503) throw new Error('Payment gateway is not configured. Please choose Cash on Arrival.');
-        if (!payRes.ok) throw new Error(pay.error || 'Payment link creation failed.');
+        if (payRes.status === 503) {
+          await fetch(`/api/payment/failed/${body.bookingId}`, { method: 'POST' }).catch(() => {});
+          throw new Error('Payment gateway is not configured. Please choose Cash on Arrival.');
+        }
+        if (!payRes.ok) {
+          await fetch(`/api/payment/failed/${body.bookingId}`, { method: 'POST' }).catch(() => {});
+          throw new Error(pay.error || 'Payment link creation failed.');
+        }
         if (pay.isQrPayment && pay.qrCodeUrl) {
           setQrData({ qrCodeUrl: pay.qrCodeUrl, intentId: pay.intentId, amount: pay.amount, bookingNumber: pay.bookingNumber });
           return;
@@ -753,15 +784,15 @@ export default function Booking() {
                       )}
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{peso(room.price || 0)}</p>
-                      <p className="text-xs text-slate-400">/ night</p>
+                      <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{peso(durationHours ? selectedHourlyRate : room.price || 0)}</p>
+                      <p className="text-xs text-slate-400">/ {durationHours ? `${durationHours} hours` : 'night'}</p>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   No room selected.{' '}
-                  <button type="button" onClick={() => navigate('/recommendations')} className="text-emerald-600 hover:underline dark:text-emerald-400">
+                  <button type="button" onClick={() => navigate('/vision-suites?viewMode=room')} className="text-emerald-600 hover:underline dark:text-emerald-400">
                     Browse rooms
                   </button>
                 </div>
@@ -772,6 +803,17 @@ export default function Booking() {
                   <div className="mb-4 flex items-center gap-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">1</span>
                     <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Dates & Times</h2>
+                  </div>
+
+                  <div className="mb-5">
+                    <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Stay Duration</label>
+                    <select value={durationHours} onChange={(e) => setDurationHours(Number(e.target.value))} className={selectCls}>
+                      <option value={0}>Overnight — {peso(room?.price || 0)} / night</option>
+                      {[3, 6, 12].map((hours) => {
+                        const rate = Number(room?.[`rate${hours}Hours`] || 0);
+                        return <option key={hours} value={hours} disabled={rate <= 0}>{hours} hours — {rate > 0 ? peso(rate) : 'Not available'}</option>;
+                      })}
+                    </select>
                   </div>
 
                   <div className="mb-5 rounded-lg bg-emerald-50/60 p-3.5 text-xs text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
@@ -792,15 +834,49 @@ export default function Booking() {
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <DatePickerField label="Check-In Date" value={checkIn} onChange={setCheckIn} minMonthValue={today} isDateDisabled={isCheckInDateDisabled} helperText="Unavailable dates are disabled." />
-                    <DatePickerField label="Check-Out Date" value={checkOut} onChange={setCheckOut} minMonthValue={checkIn || today} isDateDisabled={(date) => isCheckOutDateDisabled(date, checkIn)} helperText="Valid stay durations only." disabled={!checkIn} />
+                    <DatePickerField label="Check-Out Date" value={checkOut} onChange={setCheckOut} minMonthValue={checkIn || today} isDateDisabled={(date) => !durationHours && isCheckOutDateDisabled(date, checkIn)} helperText={durationHours ? 'Calculated from check-in time.' : 'Valid stay durations only.'} disabled={!checkIn || Boolean(durationHours)} />
                     <div>
                       <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Check-In Time</label>
                       <input type="time" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} className={inputCls} />
                     </div>
                     <div>
                       <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Check-Out Time</label>
-                      <input type="time" value={checkOutTime} onChange={(e) => setCheckOutTime(e.target.value)} className={inputCls} />
+                      <input type="time" value={checkOutTime} onChange={(e) => setCheckOutTime(e.target.value)} disabled={Boolean(durationHours)} className={inputCls} />
                     </div>
+                  </div>
+
+                  <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">Use collected points</p>
+                        <p className="mt-0.5 text-[11px] text-emerald-700 dark:text-emerald-400">1 point = PHP 1 discount</p>
+                      </div>
+                      <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Available: {availablePoints.toLocaleString()} pts</span>
+                    </div>
+                    <label className="mt-3 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={useAllPoints}
+                        onChange={(e) => setUseAllPoints(e.target.checked)}
+                        disabled={availablePoints <= 0}
+                        className="h-4 w-4 accent-emerald-600"
+                      />
+                      Use all points
+                    </label>
+                    {!useAllPoints ? (
+                      <input
+                        type="number"
+                        min="0"
+                        max={Math.min(availablePoints, Math.floor(totalBeforePoints))}
+                        step="1"
+                        value={pointsToUse}
+                        onChange={(e) => setPointsToUse(e.target.value)}
+                        placeholder="Enter points to use"
+                        disabled={availablePoints <= 0}
+                        className={`${inputCls} mt-3`}
+                      />
+                    ) : null}
+                    {pointsRedeemed > 0 ? <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">Discount applied: -{peso(pointsDiscountAmount)}</p> : null}
                   </div>
                 </div>
 
@@ -826,8 +902,8 @@ export default function Booking() {
                           <option value="cash">Cash on Arrival</option>
                           <option value="qrph">QR Ph (QR Code Payment)</option>
                           <option value="card">Credit / Debit Card</option>
-                          <option value="gcash" disabled>GCash (Maintenance)</option>
-                          <option value="maya" disabled>Maya (Maintenance)</option>
+                          <option value="gcash">GCash</option>
+                          <option value="maya">Maya</option>
                         </select>
                         <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                           <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M6 8L1 3h10z" /></svg>
@@ -921,6 +997,12 @@ export default function Booking() {
                     <span className="text-slate-500 dark:text-slate-400">Base total</span>
                     <span className="text-slate-800 dark:text-slate-200">{baseTotal > 0 ? peso(baseTotal) : '--'}</span>
                   </div>
+                  {pointsRedeemed > 0 && (
+                    <div className="mb-2 flex justify-between text-emerald-600 dark:text-emerald-400">
+                      <span>Points discount ({pointsRedeemed.toLocaleString()} pts)</span>
+                      <span>-{peso(pointsDiscountAmount)}</span>
+                    </div>
+                  )}
                   {discountPercent > 0 && (
                     <div className="mb-2 flex justify-between text-emerald-600 dark:text-emerald-400">
                       <span>{activePrivilege?.packageName || 'Privilege'} discount</span>

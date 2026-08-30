@@ -235,7 +235,6 @@ export default function VisionSuites() {
   const [landmarks, setLandmarks] = useState([]);
   const [nearbyHotels, setNearbyHotels] = useState([]);
   const [homeHotels, setHomeHotels] = useState([]);
-  const [activeTab, setActiveTab] = useState("Overnight Stays");
   const [viewMode, setViewMode] = useState("hotel");
 
   const [tourOpen, setTourOpen] = useState(false);
@@ -279,28 +278,33 @@ export default function VisionSuites() {
       const qs = new URLSearchParams(query).toString();
       const suffix = qs ? `?${qs}` : "";
 
-      const [hotelRes, roomsRes, lmRes, nearbyHotelsRes] = await Promise.all([
+      const roomsPromise = fetch(`/api/vision/rooms${suffix}`);
+      const secondaryPromise = Promise.all([
         fetch(`/api/vision/hotel${suffix}`),
-        fetch(`/api/vision/rooms${suffix}`),
         fetch(`/api/vision/landmarks${suffix}`),
         fetch(`/api/vision/nearby-hotels${suffix}`),
       ]);
 
-      const hotelPayload = await hotelRes.json().catch(() => ({}));
+      // Rooms are the primary content: render them as soon as that request finishes.
+      const roomsRes = await roomsPromise;
       const roomsPayload = await roomsRes.json().catch(() => ({}));
-      const lmPayload = await lmRes.json().catch(() => ({}));
-      const nearbyHotelsPayload = await nearbyHotelsRes.json().catch(() => ({}));
-
-      if (!hotelRes.ok) throw new Error(hotelPayload?.error || `Hotel load failed (HTTP ${hotelRes.status})`);
       if (!roomsRes.ok) throw new Error(roomsPayload?.error || `Rooms load failed (HTTP ${roomsRes.status})`);
-      if (!lmRes.ok) throw new Error(lmPayload?.error || `Landmarks load failed (HTTP ${lmRes.status})`);
-      if (!nearbyHotelsRes.ok) throw new Error(nearbyHotelsPayload?.error || `Nearby hotels load failed (HTTP ${nearbyHotelsRes.status})`);
-
-      setHotel(hotelPayload.hotel);
-      setLocationLabel(hotelPayload.hotel?.locationLabel || "Hotel Location");
       setRooms(roomsPayload.rooms || []);
-      setLandmarks(lmPayload.landmarks || []);
-      setNearbyHotels(nearbyHotelsPayload.hotels || []);
+      setLoading(false);
+
+      const [hotelRes, lmRes, nearbyHotelsRes] = await secondaryPromise;
+      const [hotelPayload, lmPayload, nearbyHotelsPayload] = await Promise.all([
+        hotelRes.json().catch(() => ({})),
+        lmRes.json().catch(() => ({})),
+        nearbyHotelsRes.json().catch(() => ({})),
+      ]);
+
+      if (hotelRes.ok) {
+        setHotel(hotelPayload.hotel);
+        setLocationLabel(hotelPayload.hotel?.locationLabel || "Hotel Location");
+      }
+      if (lmRes.ok) setLandmarks(lmPayload.landmarks || []);
+      if (nearbyHotelsRes.ok) setNearbyHotels(nearbyHotelsPayload.hotels || []);
     } catch (e) {
       setError(e?.message || "Failed to load Vision Suites.");
     } finally {
@@ -647,7 +651,7 @@ export default function VisionSuites() {
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-3xl md:text-5xl font-serif tracking-tight leading-tight mb-4 text-white drop-shadow-lg"
+            className="text-3xl md:text-5xl font-sans tracking-tight leading-tight mb-4 text-white drop-shadow-lg"
           >
             Navigate <span className="italic text-[#2FA084] font-light">Hotels and Rooms</span>
           </motion.h1>
@@ -665,7 +669,7 @@ export default function VisionSuites() {
             
             {/* Top Tag */}
             <div className="absolute -top-4 left-6">
-              <div className="flex items-center gap-2 bg-white dark:bg-[#18261e] px-4 py-1.5 shadow-md border border-[#1F6F5F]/30 text-[#2FA084] font-black text-xs tracking-widest uppercase font-serif">
+                <div className="flex items-center gap-2 bg-white dark:bg-[#18261e] px-4 py-1.5 shadow-md border border-[#1F6F5F]/30 text-[#2FA084] font-black text-xs tracking-widest uppercase font-sans">
                 <Hotel size={14} className="text-[#2FA084]" />
                 <span>{viewMode === "hotel" ? "Hotel Directory" : "Room Collection"}</span>
               </div>
@@ -699,28 +703,6 @@ export default function VisionSuites() {
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("Overnight Stays")}
-                  className={`text-sm font-bold transition-all pb-1 border-b-2 ${
-                    activeTab === "Overnight Stays"
-                      ? "text-[#2FA084] border-[#2FA084]"
-                      : "text-slate-400 border-transparent hover:text-white"
-                  }`}
-                >
-                  Overnight Stays
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("Day Use Stays")}
-                  className={`text-sm font-bold transition-all pb-1 border-b-2 ${
-                    activeTab === "Day Use Stays"
-                      ? "text-[#2FA084] border-[#2FA084]"
-                      : "text-slate-400 border-transparent hover:text-white"
-                  }`}
-                >
-                  Day Use Stays
-                </button>
               </div>
 
               <button
@@ -898,7 +880,7 @@ export default function VisionSuites() {
                   <div className="p-5 flex flex-col justify-between flex-1">
                     <div>
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                        <h4 className="text-xl font-serif font-black text-slate-900 dark:text-white">{entry.name}</h4>
+                        <h4 className="text-xl font-sans font-black text-slate-900 dark:text-white">{entry.name}</h4>
                       </div>
 
                       <div className="flex items-center gap-2 text-xs text-[#2FA084] font-semibold mb-2">
@@ -977,7 +959,7 @@ export default function VisionSuites() {
                   <div className="flex-1 p-6 lg:p-7 flex flex-col justify-between">
                     <div>
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <h4 className="text-2xl font-serif font-black text-slate-900 dark:text-white">{room.name}</h4>
+                        <h4 className="text-2xl font-sans font-black text-slate-900 dark:text-white">{room.name}</h4>
                         <div className="hidden lg:flex items-center gap-1.5 border border-[#1F6F5F]/30 bg-[#1F6F5F]/20 px-3 py-1">
                           <Star size={13} className="fill-[#2FA084] text-[#2FA084]" />
                           <span className="text-xs font-black text-[#2FA084]">{Number(room.avgRating || 0).toFixed(1)}</span>
@@ -1103,7 +1085,7 @@ export default function VisionSuites() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.35em] text-[#2FA084] mb-3">Executive Privileges</p>
-                <h3 className="text-3xl font-serif font-black text-slate-900 dark:text-white">Become a Member for Exclusive Perks</h3>
+                <h3 className="text-3xl font-sans font-black text-slate-900 dark:text-white">Become a Member for Exclusive Perks</h3>
                 <p className="mt-4 text-slate-600 dark:text-slate-300 leading-relaxed">
                   Unlock customized suite recommendations, loyalty tier multipliers, and priority VIP reservations.
                 </p>

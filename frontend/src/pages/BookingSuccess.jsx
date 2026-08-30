@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, XCircle, Loader2, Star } from 'lucide-react';
 
 export default function BookingSuccess() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const reservationId = searchParams.get('reservationId');
   const bookingNumber = searchParams.get('bookingNumber');
 
@@ -28,6 +29,12 @@ export default function BookingSuccess() {
   useEffect(() => {
     if (!reservationId) { setStatus('failed'); return; }
 
+    if (location.pathname === '/booking/failed') {
+      fetch(`/api/payment/failed/${reservationId}`, { method: 'POST' }).catch(() => {});
+      setStatus('failed');
+      return;
+    }
+
     if (status === 'paid') {
       const redirectTimer = setTimeout(() => navigate('/customer/bookings'), 1500);
       return () => clearTimeout(redirectTimer);
@@ -47,7 +54,11 @@ export default function BookingSuccess() {
             totalAmount: found.total_amount,
             status: found.status,
           });
-          setStatus(found.status === 'CONFIRMED' ? 'paid' : 'verifying');
+          if (['CANCELLED', 'FAILED'].includes(String(found.status || '').toUpperCase())) {
+            setStatus('failed');
+          } else {
+            setStatus(found.status === 'CONFIRMED' ? 'paid' : 'verifying');
+          }
         }
       } catch { setStatus('failed'); }
     };
@@ -58,10 +69,14 @@ export default function BookingSuccess() {
     const interval = setInterval(async () => {
       attempts++;
       await verify();
-      if (attempts >= 10) { clearInterval(interval); setStatus(s => s === 'verifying' ? 'paid' : s); }
+      if (attempts >= 10) {
+        clearInterval(interval);
+        setStatus(s => s === 'verifying' ? 'failed' : s);
+        fetch(`/api/payment/failed/${reservationId}`, { method: 'POST' }).catch(() => {});
+      }
     }, 3000);
     return () => clearInterval(interval);
-  }, [reservationId]);
+  }, [reservationId, location.pathname]);
 
   const submitReview = async () => {
     if (!rating || !comment.trim()) return;

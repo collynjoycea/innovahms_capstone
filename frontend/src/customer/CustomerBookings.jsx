@@ -23,13 +23,16 @@ import {
 const BOOKING_TABS = [
   { id: "upcoming", label: "Upcoming" },
   { id: "active", label: "Active" },
-  { id: "past", label: "Past" },
+  { id: "completed", label: "Completed Bookings" },
   { id: "cancelled", label: "Cancelled" },
 ];
 
 const getBookingBucket = (booking) => {
   const status = String(booking.status || "").toLowerCase();
-  if (status === "cancelled") return "cancelled";
+  const onlinePayment = ["card", "gcash", "maya", "qrph", "online"].includes(String(booking.paymentMethod || "").toLowerCase());
+  // A PayMongo booking is only a real booking after payment confirmation.
+  // Keep abandoned/unpaid attempts out of Upcoming even if the API still has PENDING.
+  if (status === "cancelled" || status === "failed" || (status === "pending" && onlinePayment)) return "cancelled";
   if (status === "checked_in") return "active";
 
   const today = new Date();
@@ -42,8 +45,8 @@ const getBookingBucket = (booking) => {
     return "active";
   }
 
-  if (checkOut && checkOut < today) {
-    return "past";
+  if (["completed", "checked_out"].includes(status) || (checkOut && checkOut < today)) {
+    return "completed";
   }
 
   return "upcoming";
@@ -132,7 +135,7 @@ export default function CustomerBookings() {
     const buckets = {
       upcoming: [],
       active: [],
-      past: [],
+      completed: [],
       cancelled: [],
     };
 
@@ -405,7 +408,7 @@ export default function CustomerBookings() {
                           </button>
                         ) : null}
 
-                        {activeTab === "past" ? (
+                        {activeTab === "completed" ? (
                           hasReview(booking, reviews) ? (
                             <div className="w-full rounded-xl bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-800 text-center border border-emerald-100">
                               ✓ Feedback Submitted
@@ -448,7 +451,7 @@ export default function CustomerBookings() {
               <p className="mt-1 text-xs text-zinc-500">There are currently no stays in this category.</p>
               <button
                 type="button"
-                onClick={() => navigate("/vision-suites")}
+                onClick={() => navigate("/vision-suites?viewMode=room")}
                 className="mt-5 rounded-xl bg-emerald-700 px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-800"
               >
                 Browse Available Rooms

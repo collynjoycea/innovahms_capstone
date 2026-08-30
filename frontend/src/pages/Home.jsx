@@ -84,9 +84,6 @@ export default function LandingPage() {
   const [promotionCards, setPromotionCards] = useState(fallbackPromotions);
   const [sessionUser, setSessionUser] = useState(null);
   
-  // Stay Type State: 'overnight' or 'day_use'
-  const [stayType, setStayType] = useState("overnight");
-
   const [heroCheckIn, setHeroCheckIn] = useState(() => toInputDate(new Date()));
   const [heroCheckOut, setHeroCheckOut] = useState(() => {
     const nextDay = new Date();
@@ -267,29 +264,13 @@ export default function LandingPage() {
     return () => clearTimeout(timer);
   }, [location.pathname, location.hash, hotelCards.length, promotionCards.length]);
 
-  // Handle stay type changes and sync check-out logic
-  useEffect(() => {
-    if (stayType === "day_use") {
-      setHeroCheckOut(heroCheckIn);
-    } else {
-      if (!heroCheckOut || heroCheckOut <= heroCheckIn) {
-        setHeroCheckOut(addDaysToInputDate(heroCheckIn, 1));
-      }
-    }
-  }, [stayType, heroCheckIn]);
-
   const handleHeroCheckInChange = (event) => {
     const newCheckIn = event.target.value;
     setHeroCheckIn(newCheckIn);
-    if (stayType === "day_use") {
-      setHeroCheckOut(newCheckIn);
-    }
   };
 
   const handleHeroCheckOutChange = (event) => {
-    if (stayType !== "day_use") {
-      setHeroCheckOut(event.target.value);
-    }
+    setHeroCheckOut(event.target.value);
   };
 
   const handleHeroAvailabilitySearch = () => {
@@ -298,9 +279,8 @@ export default function LandingPage() {
     if (heroCheckOut) params.set("to", heroCheckOut);
     if (heroGuests) params.set("guests", String(heroGuests));
     if (heroRoomType && heroRoomType !== "Any") params.set("view", heroRoomType);
-    if (stayType) params.set("stayType", stayType);
-    
-    navigate(`/vision-suites${params.toString() ? `?${params.toString()}` : ""}`);
+    params.set("viewMode", "room");
+    navigate(`/vision-suites?${params.toString()}`);
   };
 
   const roomTypeOptions = Array.from(
@@ -416,32 +396,6 @@ export default function LandingPage() {
             {/* Main Search Panel Box */}
             <div className="relative z-10 rounded-2xl bg-white dark:bg-[#121E1A] p-4 sm:p-5 shadow-[0_15px_40px_rgba(0,0,0,0.25)] border border-gray-100 dark:border-[#243B33] text-left">
               
-              {/* Overnight vs Day Use Toggle Buttons */}
-              <div className="flex items-center gap-2 mb-3">
-                <button
-                  type="button"
-                  onClick={() => setStayType("overnight")}
-                  className={`px-3.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                    stayType === "overnight"
-                      ? "bg-emerald-50 dark:bg-[#182924] text-[#1F6F5F] dark:text-[#6FCF97] border border-emerald-200 dark:border-[#2FA084]/30"
-                      : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#182924]"
-                  }`}
-                >
-                  Overnight Stays
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStayType("day_use")}
-                  className={`px-3.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                    stayType === "day_use"
-                      ? "bg-emerald-50 dark:bg-[#182924] text-[#1F6F5F] dark:text-[#6FCF97] border border-emerald-200 dark:border-[#2FA084]/30"
-                      : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#182924]"
-                  }`}
-                >
-                  Day Use Stays
-                </button>
-              </div>
-
               {/* Input Row 1: Room Type Dropdown */}
               <div className="mb-2.5">
                 <div className="flex items-center gap-2.5 w-full rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3.5 py-2 focus-within:border-[#1F6F5F] dark:focus-within:border-[#2FA084] transition-all">
@@ -483,7 +437,7 @@ export default function LandingPage() {
 
                   <div className="pl-2">
                     <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">
-                      {stayType === "day_use" ? "Same Day Check-out" : "Check-out"}
+                      Check-out
                     </p>
                     <div className="flex items-center gap-1.5">
                       <CalendarDays size={14} className="text-[#1F6F5F] dark:text-[#6FCF97] shrink-0" />
@@ -491,13 +445,8 @@ export default function LandingPage() {
                         type="date"
                         value={heroCheckOut}
                         min={heroMinCheckOut}
-                        disabled={stayType === "day_use"}
                         onChange={handleHeroCheckOutChange}
-                        className={`w-full bg-transparent text-xs font-semibold outline-none ${
-                          stayType === "day_use" 
-                            ? "text-gray-400 dark:text-gray-500 cursor-not-allowed" 
-                            : "text-gray-800 dark:text-white cursor-pointer"
-                        }`}
+                        className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
                       />
                     </div>
                   </div>
