@@ -100,6 +100,7 @@ import Facilities from "./pages/Facilities";
 import Features from "./pages/Features";
 import Privileges from "./pages/Privileges";
 import HotelDetail from "./pages/HotelDetail";
+import RoomDetail from "./pages/RoomDetail";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Booking from "./pages/Booking";
@@ -158,6 +159,7 @@ function App() {
           <Route path="/terms-of-service" element={<Navigate to="/features" replace />} />
           <Route path="/facilities" element={<Facilities />} />
           <Route path="/hoteldetail/:id" element={<HotelDetail />} />
+          <Route path="/roomdetail/:id" element={<RoomDetail />} />
 
           <Route path="/recommendations" element={<ViewRecommendations isLoggedIn={isCustomerLoggedIn} userType={customerUserType} />} />
           <Route path="/offers" element={<GuestsOffer isLoggedIn={isCustomerLoggedIn} />} />

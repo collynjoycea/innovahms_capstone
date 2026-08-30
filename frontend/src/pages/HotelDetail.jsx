@@ -1,20 +1,19 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   MapPin,
   Users,
-  Wifi,
-  Waves,
-  Utensils,
-  CalendarDays,
   Star,
-  X,
   ScanEye,
-  ThumbsUp,
-  User,
+  Navigation,
+  Building2,
+  BedDouble,
+  Wifi,
+  Utensils,
+  Waves,
+  CheckCircle2,
 } from "lucide-react";
-import Marzipano from "marzipano";
 import resolveImg from "../utils/resolveImg";
 
 const FALLBACKS = [
@@ -26,37 +25,22 @@ const FALLBACKS = [
 
 const toList = (value) => {
   if (Array.isArray(value)) return value;
-  if (typeof value === "string") return value.split(",").map((i) => i.trim()).filter(Boolean);
+  if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean);
   return [];
-};
-
-// Helper function to mask usernames like Shopee (e.g. "john_doe" -> "j*****e")
-const maskUsername = (name) => {
-  if (!name) return "g*****t";
-  const str = String(name).trim();
-  if (str.length <= 2) return str[0] + "*";
-  return str[0] + "*".repeat(Math.min(str.length - 2, 5)) + str[str.length - 1];
 };
 
 export default function HotelDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [room, setRoom] = useState(null);
+  const [hotel, setHotel] = useState(null);
+  const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [imgError, setImgError] = useState(false);
-  const [reviews, setReviews] = useState([]);
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [helpfulCounts, setHelpfulCounts] = useState({});
-
-  // 360 tour state
-  const [tourOpen, setTourOpen] = useState(false);
-  const [tourLoading, setTourLoading] = useState(false);
-  const [tourData, setTourData] = useState(null);
-  const [tourActive, setTourActive] = useState(false);
-  const [tourNotice, setTourNotice] = useState("");
-  const panoRef = useRef(null);
-  const viewerRef = useRef(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState("");
+  const [userCoords, setUserCoords] = useState(null);
+  const [mapModalOpen, setMapModalOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -64,282 +48,192 @@ export default function HotelDetail() {
     setError("");
     setImgError(false);
 
-    fetch("/api/rooms")
-      .then((r) => r.json())
-      .then((payload) => {
+    Promise.all([
+      fetch("/api/home/hotels"),
+      fetch("/api/rooms"),
+    ])
+      .then(async ([hotelRes, roomRes]) => {
         if (!mounted) return;
-        const rooms = Array.isArray(payload?.rooms) ? payload.rooms : Array.isArray(payload) ? payload : [];
-        const found = rooms.find((item) => String(item.id) === String(id));
-        if (!found) throw new Error("Room not found.");
-        setRoom(found);
+
+        const hotelPayload = await hotelRes.json().catch(() => ({}));
+        const roomPayload = await roomRes.json().catch(() => ({}));
+
+        const hotels = Array.isArray(hotelPayload?.hotels) ? hotelPayload.hotels : [];
+        const roomsList = Array.isArray(roomPayload?.rooms) ? roomPayload.rooms : Array.isArray(roomPayload) ? roomPayload : [];
+
+        const matchedHotel = hotels.find((item) => String(item.id) === String(id));
+        const hotelRooms = roomsList.filter((room) => String(room.hotel_id || room.hotelId || room.hotel_id) === String(id));
+
+        if (!matchedHotel && hotelRooms.length === 0) {
+          throw new Error("Hotel not found.");
+        }
+
+        setHotel(matchedHotel || {
+          id,
+          name: "Innova Hotel",
+          location: "Innova Smart Hotel",
+          description: "A connected hotel experience powered by Innova HMS.",
+          image: "/images/signup-img.png",
+          tag: "Connected Hotel",
+        });
+
+        setRooms(hotelRooms);
       })
-      .catch((err) => { if (mounted) setError(err?.message || "Unable to load room."); })
-      .finally(() => { if (mounted) setLoading(false); });
-
-    fetch("/api/reviews")
-      .then((r) => r.json())
-      .then((data) => { if (mounted) setReviews(data.reviews || []); })
-      .catch(() => {});
-
-    return () => { mounted = false; };
-  }, [id]);
-
-  const amenities = useMemo(() => {
-    const parsed = toList(room?.amenities).map((item) => String(item).toLowerCase());
-    return {
-      wifi: parsed.some((item) => item.includes("wifi")),
-      pool: parsed.some((item) => item.includes("pool")),
-      dining: parsed.some((item) => item.includes("dining") || item.includes("breakfast")),
-      list: parsed.length ? parsed : ["smart controls", "premium comfort", "24/7 support"],
-    };
-  }, [room]);
-
-  const roomImg = useMemo(() => {
-    const raw = Array.isArray(room?.images) ? room.images.filter(Boolean) : [];
-    const first = raw[0] || room?.imageUrl || room?.image_url || "";
-    return first ? resolveImg(first) : FALLBACKS[0];
-  }, [room]);
-
-  const currentImg = imgError ? FALLBACKS[0] : roomImg;
-
-  const roomReviews = useMemo(() => {
-    if (!room || !reviews.length) return [];
-    const roomName = room.roomName || room.name || "";
-    const hotelName = room.location_description || "";
-    return reviews.filter((rev) => {
-      if (rev.roomId && String(rev.roomId) === String(room.id)) return true;
-      if (rev.roomId == null) {
-        return (
-          (roomName && rev.roomName?.toLowerCase().includes(roomName.toLowerCase())) ||
-          (hotelName && rev.hotelName?.toLowerCase().includes(hotelName.toLowerCase())) ||
-          (hotelName && rev.roomName?.toLowerCase().includes(hotelName.toLowerCase()))
-        );
-      }
-      return false;
-    });
-  }, [room, reviews]);
-
-  // Review Summary Stats
-  const reviewStats = useMemo(() => {
-    if (!roomReviews.length) return { average: 5.0, count: 0, countsByStar: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };
-    const countsByStar = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-    let sum = 0;
-    roomReviews.forEach((rev) => {
-      const r = Math.min(5, Math.max(1, Math.round(Number(rev.rating) || 5)));
-      countsByStar[r] = (countsByStar[r] || 0) + 1;
-      sum += Number(rev.rating) || 5;
-    });
-    return {
-      average: (sum / roomReviews.length).toFixed(1),
-      count: roomReviews.length,
-      countsByStar,
-    };
-  }, [roomReviews]);
-
-  // Filtered reviews based on active chip filter
-  const filteredReviews = useMemo(() => {
-    if (activeFilter === "All") return roomReviews;
-    if (activeFilter.includes("Star")) {
-      const targetStar = parseInt(activeFilter);
-      return roomReviews.filter((r) => Math.round(Number(r.rating) || 5) === targetStar);
-    }
-    return roomReviews;
-  }, [roomReviews, activeFilter]);
-
-  const toggleHelpful = (revId) => {
-    setHelpfulCounts((prev) => ({
-      ...prev,
-      [revId]: {
-        count: (prev[revId]?.count || 0) + (prev[revId]?.active ? -1 : 1),
-        active: !prev[revId]?.active,
-      },
-    }));
-  };
-
-  // --- 360 Tour handlers ---
-  const openTour = async () => {
-    setTourOpen(true);
-    setTourActive(false);
-    setTourData(null);
-    setTourNotice("");
-    setTourLoading(true);
-    try {
-      const res = await fetch(`/api/rooms/${id}/tour`);
-      const payload = await res.json().catch(() => ({}));
-      if (res.ok && payload?.tour) {
-        setTourData(payload.tour);
-      } else {
-        setTourNotice("No 360° tour configured for this room yet. Showing preview.");
-      }
-    } catch {
-      setTourNotice("Could not load tour data.");
-    } finally {
-      setTourLoading(false);
-    }
-  };
-
-  const closeTour = () => {
-    setTourOpen(false);
-    setTourActive(false);
-    if (viewerRef.current) {
-      try { viewerRef.current.destroy(); } catch {}
-      viewerRef.current = null;
-    }
-  };
-
-  useEffect(() => {
-    if (!tourActive || !tourData || !panoRef.current) return;
-    let isCleanedUp = false;
-    
-    try {
-      panoRef.current.innerHTML = "";
-      const viewer = new Marzipano.Viewer(panoRef.current, { controls: { mouseViewMode: "drag" } });
-      viewerRef.current = viewer;
-      
-      const source = Marzipano.ImageUrlSource.fromString(tourData.panoramaUrl);
-      const geometry = new Marzipano.EquirectGeometry([{ width: 4000 }]);
-      const limiter = Marzipano.RectilinearView.limit.traditional(2048, (120 * Math.PI) / 180);
-      const view = new Marzipano.RectilinearView(
-        { 
-          yaw: Number(tourData.initialYaw || 0), 
-          pitch: Number(tourData.initialPitch || 0), 
-          fov: Number(tourData.initialFov || Math.PI / 2) 
-        },
-        limiter
-      );
-
-      if (!isCleanedUp) {
-        viewer.createScene({ source, geometry, view, pinFirstLevel: true }).switchTo();
-      }
-    } catch {
-      setTourNotice("Unable to initialize 360° viewer.");
-      setTourActive(false);
-    }
+      .catch((err) => {
+        if (mounted) setError(err?.message || "Unable to load hotel details.");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
 
     return () => {
-      isCleanedUp = true;
-      if (viewerRef.current) {
-        try { viewerRef.current.destroy(); } catch {}
-        viewerRef.current = null;
-      }
+      mounted = false;
     };
-  }, [tourActive, tourData]);
+  }, [id]);
+
+  const hotelImage = useMemo(() => {
+    const raw = hotel?.image || hotel?.hotelLogo || hotel?.buildingImage || "";
+    return raw ? resolveImg(raw) : FALLBACKS[0];
+  }, [hotel]);
+
+  const currentHotelImage = imgError ? FALLBACKS[0] : hotelImage;
+
+  const amenities = useMemo(() => {
+    const items = toList(hotel?.amenities || hotel?.features || []).map((item) => String(item).trim());
+    return items.length ? items : ["Wi‑Fi", "Breakfast", "Pool", "Concierge", "Parking", "24/7 Support"];
+  }, [hotel]);
+
+  const avgRoomPrice = rooms.length
+    ? rooms.reduce((sum, room) => sum + Number(room.price || room.base_price_php || room.price_per_night || 0), 0) / rooms.length
+    : 0;
+
+  const handleGetDirections = () => {
+    setRouteLoading(true);
+    setRouteError("");
+
+    if (!navigator.geolocation) {
+      setRouteError("Geolocation is not supported by your browser.");
+      setRouteLoading(false);
+      setMapModalOpen(true);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserCoords({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+        setRouteLoading(false);
+        setMapModalOpen(true);
+      },
+      (err) => {
+        console.warn("Geolocation warning:", err.message);
+        setRouteError("Unable to retrieve your location. Please check permissions.");
+        setRouteLoading(false);
+        setMapModalOpen(true);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
 
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50 dark:bg-[#0d1412] flex items-center justify-center">
-        <div className="w-12 h-12 border-2 border-[#1F6F5F] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#1F6F5F] border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
 
-  if (error || !room) {
+  if (error || !hotel) {
     return (
-      <main className="min-h-screen bg-slate-50 dark:bg-[#0d1412] px-6 py-24 text-center">
-        <p className="text-base font-semibold text-slate-800 dark:text-zinc-100">{error || "Room unavailable."}</p>
+      <main className="min-h-screen bg-slate-50 dark:bg-[#0d1412] px-6 py-20 text-center">
+        <p className="text-sm font-medium text-slate-700 dark:text-zinc-200">{error || "Hotel unavailable."}</p>
         <button
           onClick={() => navigate("/")}
-          className="mt-6 px-6 py-3 rounded-xl bg-[#1F6F5F] hover:bg-[#2FA084] text-white text-xs font-bold uppercase tracking-widest transition-colors shadow-lg"
+          className="mt-4 px-5 py-2 rounded-lg bg-[#1F6F5F] text-white text-xs font-medium hover:bg-[#2FA084] transition-colors"
         >
-          Back to Home
+          Return to Home
         </button>
       </main>
     );
   }
 
-  const guestCount = Number(room.maxAdults || 0) + Number(room.maxChildren || 0) || 2;
-  const price = Number(room.base_price_php || room.price_per_night || room.price || 0);
-
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-[#0d1412] text-slate-900 dark:text-zinc-100 transition-colors duration-300">
-      <section className="max-w-7xl mx-auto px-6 py-8">
-        <nav className="mb-6 flex items-center gap-3">
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        <nav className="mb-4 flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400">
           <button
             onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 text-[#1F6F5F] dark:text-[#2FA084] text-xs font-semibold hover:opacity-80 transition-opacity"
+            className="inline-flex items-center gap-1 text-[#1F6F5F] dark:text-[#2FA084] font-medium hover:underline"
           >
-            <ArrowLeft size={16} /> Back
+            <ArrowLeft size={14} /> Back
           </button>
-          <span className="text-slate-300 dark:text-zinc-700">/</span>
-          <Link
-            to="/"
-            className="text-xs font-medium text-slate-400 dark:text-zinc-500 hover:text-[#1F6F5F] dark:hover:text-[#2FA084] transition-colors"
-          >
-            Home
-          </Link>
-          <span className="text-slate-300 dark:text-zinc-700">/</span>
-          <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 truncate max-w-[200px]">
-            {room.roomName || room.name || "Room Detail"}
+          <span>/</span>
+          <Link to="/" className="hover:text-[#1F6F5F] transition-colors">Home</Link>
+          <span>/</span>
+          <span className="truncate max-w-[220px] text-slate-700 dark:text-zinc-200 font-medium">
+            {hotel.name || "Hotel Detail"}
           </span>
         </nav>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* SINGLE ROOM IMAGE */}
-          <div>
-            <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-md bg-slate-100 dark:bg-[#0f1a17] h-[420px]">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6">
+          <div className="lg:col-span-7">
+            <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-[#0f1a17] h-[340px] shadow-sm">
               <img
-                src={currentImg}
-                alt={room.roomName || "Room"}
+                src={currentHotelImage}
+                alt={hotel.name}
                 onError={() => setImgError(true)}
                 className="w-full h-full object-cover"
               />
-              <button
-                onClick={openTour}
-                className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-black/70 hover:bg-[#1F6F5F] text-white backdrop-blur-md rounded-full px-4 py-2 transition-all shadow-md"
-              >
-                <ScanEye size={15} />
-                <span className="text-[11px] font-semibold">360° Tour</span>
-              </button>
             </div>
           </div>
 
-          {/* ROOM INFO */}
-          <div className="bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-2xl p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#1F6F5F] dark:text-[#2FA084] mb-2">
-              {String(room.status || "AVAILABLE").toUpperCase()} — {room.roomType || "Suite"}
-            </p>
-            <h1 className="text-3xl font-bold tracking-tight mb-3">{room.roomName || room.name || "Innova Room"}</h1>
-            <p className="text-sm text-slate-600 dark:text-zinc-300 leading-relaxed mb-6">
-              {room.description || `${room.roomType || "Premium"} room crafted for smart hospitality and elevated guest comfort.`}
-            </p>
+          <div className="lg:col-span-5 bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold tracking-wider text-[#1F6F5F] dark:text-[#2FA084] uppercase">
+                  {hotel.tag || "Connected Hotel"}
+                </span>
+                <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 font-medium">
+                  Open Hotel
+                </span>
+              </div>
 
-            <div className="space-y-2.5 mb-6">
-              <p className="text-xs flex items-center gap-2 text-slate-600 dark:text-zinc-300">
-                <MapPin size={15} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
-                {room.location_description || "Innova Smart Hotel"}
-              </p>
-              <p className="text-xs flex items-center gap-2 text-slate-600 dark:text-zinc-300">
-                <Users size={15} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
-                Up to {Math.max(guestCount, 1)} guests
-              </p>
-              <p className="text-xs flex items-center gap-2 text-slate-600 dark:text-zinc-300">
-                <CalendarDays size={15} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
-                Flexible stay dates available
-              </p>
-            </div>
+              <h1 className="text-xl font-bold tracking-tight mb-2 text-slate-900 dark:text-white">
+                {hotel.name}
+              </h1>
 
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              {[
-                { icon: <Wifi size={16} />, label: "WiFi", active: amenities.wifi },
-                { icon: <Waves size={16} />, label: "Pool", active: amenities.pool },
-                { icon: <Utensils size={16} />, label: "Dining", active: amenities.dining },
-              ].map(({ icon, label, active }) => (
-                <div key={label} className="rounded-xl border border-slate-200 dark:border-white/10 p-3 text-center">
-                  <div className={`mx-auto mb-1 flex justify-center ${active ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-600"}`}>
-                    {icon}
+              <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed mb-4 line-clamp-3">
+                {hotel.description || "A premium hospitality destination designed for comfort, convenience, and elevated guest experiences."}
+              </p>
+
+              <div className="space-y-1.5 border-t border-slate-100 dark:border-white/5 pt-3 mb-4 text-xs text-slate-600 dark:text-zinc-300">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 truncate pr-2">
+                    <MapPin size={14} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
+                    <span className="truncate">{hotel.location || "Innova Smart Hotel"}</span>
                   </div>
-                  <p className="text-[11px] font-medium">{label}</p>
+                  <button
+                    onClick={handleGetDirections}
+                    disabled={routeLoading}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#1F6F5F] dark:text-[#2FA084] hover:underline shrink-0"
+                  >
+                    <Navigation size={12} /> {routeLoading ? "Locating..." : "Get Directions"}
+                  </button>
                 </div>
-              ))}
-            </div>
 
-            <div className="mb-6">
-              <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-2">Amenities</p>
-              <div className="flex flex-wrap gap-1.5">
-                {amenities.list.map((item, index) => (
+                <div className="flex items-center gap-2">
+                  <Building2 size={14} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
+                  <span>{rooms.length} rooms available</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {amenities.slice(0, 5).map((item, index) => (
                   <span
                     key={index}
-                    className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-zinc-300 capitalize"
+                    className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[11px] text-slate-600 dark:text-zinc-300"
                   >
                     {item}
                   </span>
@@ -347,229 +241,233 @@ export default function HotelDetail() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-4 pt-4 border-t border-slate-200 dark:border-white/10">
+            <div className="pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-[#1F6F5F] dark:text-[#2FA084]">PHP {price.toLocaleString()}</p>
-                <p className="text-xs text-slate-400 dark:text-zinc-500">per night</p>
+                <div className="text-lg font-bold text-[#1F6F5F] dark:text-[#2FA084]">
+                  {rooms.length ? `PHP ${avgRoomPrice.toLocaleString()}` : "PHP 0"}
+                </div>
+                <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-wide">Average Room Rate</div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={openTour}
-                  className="px-4 py-2.5 rounded-lg border border-slate-300 dark:border-white/20 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-white/5 transition-colors flex items-center gap-1.5"
-                >
-                  <ScanEye size={14} /> 360°
-                </button>
-                <button
-                  onClick={() => navigate(`/booking?roomId=${room.id}`)}
-                  className="px-5 py-2.5 rounded-lg bg-[#1F6F5F] hover:bg-[#2FA084] text-white text-xs font-semibold transition-colors shadow-sm"
-                >
-                  Reserve Now
-                </button>
+              <button
+                onClick={() => navigate(`/vision-suites?viewMode=room&hotel_id=${hotel.id}`)}
+                className="px-4 py-2 rounded-lg bg-[#1F6F5F] hover:bg-[#2FA084] text-white text-xs font-semibold transition-colors shadow-sm"
+              >
+                Browse Rooms
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="lg:col-span-7 bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-sm flex flex-col">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-white/5">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white">Hotel Highlights</h2>
+              <div className="flex items-center gap-1.5">
+                <Star size={14} fill="#1F6F5F" className="text-[#1F6F5F] dark:text-[#2FA084]" />
+                <span className="text-xs font-bold text-slate-800 dark:text-zinc-100">4.8</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0d1714] p-4">
+                <div className="mb-2 flex items-center gap-2 text-[#1F6F5F] dark:text-[#2FA084]">
+                  <Wifi size={15} />
+                  <span className="text-xs font-bold uppercase tracking-wide">Connectivity</span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-zinc-300">Fast internet, smart room systems, and reliable work-ready comfort for every guest.</p>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0d1714] p-4">
+                <div className="mb-2 flex items-center gap-2 text-[#1F6F5F] dark:text-[#2FA084]">
+                  <Utensils size={15} />
+                  <span className="text-xs font-bold uppercase tracking-wide">Dining</span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-zinc-300">Curated dining experiences and service that keep your stay effortless and enjoyable.</p>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0d1714] p-4">
+                <div className="mb-2 flex items-center gap-2 text-[#1F6F5F] dark:text-[#2FA084]">
+                  <Waves size={15} />
+                  <span className="text-xs font-bold uppercase tracking-wide">Wellness</span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-zinc-300">Relaxation spaces, invigorating facilities, and a calming atmosphere throughout the property.</p>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0d1714] p-4">
+                <div className="mb-2 flex items-center gap-2 text-[#1F6F5F] dark:text-[#2FA084]">
+                  <CheckCircle2 size={15} />
+                  <span className="text-xs font-bold uppercase tracking-wide">Service</span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-zinc-300">Friendly support, efficient check-in, and premium hospitality from arrival to departure.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-5 bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl p-4 shadow-sm flex flex-col">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                <MapPin size={14} className="text-[#1F6F5F] dark:text-[#2FA084]" />
+                Location & Directions
+              </span>
+              <button
+                onClick={handleGetDirections}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
+              >
+                <Navigation size={12} /> Route
+              </button>
+            </div>
+
+            <div
+              onClick={() => setMapModalOpen(true)}
+              className="relative flex-1 min-h-[260px] rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 cursor-pointer group bg-slate-100 dark:bg-zinc-900"
+            >
+              <div className="absolute inset-0 pointer-events-none">
+                <iframe
+                  title="Hotel location map"
+                  src={`https://www.google.com/maps?q=${encodeURIComponent(hotel.location || "Innova Smart Hotel")}&z=13&output=embed`}
+                  className="h-full w-full border-0"
+                  loading="lazy"
+                  allowFullScreen
+                />
+              </div>
+
+              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span className="bg-black/75 text-white text-[11px] font-medium px-3 py-1.5 rounded-md backdrop-blur-sm shadow">
+                  Click to Expand Map
+                </span>
               </div>
             </div>
           </div>
         </div>
-      </section>
 
-      {/* 360 TOUR MODAL */}
-      {tourOpen && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-5xl">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <div>
-                <p className="text-[#2FA084] text-xs font-semibold">360° Virtual Tour</p>
-                <h3 className="text-white text-lg font-bold">{room.roomName || room.name}</h3>
-              </div>
-              <button
-                onClick={closeTour}
-                className="h-9 w-9 rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-md hover:bg-[#2FA084] flex items-center justify-center transition-all"
-                aria-label="Close tour"
-              >
-                <X size={18} />
-              </button>
+        {rooms.length > 0 && (
+          <section className="mt-8">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Rooms at {hotel.name}</h2>
+              <span className="text-xs text-[#1F6F5F] dark:text-[#2FA084] font-medium">{rooms.length} available</span>
             </div>
 
-            <div className="relative rounded-2xl overflow-hidden bg-zinc-900 border border-white/10" style={{ height: "60vh" }}>
-              <div ref={panoRef} className="absolute inset-0" />
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {rooms.map((room) => {
+                const roomImage = Array.isArray(room.images) && room.images.length > 0 ? room.images[0] : FALLBACKS[0];
+                const roomPrice = Number(room.price || room.base_price_php || room.price_per_night || 0);
+                const roomName = room.roomName || room.name || room.roomType || "Suite";
 
-              {tourLoading && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-zinc-900">
-                  <div className="w-8 h-8 border-2 border-[#2FA084] border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
-
-              {!tourLoading && !tourData && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-zinc-900 text-center px-6">
-                  <ScanEye size={36} className="text-white/20" />
-                  <p className="text-white/60 text-sm font-semibold">No 360° tour configured for this room yet.</p>
-                  <p className="text-white/30 text-xs">{tourNotice}</p>
-                </div>
-              )}
-
-              {!tourLoading && tourData && !tourActive && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/60">
-                  <ScanEye size={32} className="text-[#2FA084]" />
-                  <p className="text-white/70 text-xs font-semibold">360° panorama ready</p>
-                  <button
-                    onClick={() => setTourActive(true)}
-                    className="px-6 py-3 rounded-full bg-[#1F6F5F] hover:bg-[#2FA084] text-white text-xs font-semibold transition-colors shadow-lg"
+                return (
+                  <article
+                    key={room.id}
+                    className="overflow-hidden rounded-2xl border border-gray-200 dark:border-[#243B33] bg-white dark:bg-[#0f1715] shadow-md"
                   >
-                    Start 360°
-                  </button>
-                </div>
-              )}
+                    <div className="relative h-44 overflow-hidden">
+                      <img
+                        src={resolveImg(roomImage)}
+                        alt={roomName}
+                        className="h-full w-full object-cover"
+                      />
+                      <span className="absolute right-3 top-3 rounded-full bg-[#080d0b]/80 px-2 py-1 text-[9px] font-mono uppercase tracking-[0.18em] text-[#6FCF97]">
+                        {String(room.status || "Available").toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div className="p-4">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <h3 className="text-lg font-semibold text-[#111C18] dark:text-white">{roomName}</h3>
+                        <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#1F6F5F] dark:text-[#6FCF97]">
+                          {room.roomType || "Suite"}
+                        </span>
+                      </div>
+
+                      <div className="mb-3 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                        <BedDouble size={14} className="text-[#1F6F5F] dark:text-[#2FA084]" />
+                        <span>{room.maxAdults || room.max_adults || 2} guests</span>
+                      </div>
+
+                      <div className="mb-3 flex flex-wrap gap-2 text-[10px] font-medium text-[#1F6F5F] dark:text-[#6FCF97]">
+                        {(Array.isArray(room.amenities) ? room.amenities : []).slice(0, 3).map((amenity, index) => (
+                          <span key={`${amenity}-${index}`} className="rounded-full border border-[#1F6F5F]/25 bg-[#1F6F5F]/5 px-2 py-1">
+                            {amenity}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 border-t border-gray-100 dark:border-[#243B33] pt-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-gray-400">Starting</p>
+                          <p className="text-xl font-bold text-[#1F6F5F] dark:text-[#6FCF97]">₱{roomPrice.toLocaleString()}</p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/booking?roomId=${room.id}`)}
+                          className="rounded-xl bg-[#1F6F5F] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#288B77] dark:bg-[#2FA084] dark:hover:bg-[#288B77]"
+                        >
+                          Reserve Room
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </div>
+
+      {mapModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-5xl h-[85vh] bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden shadow-2xl flex flex-col">
+            <div className="px-5 py-3.5 bg-slate-50 dark:bg-[#13221e] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#1F6F5F] dark:text-[#2FA084]">
+                  Hotel Overview
+                </span>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">{hotel.location || "Property Neighborhood"}</h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleGetDirections}
+                  className="px-3 py-1 rounded text-xs font-medium border border-slate-300 dark:border-white/20 text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-white/5 flex items-center gap-1.5"
+                >
+                  <Navigation size={12} /> Get Directions
+                </button>
+                <button
+                  onClick={() => setMapModalOpen(false)}
+                  className="h-8 w-8 rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-white hover:bg-slate-200 flex items-center justify-center transition-colors"
+                >
+                  ×
+                </button>
+              </div>
             </div>
 
-            <div className="mt-4 flex items-center justify-end gap-3">
+            {routeError && (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900/40 px-4 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                <span>{routeError}</span>
+                <button onClick={() => setRouteError("")} className="font-bold">&times;</button>
+              </div>
+            )}
+
+            <div className="flex-1 relative w-full h-full">
+              <iframe
+                title="Hotel map"
+                src={`https://www.google.com/maps?q=${encodeURIComponent(hotel.location || "Innova Smart Hotel")}&z=13&output=embed`}
+                className="h-full w-full border-0"
+                loading="lazy"
+                allowFullScreen
+              />
+            </div>
+
+            <div className="px-5 py-3 bg-slate-50 dark:bg-[#13221e] border-t border-slate-200 dark:border-white/10 flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400">
+              <span>{userCoords ? "Displaying route guidance from your current location." : "Map preview for the hotel and nearby area."}</span>
               <button
-                onClick={closeTour}
-                className="px-4 py-2 rounded-lg border border-white/20 text-white text-xs font-medium hover:bg-white/10 transition-colors"
+                onClick={() => setMapModalOpen(false)}
+                className="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-zinc-200 font-medium hover:bg-slate-300 transition-colors"
               >
-                Cancel
-              </button>
-              <button
-                onClick={() => { closeTour(); navigate(`/booking?roomId=${room.id}`); }}
-                className="px-4 py-2 rounded-lg bg-[#1F6F5F] hover:bg-[#2FA084] text-white text-xs font-semibold transition-colors"
-              >
-                Reserve This Room
+                Close Map
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* SHOPEE-STYLE REVIEWS SECTION */}
-      <section className="max-w-7xl mx-auto px-6 py-12">
-        <div className="bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Hotel Ratings & Reviews</h2>
-
-          {/* OVERVIEW RATING BANNER (Shopee Style) */}
-          <div className="bg-red-50/30 dark:bg-[#13221e] border border-slate-200 dark:border-white/5 rounded-xl p-6 mb-8 flex flex-col md:flex-row items-center gap-8">
-            <div className="text-center md:text-left shrink-0">
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-[#1F6F5F] dark:text-[#2FA084]">
-                  {reviewStats.count > 0 ? reviewStats.average : "5.0"}
-                </span>
-                <span className="text-sm font-medium text-slate-400 dark:text-zinc-400">out of 5</span>
-              </div>
-              <div className="flex gap-1 mt-1 justify-center md:justify-start">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <Star
-                    key={s}
-                    size={18}
-                    fill={s <= Math.round(Number(reviewStats.average)) ? "#1F6F5F" : "transparent"}
-                    className={s <= Math.round(Number(reviewStats.average)) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* FILTER CHIPS */}
-            <div className="flex flex-wrap gap-2">
-              {["All", "5 Star", "4 Star", "3 Star", "2 Star", "1 Star"].map((filter) => {
-                let label = filter;
-                if (filter === "All") label = `All (${reviewStats.count})`;
-                else if (filter.includes("Star")) {
-                  const starNum = parseInt(filter);
-                  label = `${filter} (${reviewStats.countsByStar[starNum] || 0})`;
-                }
-                const isSelected = activeFilter === filter;
-
-                return (
-                  <button
-                    key={filter}
-                    onClick={() => setActiveFilter(filter)}
-                    className={`px-4 py-1.5 rounded-md text-xs font-medium border transition-all ${
-                      isSelected
-                        ? "border-[#1F6F5F] text-[#1F6F5F] bg-white dark:bg-[#1F6F5F]/20 dark:text-[#2FA084] dark:border-[#2FA084] shadow-sm"
-                        : "border-slate-200 dark:border-white/10 text-slate-600 dark:text-zinc-300 bg-white dark:bg-white/5 hover:border-slate-300"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* PAHABANG REVIEWS LIST (FULL WIDTH / SINGLE COLUMN) */}
-          {filteredReviews.length > 0 ? (
-            <div className="divide-y divide-slate-100 dark:divide-white/5">
-              {filteredReviews.map((rev) => {
-                const nameInitial = rev.guestName ? rev.guestName[0].toUpperCase() : "G";
-                const displayUsername = maskUsername(rev.guestName);
-                const reviewDate = rev.createdAt
-                  ? new Date(rev.createdAt).toISOString().replace("T", " ").substring(0, 16)
-                  : "2026-04-12 14:20";
-                const currentHelpful = helpfulCounts[rev.id] || { count: 0, active: false };
-
-                return (
-                  <div key={rev.id} className="py-6 first:pt-0 last:pb-0">
-                    <div className="flex gap-4 items-start">
-                      {/* USER AVATAR */}
-                      <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-white/10 flex items-center justify-center shrink-0 text-slate-600 dark:text-zinc-300 text-xs font-semibold">
-                        {nameInitial ? nameInitial : <User size={16} />}
-                      </div>
-
-                      {/* REVIEW CONTENT PAHABA */}
-                      <div className="flex-1 min-w-0">
-                        {/* USERNAME */}
-                        <p className="text-xs font-medium text-slate-800 dark:text-zinc-200">{displayUsername}</p>
-
-                        {/* STARS */}
-                        <div className="flex gap-0.5 mt-1 mb-1.5">
-                          {[1, 2, 3, 4, 5].map((s) => (
-                            <Star
-                              key={s}
-                              size={12}
-                              fill={s <= (rev.rating || 5) ? "#1F6F5F" : "transparent"}
-                              className={s <= (rev.rating || 5) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
-                            />
-                          ))}
-                        </div>
-
-                        {/* TIMESTAMP & VARIATION */}
-                        <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-3">
-                          {reviewDate} | Variation: {room.roomType || "Standard Suite"}
-                        </p>
-
-                        {/* STRUCTURED SPECS (SHOPEE STYLE) */}
-                        <div className="space-y-1 text-xs text-slate-600 dark:text-zinc-300 mb-3">
-                          <p><span className="text-slate-400 dark:text-zinc-500">Performance:</span> Excellent</p>
-                          <p><span className="text-slate-400 dark:text-zinc-500">Room Quality:</span> Clean, spacious, and accurate as advertised.</p>
-                          {rev.title && <p><span className="text-slate-400 dark:text-zinc-500">Best Feature:</span> {rev.title}</p>}
-                        </div>
-
-                        {/* COMMENT BODY */}
-                        <p className="text-xs leading-relaxed text-slate-700 dark:text-zinc-200 mb-4">
-                          {rev.comment || "Great experience staying here! Smooth check-in and friendly staff."}
-                        </p>
-
-                        {/* HELPFUL BUTTON */}
-                        <button
-                          onClick={() => toggleHelpful(rev.id)}
-                          className={`inline-flex items-center gap-1.5 text-xs transition-colors ${
-                            currentHelpful.active
-                              ? "text-[#1F6F5F] dark:text-[#2FA084] font-semibold"
-                              : "text-slate-400 dark:text-zinc-500 hover:text-slate-600"
-                          }`}
-                        >
-                          <ThumbsUp size={13} />
-                          <span>Helpful? {currentHelpful.count > 0 && `(${currentHelpful.count})`}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-12 text-slate-400 dark:text-zinc-500 text-xs">
-              No reviews match the selected rating filter.
-            </div>
-          )}
-        </div>
-      </section>
     </main>
   );
 }

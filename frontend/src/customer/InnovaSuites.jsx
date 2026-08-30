@@ -572,7 +572,7 @@ export default function InnovaSuites() {
                     </div>
                     <div className="flex items-center gap-3">
                       <Link
-                        to={`/hoteldetail/${room.id}`}
+                        to={`/roomdetail/${room.id}`}
                         className="text-xs font-semibold text-zinc-400 hover:text-white transition-colors"
                       >
                         Details

@@ -20,8 +20,8 @@ const fallbackPackages = [
     name: "Silver",
     slug: "silver",
     description: "Entry access to member pricing and elevated guest benefits.",
-    monthlyPrice: 399,
-    annualPrice: 3990,
+    monthlyPrice: 1,
+    annualPrice: 1,
     bonusPoints: 500,
     isPopular: false,
     perks: [
@@ -135,6 +135,9 @@ export default function Privileges() {
   const [paymentLoading, setPaymentLoading] = useState("");
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentSelection, setPaymentSelection] = useState(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("gcash");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -247,7 +250,7 @@ export default function Privileges() {
     },
   ]), [summary, subscription, privilegeActive]);
 
-  const handleCheckout = async (pkg, billingCycle) => {
+  const handleCheckout = async (pkg, billingCycle, paymentMethod = "gcash") => {
     if (!customerId) {
       navigate("/login");
       return;
@@ -264,6 +267,7 @@ export default function Privileges() {
           customerId,
           packageId: pkg.id,
           billingCycle,
+          paymentMethod,
         }),
       });
       const data = await response.json();
@@ -279,6 +283,12 @@ export default function Privileges() {
       setError(err.message || "Unable to start privilege checkout.");
       setPaymentLoading("");
     }
+  };
+
+  const openPaymentMethodModal = (pkg, billingCycle) => {
+    setPaymentSelection({ pkg, billingCycle });
+    setSelectedPaymentMethod("gcash");
+    setPaymentModalOpen(true);
   };
 
   const handleCancelPrivilege = async () => {
@@ -312,6 +322,60 @@ export default function Privileges() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-[#080d0b] dark:text-[#EEEEEE] font-sans selection:bg-[#2FA084]/30">
       
+      {/* PAYMENT METHOD MODAL */}
+      {paymentModalOpen && paymentSelection ? (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-[#243B33] dark:bg-[#0e1a16]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-mono tracking-widest text-[#1F6F5F] dark:text-[#6FCF97] uppercase">Payment Method</p>
+                <h3 className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">
+                  Choose how you want to pay
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPaymentModalOpen(false)}
+                className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 dark:border-[#243B33] dark:text-gray-300 dark:hover:bg-[#182924]"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-3">
+              {[
+                { key: "gcash", label: "GCash" },
+                { key: "paymaya", label: "Maya / eWallet" },
+                { key: "qrph", label: "QR Ph" },
+                { key: "card", label: "Card" },
+              ].map((method) => (
+                <button
+                  key={method.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedPaymentMethod(method.key);
+                    setPaymentModalOpen(false);
+                    handleCheckout(paymentSelection.pkg, paymentSelection.billingCycle, method.key);
+                  }}
+                  className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all ${
+                    selectedPaymentMethod === method.key
+                      ? "border-[#2FA084] bg-[#1F6F5F]/5 text-[#1F6F5F] dark:border-[#2FA084] dark:bg-[#1F6F5F]/10 dark:text-[#6FCF97]"
+                      : "border-gray-200 bg-slate-50 text-gray-700 hover:bg-gray-100 dark:border-[#243B33] dark:bg-[#080d0b]/40 dark:text-gray-200 dark:hover:bg-[#182924]"
+                  }`}
+                >
+                  <span className="text-sm font-medium">{method.label}</span>
+                  <span className="text-[10px] uppercase tracking-wider">Select</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-6 rounded-xl border border-gray-100 bg-slate-50 p-3 text-xs text-gray-600 dark:border-[#182924] dark:bg-[#080d0b]/40 dark:text-gray-300">
+              Selected: <span className="font-semibold text-gray-900 dark:text-white">{selectedPaymentMethod.toUpperCase()}</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* CANCEL MODAL */}
       {cancelModalOpen ? (
         <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
@@ -485,32 +549,22 @@ export default function Privileges() {
                     <div className="grid grid-cols-2 gap-2.5">
                       <button
                         type="button"
-                        onClick={() => handleCheckout(pkg, isCurrent ? "MONTHLY" : "ANNUAL")}
+                        onClick={() => openPaymentMethodModal(pkg, isCurrent ? "MONTHLY" : "ANNUAL")}
                         disabled={Boolean(paymentLoading) || cancelLoading}
                         className="rounded-xl bg-[#1F6F5F] hover:bg-[#288B77] text-white py-2.5 text-[11px] font-medium uppercase tracking-wider transition-all disabled:opacity-60"
                       >
                         {paymentLoading === `${pkg.id}-${isCurrent ? "MONTHLY" : "ANNUAL"}`
                           ? "Processing..."
-                          : isCurrent
-                            ? `Renew ${formatPhp(pkg.monthlyPrice)}`
-                            : `Pay ${formatPhp(pkg.annualPrice)}`}
+                          : "Pay"}
                       </button>
                       
                       <button
                         type="button"
-                        onClick={() => (isCurrent ? setCancelModalOpen(true) : handleCheckout(pkg, "MONTHLY"))}
+                        onClick={() => setCancelModalOpen(true)}
                         disabled={Boolean(paymentLoading) || cancelLoading}
-                        className={`rounded-xl border py-2.5 text-[11px] font-medium uppercase tracking-wider transition-all disabled:opacity-60 ${
-                          isCurrent
-                            ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
-                            : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-[#243B33] dark:bg-[#080d0b]/40 dark:text-gray-300 dark:hover:bg-[#182924]"
-                        }`}
+                        className="rounded-xl border border-red-200 bg-red-50 py-2.5 text-[11px] font-medium uppercase tracking-wider text-red-600 hover:bg-red-100 transition-all disabled:opacity-60 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
                       >
-                        {isCurrent
-                          ? "Cancel Tier"
-                          : paymentLoading === `${pkg.id}-MONTHLY`
-                            ? "Processing..."
-                            : `Pay ${formatPhp(pkg.monthlyPrice)}`}
+                        {cancelLoading ? "Cancelling..." : "Cancel"}
                       </button>
                     </div>
 

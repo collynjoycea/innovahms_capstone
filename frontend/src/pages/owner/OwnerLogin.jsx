@@ -1,24 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { User, Lock, Eye, EyeOff, ArrowRight, Globe, AlertCircle, Landmark, Sparkles } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, ArrowRight, Globe, AlertCircle, Building2, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import ForgotPasswordModal from '../../components/ForgotPasswordModal';
 import { isValidEmail, normalizeEmail } from '../../utils/authValidation';
 import { persistOwnerSession, readOwnerSession } from '../../utils/ownerSession';
 
-const InputField = ({ label, type, icon, placeholder, value, onChange, isFocused, onFocus, onBlur, children }) => (
+const InputField = ({ label, type, icon, placeholder, value, onChange, isFocused, onFocus, onBlur, error, children }) => (
   <div className="group relative">
-    <div className="flex justify-between items-center mb-1.5 px-1">
-      <label className={`text-[9px] font-black tracking-[0.2em] uppercase transition-colors duration-300 ${isFocused ? 'text-[#bf9b30]' : 'text-black/40'}`}>
+    <div className="flex justify-between items-center mb-1.5 px-0.5">
+      <label className={`text-[11px] font-semibold tracking-wider uppercase transition-colors duration-200 ${
+        error ? 'text-rose-600' : isFocused ? 'text-emerald-700' : 'text-slate-600'
+      }`}>
         {label}
       </label>
     </div>
     
-    <div className={`relative rounded-xl border transition-all duration-500 overflow-hidden ${
-      isFocused 
-      ? 'border-[#bf9b30] bg-white shadow-[0_15px_30px_rgba(191,155,48,0.1)]' 
-      : 'border-black/[0.05] bg-black/[0.02]'
+    <div className={`relative rounded-xl border transition-all duration-200 ${
+      error
+        ? 'border-rose-300 bg-rose-50/40 focus-within:ring-2 focus-within:ring-rose-500/20'
+        : isFocused 
+        ? 'border-emerald-600 bg-white shadow-sm ring-2 ring-emerald-600/20' 
+        : 'border-slate-200 bg-slate-50/80 hover:border-slate-300'
     }`}>
-      <span className={`absolute left-4 top-1/2 -translate-y-1/2 transition-all duration-300 ${isFocused ? 'text-[#bf9b30] scale-110' : 'text-black/20'}`}>
+      <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200 ${
+        error ? 'text-rose-500' : isFocused ? 'text-emerald-600' : 'text-slate-400'
+      }`}>
         {icon}
       </span>
       <input
@@ -28,10 +34,15 @@ const InputField = ({ label, type, icon, placeholder, value, onChange, isFocused
         onChange={onChange}
         onFocus={onFocus}
         onBlur={onBlur}
-        className="w-full py-4.5 pl-12 pr-12 bg-transparent border-none outline-none text-[#1a1208] text-sm font-bold placeholder:text-black/10 transition-all"
+        className="w-full py-3 pl-10 pr-10 bg-transparent text-slate-800 text-xs font-medium placeholder:text-slate-400 outline-none"
       />
       {children}
     </div>
+    {error && (
+      <p className="mt-1 text-[11px] font-medium text-rose-600 flex items-center gap-1">
+        <span>{error}</span>
+      </p>
+    )}
   </div>
 );
 
@@ -39,15 +50,17 @@ const OwnerLogin = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [focused, setFocused] = useState(null);
-  const [loaded, setLoaded] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
+  
+  // Validation & Submission States
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [touched, setTouched] = useState({ email: false, password: false });
   const [feedback, setFeedback] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => { 
-    setLoaded(true);
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = 'auto'; };
   }, []);
@@ -64,25 +77,66 @@ const OwnerLogin = () => {
       setFeedback('Your owner account was reviewed but not approved. Please contact the admin team.');
       return;
     }
-    setFeedback('Your owner account is still waiting for admin approval. Owner tools stay locked until you are approved.');
+    setFeedback('Your owner account is waiting for admin approval. Access remains restricted until authorized.');
   }, [location.state]);
+
+  // Per-field validation logic
+  const validateField = (name, value) => {
+    let errorMsg = '';
+    if (name === 'email') {
+      const normalized = normalizeEmail(value);
+      if (!normalized) {
+        errorMsg = 'Corporate email address is required.';
+      } else if (!isValidEmail(normalized)) {
+        errorMsg = 'Please enter a valid corporate email address.';
+      }
+    } else if (name === 'password') {
+      if (!value) {
+        errorMsg = 'Security key/password is required.';
+      } else if (value.length < 6) {
+        errorMsg = 'Password must be at least 6 characters.';
+      }
+    }
+    return errorMsg;
+  };
+
+  const validateForm = () => {
+    const errors = {
+      email: validateField('email', formData.email),
+      password: validateField('password', formData.password),
+    };
+    setFieldErrors(errors);
+    return !errors.email && !errors.password;
+  };
+
+  const handleBlur = (field) => {
+    setFocused(null);
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    const val = formData[field];
+    setFieldErrors((prev) => ({ ...prev, [field]: validateField(field, val) }));
+  };
+
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFeedback('');
+    if (touched[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (isSubmitting) return;
     setFeedback('');
+    setTouched({ email: true, password: true });
 
-    const normalizedEmail = normalizeEmail(formData.email);
-    if (!isValidEmail(normalizedEmail)) {
-      setFeedback('Enter a valid owner email address');
-      return;
-    }
-    if (!formData.password) {
-      setFeedback('Entry Denied: Credentials Required');
+    if (!validateForm()) {
       return;
     }
 
     setIsSubmitting(true);
+    const normalizedEmail = normalizeEmail(formData.email);
+
     try {
       const response = await fetch('/api/owner/login', {
         method: 'POST',
@@ -106,151 +160,175 @@ const OwnerLogin = () => {
         }
       } else {
         if (response.status === 401) {
-          setFeedback(data?.error || 'Invalid email or password');
+          setFeedback(data?.error || 'Invalid corporate email or password.');
         } else if (response.status === 403 && data?.code === 'OWNER_APPROVAL_REQUIRED') {
           setFeedback(
             data?.approvalStatus === 'REJECTED'
               ? 'Your owner account was reviewed but not approved. Please contact the admin team.'
-              : (data?.error || 'Your owner account is still waiting for admin approval.')
+              : (data?.error || 'Your owner account is waiting for admin approval.')
           );
         } else if (response.status >= 500) {
-          setFeedback(data?.error || 'Server error. Ensure Flask is running.');
+          setFeedback(data?.error || 'Server error. Ensure backend service is active.');
         } else {
           setFeedback(data?.error || `Authentication failed (${response.status})`);
         }
       }
-    } catch (error) {
-      setFeedback('Cannot connect to the server. Ensure Vite and Flask are running.');
+    } catch {
+      setFeedback('Cannot connect to the server. Please verify network connectivity.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="h-screen w-screen flex font-sans overflow-hidden bg-[#faf9f6] fixed inset-0">
+    <div className="h-screen w-screen flex font-sans overflow-hidden bg-slate-50 fixed inset-0">
       
-      {/* LEFT PANEL - BRANDING (PREMIUM IVORY & GOLD) */}
-      <div className="hidden lg:flex flex-col justify-center w-[45%] relative p-20 bg-[linear-gradient(160deg,#fffef9_0%,#fdf8ec_50%,#faf6e8_100%)] overflow-hidden">
-        {/* Decorative Grid & Blur */}
-        <div className="absolute inset-0 opacity-40 bg-[linear-gradient(rgba(191,155,48,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(191,155,48,0.1)_1px,transparent_1px)] bg-[length:30px_30px]" />
-        <div className="absolute -top-20 -left-20 w-[400px] h-[400px] bg-[#bf9b30]/10 rounded-full blur-[120px]" />
+      {/* LEFT PANEL - ELEGANT DEEP FOREST GREEN BRANDING */}
+      <div className="hidden lg:flex flex-col justify-between w-[46%] p-14 bg-gradient-to-br from-emerald-950 via-teal-950 to-slate-950 text-white relative overflow-hidden">
         
-        <div className={`z-10 transition-all duration-1000 transform ${loaded ? 'translate-x-0 opacity-100' : '-translate-x-10 opacity-0'}`}>
-          <div className="flex items-center gap-3 mb-12">
-            <div className="p-2.5 bg-white shadow-xl rounded-xl border border-[#bf9b30]/20">
-               <Landmark className="text-[#bf9b30]" size={22} />
+        {/* Glow ambient background elements */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Brand Header */}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 text-emerald-400 mb-10">
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md shadow-inner">
+              <Building2 size={24} />
             </div>
-            <span className="text-[#9a7a20] font-black tracking-[0.4em] text-[10px] uppercase">Property Owner</span>
+            <span className="font-extrabold tracking-widest text-xs uppercase text-emerald-300">INNOVA HMS</span>
           </div>
 
-          <h1 className="text-6xl font-light leading-[1.1] text-[#1a1208] font-serif tracking-tighter mb-8">
-            The Pinnacle of<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#9a7a20] via-[#c8a227] to-[#9a7a20] italic font-normal">
-              Hospitality.
-            </span>
+          <h1 className="text-3xl lg:text-4xl font-bold leading-tight text-white mb-4 tracking-tight">
+            Property Owner & Management Access
           </h1>
-          
-          <div className="h-[2px] w-24 bg-gradient-to-r from-[#bf9b30] to-transparent mb-10" />
-          
-          <p className="text-[13px] leading-relaxed text-black/50 max-w-[340px] font-medium tracking-wide italic">
-            "Your vision, our architecture. Manage your legacy with unprecedented precision."
+          <p className="text-xs text-slate-300/80 leading-relaxed max-w-md font-normal">
+            Streamlined revenue performance tracking, guest occupancy analytics, and enterprise hotel management tools.
           </p>
         </div>
 
-        <div className="absolute bottom-10 left-20 flex items-center gap-3 text-[#bf9b30]/30">
-            <Sparkles size={14} />
-            <span className="text-[9px] font-black tracking-widest uppercase">Premium Owner Access 2026</span>
+        {/* Feature Highlights Card Container */}
+        <div className="relative z-10 space-y-3.5 bg-slate-900/40 border border-emerald-500/10 backdrop-blur-md p-6 rounded-2xl shadow-xl">
+          <div className="flex items-center gap-3 text-xs text-slate-200">
+            <div className="p-1 rounded-full bg-emerald-500/20 text-emerald-400">
+              <CheckCircle2 size={14} />
+            </div>
+            <span>Real-time financial & revenue analytics</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-slate-200">
+            <div className="p-1 rounded-full bg-emerald-500/20 text-emerald-400">
+              <CheckCircle2 size={14} />
+            </div>
+            <span>Encrypted owner session authentication</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-slate-200">
+            <div className="p-1 rounded-full bg-emerald-500/20 text-emerald-400">
+              <CheckCircle2 size={14} />
+            </div>
+            <span>Full operational oversight & room inventory control</span>
+          </div>
+        </div>
+
+        {/* Security Footer */}
+        <div className="relative z-10 flex items-center gap-2 text-[11px] text-emerald-400/70 pt-4">
+          <ShieldCheck size={15} className="text-emerald-400" />
+          <span>INNOVA Enterprise Security System</span>
         </div>
       </div>
 
-      {/* RIGHT PANEL - LOGIN FORM */}
-      <div className="flex-1 flex items-center justify-center p-8 lg:p-24 relative bg-white">
-        <div className={`w-full max-w-[400px] transition-all duration-1000 delay-300 ${loaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+      {/* RIGHT PANEL - CLEAN FORM */}
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 bg-white">
+        <div className="w-full max-w-[400px]">
           
-          <div className="mb-12">
-            <h2 className="text-3xl font-light text-[#1a1208] font-serif mb-3 italic">Owner Access</h2>
-            <div className="flex items-center gap-3">
-               <div className="h-[1px] w-12 bg-[#bf9b30]/40" />
-               <p className="text-[10px] text-black/40 font-black uppercase tracking-[0.3em]">Verify Your Identity</p>
-            </div>
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Sign In as Owner</h2>
+            <p className="text-xs text-slate-500 mt-1.5">
+              Enter your registered corporate credentials.
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-7">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <InputField 
               label="Corporate Email" 
               type="email" 
               placeholder="owner@hotel-legacy.com"
-              icon={<User size={18} />}
+              icon={<User size={16} />}
               value={formData.email}
               isFocused={focused === 'email'}
               onFocus={() => setFocused('email')}
-              onBlur={() => setFocused(null)}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              onBlur={() => handleBlur('email')}
+              onChange={(e) => handleChange('email', e.target.value)}
+              error={touched.email ? fieldErrors.email : ''}
             />
 
             <InputField 
               label="Security Key" 
               type={showPassword ? 'text' : 'password'} 
               placeholder="••••••••••••"
-              icon={<Lock size={18} />}
+              icon={<Lock size={16} />}
               value={formData.password}
               isFocused={focused === 'pass'}
               onFocus={() => setFocused('pass')}
-              onBlur={() => setFocused(null)}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              onBlur={() => handleBlur('password')}
+              onChange={(e) => handleChange('password', e.target.value)}
+              error={touched.password ? fieldErrors.password : ''}
             >
               <button 
                 type="button" 
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-5 top-1/2 -translate-y-1/2 text-black/20 hover:text-[#bf9b30] transition-all"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </InputField>
 
-            <div className="flex justify-end -mt-3">
+            <div className="flex justify-end pt-0.5">
               <button
                 type="button"
                 onClick={() => setShowForgotPassword(true)}
-                className="text-[10px] font-black uppercase tracking-[0.24em] text-black/35 transition hover:text-[#bf9b30]"
+                className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
               >
-                Forgot Password
+                Forgot password?
               </button>
             </div>
 
             {feedback && (
-              <div className="flex items-center gap-2 text-red-600 font-bold text-[10px] uppercase tracking-wider bg-red-50 p-4 rounded-xl border border-red-100 italic">
-                <AlertCircle size={16} />
-                {feedback}
+              <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50/80 p-3.5 text-xs text-rose-700">
+                <AlertCircle size={16} className="shrink-0 text-rose-500 mt-0.5" />
+                <span>{feedback}</span>
               </div>
             )}
 
-            <div className="pt-4">
-                <button
+            <div className="pt-2">
+              <button
                 type="submit"
                 disabled={isSubmitting}
-                className={`group relative w-full py-5 rounded-xl bg-[#1a1208] text-white shadow-2xl overflow-hidden transition-all duration-500 active:scale-[0.98] ${isSubmitting ? 'opacity-70 cursor-wait' : ''}`}
-                >
-                <div className="absolute inset-0 bg-gradient-to-r from-[#bf9b30] via-[#d4af37] to-[#bf9b30] translate-y-[101%] group-hover:translate-y-0 transition-transform duration-500 ease-out" />
-                <span className="relative z-10 flex items-center justify-center gap-4 text-[10px] font-black uppercase tracking-[0.4em] group-hover:text-white transition-colors duration-500">
-                    {isSubmitting ? 'Verifying...' : 'Establish Connection'}
-                    <ArrowRight size={16} className="group-hover:translate-x-2 transition-transform duration-500" />
-                </span>
-                </button>
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 py-3 text-xs font-semibold text-white shadow-md shadow-emerald-900/10 transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <span>Authenticating...</span>
+                ) : (
+                  <>
+                    <span>Authenticate & Access Portal</span>
+                    <ArrowRight size={15} />
+                  </>
+                )}
+              </button>
             </div>
           </form>
 
-          <div className="mt-16 text-center">
+          <div className="mt-10 text-center border-t border-slate-100 pt-6">
             <button 
               onClick={() => navigate('/')}
-              className="group inline-flex items-center gap-2.5 text-[10px] font-black text-black/20 uppercase tracking-[0.2em] hover:text-[#bf9b30] transition-all"
+              className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-emerald-700 transition-colors"
             >
-              <Globe size={13} className="group-hover:rotate-180 transition-transform duration-1000" /> 
-              Back to Public Web
+              <Globe size={14} /> 
+              Return to Public Portal
             </button>
           </div>
         </div>
       </div>
+
       <ForgotPasswordModal
         isOpen={showForgotPassword}
         onClose={() => setShowForgotPassword(false)}

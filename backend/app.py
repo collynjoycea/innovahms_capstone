@@ -1160,8 +1160,8 @@ CUSTOMER_PRIVILEGE_PLAN_DEFINITIONS = {
         "name": "Silver",
         "slug": "silver",
         "description": "Entry access to member pricing and elevated guest benefits.",
-        "monthly_price": 399,
-        "annual_price": 3990,
+        "monthly_price": 1,
+        "annual_price": 1,
         "bonus_points": 500,
         "display_order": 1,
         "is_popular": False,
@@ -1780,7 +1780,7 @@ def _customer_privilege_simulation_enabled():
     raw = os.getenv("PAYMONGO_CUSTOMER_SIMULATION")
     if str(raw or "").strip():
         return _is_truthy(raw)
-    return _owner_subscription_simulation_enabled()
+    return False
 
 
 def _customer_privilege_simulated_link_id(customer_id, package_id, billing_cycle):
@@ -1792,6 +1792,23 @@ def _customer_privilege_simulated_link_id(customer_id, package_id, billing_cycle
 def _customer_privilege_checkout_url(frontend_url, state, simulated=False):
     suffix = "&simulation=1" if simulated else ""
     return f"{frontend_url}/privileges?payment={state}{suffix}"
+
+
+def _reservation_has_paid_or_checked_in(row):
+    if not row:
+        return False
+
+    status_text = str(row.get("status") or "").upper()
+    total_amount = _to_float(row.get("total_amount"), 0)
+    deposit_amount = _to_float(row.get("deposit_amount"), 0)
+
+    if status_text in {"CHECKED_IN", "CHECKED_OUT", "COMPLETED"}:
+        return True
+
+    if total_amount > 0 and deposit_amount >= total_amount and status_text in {"PENDING", "CONFIRMED", "PAID"}:
+        return True
+
+    return False
 
 
 def _build_customer_membership_summary(cur, customer_id):
@@ -1819,7 +1836,7 @@ def _build_customer_membership_summary(cur, customer_id):
     if _table_exists(cur, "reservations"):
         cur.execute(
             """
-            SELECT total_amount, check_in_date
+            SELECT total_amount, deposit_amount, check_in_date, check_out_date, status
             FROM reservations
             WHERE customer_id = %s
             """,
@@ -1828,10 +1845,14 @@ def _build_customer_membership_summary(cur, customer_id):
         rows = cur.fetchall() or []
         today = datetime.now()
         for row in rows:
+            if not _reservation_has_paid_or_checked_in(row):
+                continue
+
             amount = _to_float(row.get("total_amount"), 0)
             total_spend += amount
-            check_in = row.get("check_in_date")
-            if check_in and hasattr(check_in, "month") and check_in.month == today.month and check_in.year == today.year:
+
+            spend_date = row.get("check_out_date") or row.get("check_in_date") or row.get("created_at")
+            if hasattr(spend_date, "month") and spend_date.month == today.month and spend_date.year == today.year:
                 monthly_spend += amount
 
     stay_points_total = int(total_spend // 100)
@@ -2450,10 +2471,7 @@ def _owner_subscription_simulation_enabled():
     raw = os.getenv("PAYMONGO_SUBSCRIPTION_SIMULATION")
     if str(raw or "").strip():
         return _is_truthy(raw)
-    secret_key = str(os.getenv("PAYMONGO_SECRET_KEY", "") or "").strip()
-    if not secret_key or "your_" in secret_key:
-        return True
-    return secret_key.startswith("sk_test_")
+    return False
 
 
 def _owner_subscription_simulated_link_id(owner_id, package_id, billing_cycle):
@@ -8863,10 +8881,21 @@ def home_hotels():
                 select_columns.append(f"h.{column_name}")
 
         query = f"""
-            SELECT {', '.join(select_columns)}, COUNT(r.id) AS room_count
+            SELECT {', '.join(select_columns)},
+                   COUNT(r.id) AS room_count,
+                   MIN(r.price_per_night) AS min_price,
+                   MAX(r.price_per_night) AS max_price,
+                   rv.avg_rating,
+                   rv.review_count
             FROM hotels h
             LEFT JOIN rooms r ON r.hotel_id = h.id
-            GROUP BY {', '.join(select_columns)}
+            LEFT JOIN (
+                SELECT hotel_id, AVG(rating)::numeric(3,1) AS avg_rating, COUNT(*) AS review_count
+                FROM reviews
+                WHERE status = 'published'
+                GROUP BY hotel_id
+            ) rv ON rv.hotel_id = h.id
+            GROUP BY {', '.join(select_columns)}, rv.avg_rating, rv.review_count
             ORDER BY COUNT(r.id) DESC, h.id DESC
             LIMIT 6
         """
@@ -8877,6 +8906,10 @@ def home_hotels():
         for row in rows:
             hotel_id = row.get("id")
             building_image = row.get("hotel_building_image") or row.get("hotel_logo") or _room_preview_image_for_hotel(cur, hotel_id) or "/images/signup-img.png"
+            min_price = _to_float(row.get("min_price"), 0)
+            max_price = _to_float(row.get("max_price"), 0)
+            avg_rating = _to_float(row.get("avg_rating"), 0)
+            review_count = _to_int(row.get("review_count"), 0)
             hotels.append({
                 "id": hotel_id,
                 "name": row.get("hotel_name") or "Innova Property",
@@ -8886,6 +8919,11 @@ def home_hotels():
                 "rooms": _to_int(row.get("room_count"), 0),
                 "description": row.get("hotel_description") or "A connected hotel experience powered by Innova HMS.",
                 "contactPhone": row.get("contact_phone") or "",
+                "minPrice": min_price,
+                "maxPrice": max_price,
+                "startingPrice": min_price,
+                "avgRating": avg_rating,
+                "reviewCount": review_count,
             })
         return jsonify({"hotels": hotels}), 200
     except Exception as e:
@@ -9616,6 +9654,7 @@ def get_customer_dashboard(customer_id):
                         r.check_in_date,
                         r.check_out_date,
                         r.total_amount,
+                        r.deposit_amount,
                         r.status,
                         r.room_id,
                         r.payment_method,
@@ -9633,14 +9672,19 @@ def get_customer_dashboard(customer_id):
                 booking_rows = cur.fetchall() or []
 
                 for row in booking_rows:
-                    total_amount = _to_float(row.get("total_amount"), 0)
-                    total_spend += total_amount
                     status_text = str(row.get("status") or "PENDING").upper()
-                    check_in = row.get("check_in_date")
-                    if check_in and hasattr(check_in, "month"):
-                        today = datetime.now()
-                        if check_in.month == today.month and check_in.year == today.year:
-                            monthly_spend += total_amount
+                    total_amount = _to_float(row.get("total_amount"), 0)
+                    deposit_amount = _to_float(row.get("deposit_amount"), 0)
+                    total_paid = total_amount > 0 and deposit_amount >= total_amount
+                    spend_eligible = status_text in {"CHECKED_IN", "CHECKED_OUT", "COMPLETED"} or total_paid
+
+                    if spend_eligible:
+                        total_spend += total_amount
+                        spend_date = row.get("check_out_date") or row.get("check_in_date") or row.get("created_at")
+                        if hasattr(spend_date, "month"):
+                            today = datetime.now()
+                            if spend_date.month == today.month and spend_date.year == today.year:
+                                monthly_spend += total_amount
 
                     if not preferred_room_type and row.get("room_type"):
                         preferred_room_type = row.get("room_type")
@@ -9834,13 +9878,29 @@ def customer_privileges_cancel():
                 renewal_date = CURRENT_DATE,
                 updated_at = NOW()
             WHERE id = %s
-            RETURNING id
+            RETURNING id, customer_id
             """,
             (serialized_subscription.get("id"),),
         )
-        if not cur.fetchone():
+        cancelled_row = cur.fetchone()
+        if not cancelled_row:
             conn.rollback()
             return jsonify({"error": "Unable to cancel the privilege tier right now."}), 400
+
+        if _table_has_column(cur, "customers", "membership_level"):
+            cur.execute(
+                "UPDATE customers SET membership_level = 'STANDARD' WHERE id = %s",
+                (customer_id,),
+            )
+
+        cur.execute(
+            """
+            UPDATE customer_loyalty
+            SET tier = 'STANDARD', updated_at = NOW()
+            WHERE customer_id = %s
+            """,
+            (customer_id,),
+        )
 
         conn.commit()
         refreshed_summary = _build_customer_membership_summary(cur, customer_id)
@@ -9872,8 +9932,11 @@ def customer_privileges_create_payment_link():
         customer_id = _to_int(data.get("customerId"), 0)
         package_id = _to_int(data.get("packageId"), 0)
         billing_cycle = str(data.get("billingCycle") or "MONTHLY").strip().upper()
+        payment_method = str(data.get("paymentMethod") or "gcash").strip().lower()
         if billing_cycle not in {"MONTHLY", "ANNUAL"}:
             billing_cycle = "MONTHLY"
+        if payment_method not in {"gcash", "paymaya", "qrph", "card", "online"}:
+            payment_method = "gcash"
 
         if not customer_id or not package_id:
             return jsonify({"error": "customerId and packageId are required."}), 400
@@ -9919,32 +9982,92 @@ def customer_privileges_create_payment_link():
         else:
             if not paymongo_key or 'your_' in paymongo_key:
                 return jsonify({"error": "PayMongo API key not configured."}), 503
-            payload = {
-                'data': {
-                    'attributes': {
-                        'amount': int(amount * 100),
-                        'currency': 'PHP',
-                        'description': f'Innova HMS Customer Privilege {package_row.get("name")}',
-                        'remarks': f'Customer #{customer_id} privilege package',
-                        'redirect': {'success': success_url, 'failed': failed_url}
+
+            if payment_method in {'gcash', 'paymaya', 'qrph'}:
+                intent_payload = {
+                    'data': {
+                        'attributes': {
+                            'amount': int(amount * 100),
+                            'currency': 'PHP',
+                            'payment_method_allowed': [payment_method],
+                            'payment_method_options': {
+                                payment_method: {'redirect': {'success': success_url, 'failed': failed_url}}
+                            },
+                            'description': f'Innova HMS Customer Privilege {package_row.get("name")}',
+                            'statement_descriptor': 'INNOVA HMS',
+                            'capture_type': 'automatic',
+                        }
                     }
                 }
-            }
-            response = requests.post(
-                'https://api.paymongo.com/v1/links',
-                json=payload,
-                headers=_paymongo_headers(),
-                timeout=15
-            )
-            result = response.json()
-            if not response.ok:
-                errors = result.get('errors', [{}])
-                msg = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
-                return jsonify({'error': msg}), 400
-            link_data = result.get('data', {})
-            attrs = link_data.get('attributes', {})
-            checkout_url = attrs.get('checkout_url', '')
-            link_id = link_data.get('id', '')
+                intent_res = requests.post(
+                    'https://api.paymongo.com/v1/payment_intents',
+                    json=intent_payload,
+                    headers=_paymongo_headers(),
+                    timeout=15
+                )
+                intent_data = intent_res.json()
+                if not intent_res.ok:
+                    errors = intent_data.get('errors', [{}])
+                    msg = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
+                    return jsonify({'error': msg}), 400
+
+                intent_id = intent_data['data']['id']
+                client_key = intent_data['data']['attributes']['client_key']
+                pm_res = requests.post(
+                    'https://api.paymongo.com/v1/payment_methods',
+                    json={'data': {'attributes': {'type': payment_method, 'billing': {'name': 'Innova HMS Guest', 'email': 'guest@innovahms.com'}}}},
+                    headers=_paymongo_headers(),
+                    timeout=15
+                )
+                pm_data = pm_res.json()
+                if not pm_res.ok:
+                    errors = pm_data.get('errors', [{}])
+                    msg = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
+                    return jsonify({'error': msg}), 400
+
+                pm_id = pm_data['data']['id']
+                attach_res = requests.post(
+                    f'https://api.paymongo.com/v1/payment_intents/{intent_id}/attach',
+                    json={'data': {'attributes': {'payment_method': pm_id, 'client_key': client_key, 'return_url': success_url}}},
+                    headers=_paymongo_headers(),
+                    timeout=15
+                )
+                attach_data = attach_res.json()
+                if not attach_res.ok:
+                    errors = attach_data.get('errors', [{}])
+                    msg = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
+                    return jsonify({'error': msg}), 400
+
+                next_action = attach_data['data']['attributes'].get('next_action') or {}
+                checkout_url = next_action.get('redirect', {}).get('url', '') or next_action.get('qr_code', {}).get('image_url', '')
+                link_id = intent_id
+            else:
+                payload = {
+                    'data': {
+                        'attributes': {
+                            'amount': int(amount * 100),
+                            'currency': 'PHP',
+                            'description': f'Innova HMS Customer Privilege {package_row.get("name")}',
+                            'remarks': f'Customer #{customer_id} privilege package',
+                            'redirect': {'success': success_url, 'failed': failed_url}
+                        }
+                    }
+                }
+                response = requests.post(
+                    'https://api.paymongo.com/v1/links',
+                    json=payload,
+                    headers=_paymongo_headers(),
+                    timeout=15
+                )
+                result = response.json()
+                if not response.ok:
+                    errors = result.get('errors', [{}])
+                    msg = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
+                    return jsonify({'error': msg}), 400
+                link_data = result.get('data', {})
+                attrs = link_data.get('attributes', {})
+                checkout_url = attrs.get('checkout_url', '')
+                link_id = link_data.get('id', '')
 
         cur.execute(
             """
@@ -10512,8 +10635,12 @@ def vision_hotel():
             cur.execute(query, tuple(params))
             row = cur.fetchone()
             if row:
+                target_hotel_id = row.get("id") or 0
+                review_query = "SELECT AVG(rating)::numeric(3,1) AS avg_rating, COUNT(*) AS review_count FROM reviews WHERE hotel_id = %s AND status = 'published'"
+                cur.execute(review_query, (target_hotel_id,))
+                review_row = cur.fetchone() or {}
                 hotel = {
-                    "id": row.get("id") or 0,
+                    "id": target_hotel_id,
                     "name": row.get("hotel_name") or "Innova Vision Suites",
                     "locationLabel": row.get("hotel_address") or row.get("hotel_name") or "Innova Smart Hotel",
                     "location": {
@@ -10527,6 +10654,8 @@ def vision_hotel():
                     "checkInPolicy": row.get("check_in_policy") or "",
                     "checkOutPolicy": row.get("check_out_policy") or "",
                     "cancellationPolicy": row.get("cancellation_policy") or "",
+                    "avgRating": _to_float(review_row.get("avg_rating"), 0),
+                    "reviewCount": _to_int(review_row.get("review_count"), 0),
                 }
 
         return jsonify({"hotel": hotel}), 200
@@ -10576,9 +10705,17 @@ def vision_rooms():
                 r.max_children,
                 r.status,
                 r.hotel_id,
-                h.hotel_name
+                h.hotel_name,
+                rr.avg_rating,
+                rr.review_count
             FROM rooms r
             LEFT JOIN hotels h ON h.id = r.hotel_id
+            LEFT JOIN (
+                SELECT room_id, AVG(rating)::numeric(3,1) AS avg_rating, COUNT(*) AS review_count
+                FROM reviews
+                WHERE status = 'published'
+                GROUP BY room_id
+            ) rr ON rr.room_id = r.id
             WHERE LOWER(COALESCE(r.status, '')) = 'available'
         """
         params = []
@@ -10649,6 +10786,8 @@ def vision_rooms():
                 "hotelId": row.get("hotel_id"),
                 "hotelName": row.get("hotel_name") or "",
                 "isAvailableForSelectedDates": True,
+                "avgRating": _to_float(row.get("avg_rating"), 0),
+                "reviewCount": _to_int(row.get("review_count"), 0),
             })
 
         return jsonify({"rooms": rooms}), 200

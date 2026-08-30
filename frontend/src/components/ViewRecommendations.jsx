@@ -81,7 +81,7 @@ const RoomCard = ({ room, onAskAI }) => {
       {/* Action Buttons */}
       <div className="p-3.5 pt-0 grid grid-cols-2 gap-1.5">
         <button
-          onClick={() => navigate(`/hoteldetail/${room.id}`)}
+          onClick={() => navigate(`/roomdetail/${room.id}`)}
           className="flex items-center justify-center gap-1 py-2 border border-slate-800 dark:border-white/30 text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 font-black rounded-lg transition-all active:scale-95 uppercase tracking-wider text-[8px]"
         >
           <Search size={11} /> View
