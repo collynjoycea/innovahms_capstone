@@ -73,7 +73,7 @@ const AdminSidebar = ({ isDarkMode }) => {
   // Background shifts with mode: vibrant gradient in light mode, deep solid green
   // (matching the header) in dark mode. Text/labels are black in light mode
   // (per request) while dark mode keeps the light-on-green treatment.
-  const bgClass = isDarkMode ? 'bg-[#163C34]' : 'bg-gradient-to-b from-[#1F6F5F] to-[#2FA084]';
+  const bgClass = isDarkMode ? 'bg-[#163C34]' : 'bg-white';
 
   const t = isDarkMode ? {
     border: 'border-white/10',
@@ -96,25 +96,25 @@ const AdminSidebar = ({ isDarkMode }) => {
     scrollThumb: '#2FA084',
     scrollThumbHover: '#6FCF97',
   } : {
-    border: 'border-black/10',
-    sectionTitle: 'text-black/60',
-    divider: 'bg-black/10',
-    navInactive: 'text-black/70 hover:text-black hover:bg-white/20',
-    navActive: 'bg-white/25 text-black',
-    iconInactive: 'text-black/60 group-hover:text-[#173F35]',
-    iconActive: 'text-[#173F35]',
-    activeBar: 'bg-black shadow-[0_0_12px_rgba(0,0,0,0.4)]',
-    profileCard: 'bg-white/15 border-black/10 hover:bg-white/25',
-    profileCardActive: 'bg-white/30 border-black/20',
+    border: 'border-gray-200',
+    sectionTitle: 'text-gray-400',
+    divider: 'bg-gray-200',
+    navInactive: 'text-gray-500 hover:text-black hover:bg-gray-50',
+    navActive: 'bg-[#2FA084]/10 text-[#173F35]',
+    iconInactive: 'text-gray-400 group-hover:text-[#2FA084]',
+    iconActive: 'text-[#2FA084]',
+    activeBar: 'bg-[#2FA084] shadow-[0_0_12px_rgba(47,160,132,0.4)]',
+    profileCard: 'bg-white border-gray-200 hover:bg-gray-50',
+    profileCardActive: 'bg-[#2FA084]/10 border-[#2FA084]/30',
     profileName: 'text-black',
-    profileRole: 'text-black/70',
-    onlineBadge: 'border-[#2FA084] bg-[#6FCF97] text-[#0A2E24]',
-    offlineBadge: 'border-red-700/30 bg-red-700/10 text-red-800',
-    settingsInactive: 'bg-white/15 text-black border-black/10 hover:bg-black hover:text-white',
+    profileRole: 'text-[#2FA084]',
+    onlineBadge: 'border-[#2FA084]/30 bg-[#2FA084]/10 text-[#2FA084]',
+    offlineBadge: 'border-red-200 bg-red-50 text-red-600',
+    settingsInactive: 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-black hover:text-white',
     settingsActive: 'bg-black text-white border-black shadow-lg shadow-black/20',
-    logout: 'text-black/70 border-black/10 hover:text-red-700 hover:bg-red-700/10',
-    scrollThumb: '#173F35',
-    scrollThumbHover: '#0F2B25',
+    logout: 'text-gray-500 border-gray-200 hover:text-red-600 hover:bg-red-50',
+    scrollThumb: '#2FA084',
+    scrollThumbHover: '#173F35',
   };
 
   const adminName = admin?.name || 'Admin';

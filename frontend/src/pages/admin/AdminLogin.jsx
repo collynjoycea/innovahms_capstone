@@ -7,18 +7,18 @@ import { isValidEmail, normalizeEmail } from '../../utils/authValidation';
 const InputField = ({ label, type, icon, placeholder, value, onChange, isFocused, onFocus, onBlur, children }) => (
   <div className="group relative">
     <div className="flex justify-between items-center mb-2 px-1">
-      <label className={`text-[10px] font-black tracking-[0.2em] uppercase transition-colors duration-300 ${isFocused ? 'text-[#2FA084]' : 'text-black/40'}`}>
+      <label className={`text-[10px] font-black tracking-[0.2em] uppercase transition-colors duration-300 ${isFocused ? 'text-[#2FA084] dark:text-[#6FCF97]' : 'text-black/40 dark:text-white/40'}`}>
         {label}
       </label>
-      {isFocused && <span className="text-[9px] text-[#2FA084] animate-pulse uppercase font-bold tracking-tighter">System Listening...</span>}
+      {isFocused && <span className="text-[9px] text-[#2FA084] dark:text-[#6FCF97] animate-pulse uppercase font-bold tracking-tighter">System Listening...</span>}
     </div>
     
     <div className={`relative rounded-2xl border-2 transition-all duration-500 overflow-hidden ${
       isFocused 
-      ? 'border-[#2FA084] bg-white shadow-[0_20px_40px_rgba(47,160,132,0.12)]' 
-      : 'border-black/[0.03] bg-black/[0.02] hover:border-black/10'
+      ? 'border-[#2FA084] bg-white dark:bg-white/[0.04] shadow-[0_20px_40px_rgba(47,160,132,0.12)] dark:shadow-[0_20px_40px_rgba(47,160,132,0.08)]' 
+      : 'border-black/[0.03] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] hover:border-black/10 dark:hover:border-white/10'
     }`}>
-      <span className={`absolute left-5 top-1/2 -translate-y-1/2 transition-all duration-300 ${isFocused ? 'text-[#2FA084] scale-110' : 'text-black/20'}`}>
+      <span className={`absolute left-5 top-1/2 -translate-y-1/2 transition-all duration-300 ${isFocused ? 'text-[#2FA084] dark:text-[#6FCF97] scale-110' : 'text-black/20 dark:text-white/20'}`}>
         {icon}
       </span>
       <input
@@ -28,7 +28,7 @@ const InputField = ({ label, type, icon, placeholder, value, onChange, isFocused
         onChange={onChange}
         onFocus={onFocus}
         onBlur={onBlur}
-        className="w-full py-5 pl-14 pr-12 bg-transparent border-none outline-none text-[#1F6F5F] text-sm font-bold placeholder:text-black/10 transition-all"
+        className="w-full py-5 pl-14 pr-12 bg-transparent border-none outline-none text-[#1F6F5F] dark:text-white text-sm font-bold placeholder:text-black/10 dark:placeholder:text-white/10 transition-all"
       />
       {children}
     </div>
@@ -97,7 +97,7 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className="min-h-screen flex font-sans overflow-hidden bg-[#EEEEEE]">
+    <div className="min-h-screen flex font-sans overflow-hidden bg-[#EEEEEE] dark:bg-[#0B1120] transition-colors duration-300">
       
       {/* LEFT PANEL - BRANDING (PREMIUM DARK MODE) */}
       <div className="hidden lg:flex flex-col justify-center w-[40%] relative p-20 bg-gradient-to-br from-[#1F6F5F] via-[#1F6F5F] to-[#2FA084] overflow-hidden">
@@ -134,17 +134,17 @@ const AdminLogin = () => {
       </div>
 
       {/* RIGHT PANEL - LOGIN FORM */}
-      <div className="flex-1 flex items-center justify-center p-8 lg:p-24 relative bg-white">
+      <div className="flex-1 flex items-center justify-center p-8 lg:p-24 relative bg-white dark:bg-[#0B1120] transition-colors duration-300">
         {/* Subtle grid pattern for the background */}
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/grid-me.png')]" />
+        <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/grid-me.png')]" />
         
         <div className={`w-full max-w-[420px] transition-all duration-1000 delay-300 ${loaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
           
           <div className="mb-14 text-center lg:text-left">
-            <h2 className="text-4xl font-black text-[#1F6F5F] uppercase tracking-tighter mb-3">Administrator</h2>
+            <h2 className="text-4xl font-black text-[#1F6F5F] dark:text-white uppercase tracking-tighter mb-3">Administrator</h2>
             <div className="flex items-center justify-center lg:justify-start gap-3">
                <div className="h-[2px] w-8 bg-[#2FA084]" />
-               <p className="text-[11px] text-black/40 font-black uppercase tracking-[0.3em]">Identification Protocol</p>
+               <p className="text-[11px] text-black/40 dark:text-white/40 font-black uppercase tracking-[0.3em]">Identification Protocol</p>
             </div>
           </div>
 
@@ -185,14 +185,14 @@ const AdminLogin = () => {
               <button
                 type="button"
                 onClick={() => setShowForgotPassword(true)}
-                className="text-[10px] font-black uppercase tracking-[0.24em] text-black/35 transition hover:text-[#2FA084]"
+                className="text-[10px] font-black uppercase tracking-[0.24em] text-black/35 dark:text-white/35 transition hover:text-[#2FA084]"
               >
                 Forgot Password
               </button>
             </div>
 
             {feedback && (
-              <div className="flex items-center gap-3 text-red-600 font-bold text-[11px] uppercase tracking-wider bg-red-50 p-4 rounded-2xl border border-red-100 animate-bounce">
+              <div className="flex items-center gap-3 text-red-600 dark:text-red-400 font-bold text-[11px] uppercase tracking-wider bg-red-50 dark:bg-red-500/10 p-4 rounded-2xl border border-red-100 dark:border-red-500/20 animate-bounce">
                 <AlertCircle size={18} />
                 {feedback}
               </div>
@@ -202,7 +202,7 @@ const AdminLogin = () => {
                 <button
                 type="submit"
                 disabled={isSubmitting}
-                className={`group relative w-full py-6 rounded-2xl bg-[#1F6F5F] text-white shadow-2xl overflow-hidden transition-all duration-500 hover:shadow-[#2FA084]/20 active:scale-[0.97] ${isSubmitting ? 'opacity-70 cursor-wait' : ''}`}
+                className={`group relative w-full py-6 rounded-2xl bg-[#1F6F5F] text-white shadow-2xl dark:shadow-black/40 overflow-hidden transition-all duration-500 hover:shadow-[#2FA084]/20 active:scale-[0.97] ${isSubmitting ? 'opacity-70 cursor-wait' : ''}`}
                 >
                 <div className="absolute inset-0 bg-gradient-to-r from-[#2FA084] to-[#6FCF97] translate-y-[101%] group-hover:translate-y-0 transition-transform duration-500 ease-out" />
                 <span className="relative z-10 flex items-center justify-center gap-4 text-xs font-black uppercase tracking-[0.4em] group-hover:text-black transition-colors duration-500">
@@ -213,10 +213,10 @@ const AdminLogin = () => {
             </div>
           </form>
 
-          <div className="mt-16 pt-8 border-t border-black/[0.05] text-center">
+          <div className="mt-16 pt-8 border-t border-black/[0.05] dark:border-white/[0.08] text-center">
             <button 
               onClick={() => navigate('/')}
-              className="group inline-flex items-center gap-3 text-[10px] font-black text-black/30 uppercase tracking-[0.25em] hover:text-[#2FA084] transition-all"
+              className="group inline-flex items-center gap-3 text-[10px] font-black text-black/30 dark:text-white/30 uppercase tracking-[0.25em] hover:text-[#2FA084] transition-all"
             >
               <Globe size={14} className="group-hover:rotate-180 transition-transform duration-700" /> 
               Exit to Public Terminal
