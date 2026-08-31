@@ -13,6 +13,8 @@ import re
 import uuid
 import random
 import sys
+import smtplib
+from email.message import EmailMessage
 from html import escape
 from datetime import date, datetime, timedelta, timezone
 from collections import Counter, defaultdict
@@ -37,6 +39,16 @@ except Exception:
     PROPHET_AVAILABLE = False
 
 app = Flask(__name__, static_folder='static')
+
+# --- GMAIL SMTP CONFIGURATION ---
+# Keep the credentials in backend/.env; do not hard-code them in source control.
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', '465'))
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME') or os.getenv('SMTP_EMAIL', 'innovahms2026@gmail.com')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD') or os.getenv('SMTP_PASSWORD', 'meqijkpojslacoaw')
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'False').lower() == 'true'
+app.config['MAIL_USE_SSL'] = os.getenv('MAIL_USE_SSL', 'True').lower() == 'true'
+app.config['MAIL_DEFAULT_SENDER'] = app.config['MAIL_USERNAME']
 
 CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174", "http://localhost:3000"]}})
 
@@ -386,6 +398,50 @@ def _generate_otp_code():
     return "".join(random.choices("0123456789", k=6))
 
 
+def _send_signup_otp(email, user_type):
+    otp_code = _generate_otp_code()
+    recipient = _normalize_email(email)
+    subject = "Your Innova HMS email verification OTP"
+    plain_text = (
+        f"Your Innova HMS {user_type} signup verification code is {otp_code}. "
+        "This code expires in 10 minutes."
+    )
+    html_content = (
+        "<div style=\"margin:0;background:#f0fdf4;padding:32px 16px;font-family:Arial,sans-serif;color:#16352d;\">"
+        "<div style=\"max-width:520px;margin:auto;background:#ffffff;border:1px solid #bbf7d0;border-radius:18px;overflow:hidden;\">"
+        "<div style=\"background:#166534;padding:24px 28px;color:#ffffff;\"><div style=\"font-size:11px;letter-spacing:3px;font-weight:bold;\">INNOVA HMS</div>"
+        "<div style=\"font-size:22px;font-weight:bold;margin-top:10px;\">Email Verification</div></div>"
+        "<div style=\"padding:28px;line-height:1.6;\"><p style=\"margin-top:0;\">Use this code to confirm your signup:</p>"
+        f"<div style=\"margin:24px 0;padding:18px;text-align:center;border:1px dashed #22c55e;border-radius:12px;background:#f0fdf4;color:#166534;font-size:30px;font-weight:bold;letter-spacing:8px;\">{otp_code}</div>"
+        "<p style=\"font-size:13px;color:#64748b;\">This code expires in 10 minutes. If you did not request this, you can safely ignore this email.</p>"
+        "<p style=\"margin-bottom:0;font-size:13px;color:#64748b;\">Thank you,<br><strong style=\"color:#166534;\">Innova HMS Team</strong></p></div></div></div>"
+    )
+    delivered = bool(recipient and _send_sendgrid_email(recipient, subject, html_content, plain_text))
+    return delivered, otp_code
+
+
+def _consume_signup_otp(cur, user_type, email, otp_code):
+    cur.execute(
+        """
+        SELECT id, otp_hash, expires_at
+        FROM signup_otps
+        WHERE user_type = %s AND LOWER(email) = %s AND consumed_at IS NULL
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """,
+        (user_type, _normalize_email(email)),
+    )
+    row = cur.fetchone()
+    if not row:
+        return "No active email verification code found. Request a new OTP first."
+    if row.get("expires_at") and row["expires_at"] < datetime.utcnow():
+        return "OTP has expired. Request a new OTP."
+    if not check_password_hash(row.get("otp_hash") or "", str(otp_code or "")):
+        return "Invalid OTP."
+    cur.execute("UPDATE signup_otps SET consumed_at = NOW() WHERE id = %s", (row.get("id"),))
+    return None
+
+
 def _mask_email(value):
     email = _normalize_email(value)
     if "@" not in email:
@@ -420,13 +476,14 @@ def _send_password_reset_otp(user, user_type, otp_code, channel):
         "Innova HMS"
     )
     html_content = (
-        "<div style=\"font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;\">"
-        f"<p>Hello {escape(recipient_name)},</p>"
-        f"<p>Your password reset OTP is <strong style=\"font-size:20px;letter-spacing:4px;\">{escape(otp_code)}</strong>.</p>"
-        "<p>This code expires in 10 minutes.</p>"
-        "<p>If you did not request this, please ignore this message.</p>"
-        "<p>Innova HMS</p>"
-        "</div>"
+        "<div style=\"margin:0;background:#f0fdf4;padding:32px 16px;font-family:Arial,sans-serif;color:#16352d;\">"
+        "<div style=\"max-width:520px;margin:auto;background:#ffffff;border:1px solid #bbf7d0;border-radius:18px;overflow:hidden;\">"
+        "<div style=\"background:#166534;padding:24px 28px;color:#ffffff;\"><div style=\"font-size:11px;letter-spacing:3px;font-weight:bold;\">INNOVA HMS</div>"
+        "<div style=\"font-size:22px;font-weight:bold;margin-top:10px;\">Password Reset</div></div>"
+        f"<div style=\"padding:28px;line-height:1.6;\"><p style=\"margin-top:0;\">Hello {escape(recipient_name)}, use this code to reset your password:</p>"
+        f"<div style=\"margin:24px 0;padding:18px;text-align:center;border:1px dashed #22c55e;border-radius:12px;background:#f0fdf4;color:#166534;font-size:30px;font-weight:bold;letter-spacing:8px;\">{escape(otp_code)}</div>"
+        "<p style=\"font-size:13px;color:#64748b;\">This code expires in 10 minutes. If you did not request this, you can safely ignore this email.</p>"
+        "<p style=\"margin-bottom:0;font-size:13px;color:#64748b;\">Thank you,<br><strong style=\"color:#166534;\">Innova HMS Team</strong></p></div></div></div>"
     )
 
     if channel_value == "sms":
@@ -2757,6 +2814,28 @@ def _send_email_notification(notification):
 
 
 def _send_sendgrid_email(recipient_email, subject, html_content, plain_text=None):
+    smtp_email = app.config.get('MAIL_USERNAME')
+    smtp_password = app.config.get('MAIL_PASSWORD')
+    if smtp_email and smtp_password and recipient_email:
+        try:
+            message = EmailMessage()
+            message['Subject'] = subject
+            message['From'] = f"{os.getenv('SMTP_FROM_NAME', 'Innova HMS')} <{smtp_email}>"
+            message['To'] = recipient_email
+            message.set_content(plain_text or 'Please view this message in an HTML-capable email client.')
+            message.add_alternative(html_content, subtype='html')
+            smtp_host = app.config.get('MAIL_SERVER', 'innovahms2026@gmail.com')
+            smtp_port = app.config.get('MAIL_PORT', 465)
+            smtp_class = smtplib.SMTP_SSL if app.config.get('MAIL_USE_SSL') else smtplib.SMTP
+            with smtp_class(smtp_host, smtp_port, timeout=15) as server:
+                if app.config.get('MAIL_USE_TLS') and not app.config.get('MAIL_USE_SSL'):
+                    server.starttls()
+                server.login(smtp_email, smtp_password)
+                server.send_message(message)
+            return True
+        except Exception as exc:
+            print(f"SMTP email error: {exc}")
+
     if not _is_integration_enabled("sendgrid", default=True):
         return False
 
@@ -4615,6 +4694,46 @@ def facebook_login():
         return jsonify({"error": str(e)}), 500
 
 
+# --- AUTHENTICATION ENDPOINTS ---
+
+@app.route('/api/auth/send-otp', methods=['POST'])
+def send_signup_otp():
+    conn = None
+    cur = None
+    try:
+        payload = request.get_json(silent=True) or {}
+        user_type = str(payload.get('userType') or 'owner').strip().lower()
+        email = _normalize_email(payload.get('email'))
+        if user_type not in {'customer', 'owner', 'staff'}:
+            return jsonify({'error': 'Unsupported signup account type.'}), 400
+        if not _is_valid_email(email):
+            return jsonify({'error': 'Enter a valid email address.'}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_password_reset_tables(cur)
+        db_bootstrap.ensure_signup_otp_table(cur)
+        cur.execute(
+            "UPDATE signup_otps SET consumed_at = NOW() WHERE user_type = %s AND LOWER(email) = %s AND consumed_at IS NULL",
+            (user_type, email),
+        )
+        delivered, otp_code = _send_signup_otp(email, user_type)
+        if not delivered:
+            return jsonify({'error': 'Unable to send OTP to Gmail. Configure SENDGRID_API_KEY and a verified sender email first.'}), 503
+        cur.execute(
+            "INSERT INTO signup_otps (user_type, email, otp_hash, expires_at) VALUES (%s, %s, %s, %s)",
+            (user_type, email, generate_password_hash(otp_code), datetime.utcnow() + timedelta(minutes=10)),
+        )
+        conn.commit()
+        return jsonify({'message': f'OTP sent to {_mask_email(email)}. Check your Gmail inbox.', 'expiresInMinutes': 10}), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
 # --- CUSTOMER ENDPOINTS ---
 
 @app.route('/api/signup', methods=['POST'])
@@ -4625,6 +4744,7 @@ def signup():
     email = _normalize_email(data.get('email'))
     contact = str(data.get('contactNumber') or '').strip()
     password = data.get('password') or ''
+    otp_code = str(data.get('otpCode') or '').strip()
 
     if not all([f_name, l_name, email, contact, password]):
         return jsonify({"error": "Please complete all required fields."}), 400
@@ -4637,11 +4757,17 @@ def signup():
     password_error = _password_strength_message(password)
     if password_error:
         return jsonify({"error": password_error}), 400
+    if not re.fullmatch(r"\d{6}", otp_code):
+        return jsonify({"error": "Enter the 6-digit Gmail verification OTP."}), 400
 
     hashed_pw = generate_password_hash(password)
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        db_bootstrap.ensure_signup_otp_table(cur)
+        otp_error = _consume_signup_otp(cur, 'customer', email, otp_code)
+        if otp_error:
+            return jsonify({"error": otp_error}), 400
         cur.execute("SELECT id FROM customers WHERE LOWER(email) = %s LIMIT 1", (email,))
         if cur.fetchone():
             cur.close()
@@ -4858,15 +4984,16 @@ def request_password_reset_otp():
         )
         conn.commit()
 
-        delivered, dev_otp = _send_password_reset_otp(user, user_type, otp_code, channel)
+        delivered, _ = _send_password_reset_otp(user, user_type, otp_code, channel)
+        if not delivered:
+            return jsonify({"error": "Unable to send OTP to Gmail. Configure the Gmail SMTP app password first."}), 503
         destination = _mask_phone(user.get("contact_number")) if channel == "sms" else _mask_email(email)
 
         return jsonify({
-            "message": f"OTP sent to {destination}." if delivered else f"OTP generated for {destination}. Delivery provider is unavailable in this environment.",
+            "message": f"OTP sent to {destination}.",
             "channel": channel,
             "destination": destination,
             "expiresInMinutes": 10,
-            "devOtp": dev_otp,
         }), 200
     except Exception as e:
         if conn:
@@ -4987,6 +5114,7 @@ def owner_signup():
     email = _normalize_email(data.get('email'))
     contact = (data.get('contactNumber') or '').strip()
     password = data.get('password') or ''
+    otp_code = str(data.get('otpCode') or '').strip()
     hotel_code = (data.get('hotelCode') or '').strip().upper()
     hotel_name = (data.get('hotelName') or '').strip()
     hotel_address = (data.get('hotelAddress') or '').strip()
@@ -5022,6 +5150,8 @@ def owner_signup():
     password_error = _password_strength_message(password)
     if password_error:
         return jsonify({'error': password_error}), 400
+    if not re.fullmatch(r"\d{6}", otp_code):
+        return jsonify({'error': 'Enter the 6-digit Gmail verification OTP.'}), 400
 
     if not hotel_code and not hotel_name:
         return jsonify({'error': 'Please provide a hotel code or enter a hotel name to create a new hotel.'}), 400
@@ -5035,6 +5165,10 @@ def owner_signup():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         _ensure_profile_media_columns(cur)
+        db_bootstrap.ensure_signup_otp_table(cur)
+        otp_error = _consume_signup_otp(cur, 'owner', email, otp_code)
+        if otp_error:
+            return jsonify({'error': otp_error}), 400
 
         cur.execute('SELECT id FROM owners WHERE LOWER(email) = %s LIMIT 1', (email,))
         existing_owner = cur.fetchone()
@@ -5632,10 +5766,97 @@ def owner_create_subscription_payment_link():
         if not package_row:
             return jsonify({"error": "Package not found."}), 404
 
-        subscription_row = _activate_owner_subscription(cur, owner_id, package_row, billing_cycle)
-        amount = _to_float((subscription_row or {}).get("amount"), 0)
+        amount = _package_amount_for_cycle(package_row, billing_cycle)
         if amount <= 0:
             return jsonify({"error": "Invalid subscription amount."}), 400
+
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+        success_url = f'{frontend_url}/owner/subscription?payment=success&ownerId={owner_id}'
+        failed_url = f'{frontend_url}/owner/subscription?payment=failed&ownerId={owner_id}'
+
+        if _owner_subscription_simulation_enabled():
+            subscription_row = _activate_owner_subscription(cur, owner_id, package_row, billing_cycle)
+            conn.commit()
+            serialized_subscription = _serialize_owner_subscription(subscription_row)
+            return jsonify({
+                "message": f"{package_row.get('name')} {billing_cycle.lower()} subscription activated in simulation mode.",
+                "subscriptionId": (subscription_row or {}).get("id"),
+                "amount": amount,
+                "packageName": package_row.get("name"),
+                "billingCycle": billing_cycle,
+                "subscription": serialized_subscription,
+                "session": _owner_session_payload(cur, owner) if owner else None,
+                "checkoutUrl": None,
+                "linkId": None,
+                "isSimulated": True,
+                "autoActivated": True,
+            }), 200
+
+        if not _is_integration_enabled("paymongo", default=True):
+            return _integration_disabled_error("paymongo", "PayMongo payments are temporarily disabled by the admin.")
+
+        paymongo_key = os.getenv('PAYMONGO_SECRET_KEY', '')
+        if not paymongo_key or 'your_' in paymongo_key:
+            return jsonify({'error': 'PayMongo API key not configured. Please set PAYMONGO_SECRET_KEY in backend/.env file.'}), 503
+
+        payment_payload = {
+            'data': {
+                'attributes': {
+                    'amount': int(round(amount * 100)),
+                    'currency': 'PHP',
+                    'description': f"Innova HMS {package_row.get('name')} subscription ({billing_cycle.lower()})",
+                    'remarks': f"Owner subscription payment for owner #{owner_id}",
+                    'redirect': {'success': success_url, 'failed': failed_url},
+                }
+            }
+        }
+        response = requests.post(
+            'https://api.paymongo.com/v1/links',
+            json=payment_payload,
+            headers=_paymongo_headers(),
+            timeout=15,
+        )
+        result = response.json()
+        if not response.ok:
+            errors = result.get('errors', [{}])
+            detail = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
+            return jsonify({'error': detail}), 400
+
+        link_data = result.get('data') or {}
+        link_id = link_data.get('id')
+        checkout_url = (link_data.get('attributes') or {}).get('checkout_url')
+        if not link_id or not checkout_url:
+            return jsonify({'error': 'PayMongo did not return a checkout URL.'}), 502
+
+        current_subscription = _get_owner_subscription(cur, owner_id) or {}
+        hotel_id = current_subscription.get('hotel_id') or _resolve_owner_primary_hotel_id(cur, owner_id)
+        existing_id = current_subscription.get('id')
+        pending_status = 'ACTIVE' if str(current_subscription.get('status') or '').upper() == 'ACTIVE' else 'PENDING'
+        if existing_id:
+            cur.execute(
+                """
+                UPDATE hotel_package_subscriptions
+                SET package_id = %s, billing_cycle = %s, amount = %s,
+                    status = %s, payment_status = 'UNPAID', paymongo_payment_id = %s,
+                    updated_at = NOW()
+                WHERE id = %s
+                RETURNING *
+                """,
+                (package_id, billing_cycle, amount, pending_status, link_id, existing_id),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO hotel_package_subscriptions
+                    (owner_id, hotel_id, package_id, billing_cycle, amount, status,
+                     payment_status, paymongo_payment_id, starts_at, renewal_date, updated_at)
+                VALUES (%s, %s, %s, %s, %s, 'PENDING', 'UNPAID', %s, CURRENT_DATE, NULL, NOW())
+                RETURNING *
+                """,
+                (owner_id, hotel_id, package_id, billing_cycle, amount, link_id),
+            )
+        subscription_row = cur.fetchone()
+        conn.commit()
 
         cur.execute(
             """
@@ -5649,24 +5870,68 @@ def owner_create_subscription_payment_link():
         )
         owner = cur.fetchone()
         serialized_subscription = _serialize_owner_subscription(subscription_row)
-        conn.commit()
         return jsonify({
-            "message": f"{package_row.get('name')} {billing_cycle.lower()} subscription activated successfully.",
+            "message": f"{package_row.get('name')} {billing_cycle.lower()} checkout is ready. Complete payment to activate your subscription.",
             "subscriptionId": (subscription_row or {}).get("id"),
             "amount": amount,
             "packageName": package_row.get("name"),
             "billingCycle": billing_cycle,
             "subscription": serialized_subscription,
             "session": _owner_session_payload(cur, owner) if owner else None,
-            "checkoutUrl": None,
-            "linkId": None,
-            "isSimulated": True,
-            "autoActivated": True,
+            "checkoutUrl": checkout_url,
+            "linkId": link_id,
+            "isSimulated": False,
+            "autoActivated": False,
         }), 200
+    except requests.exceptions.Timeout:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': 'PayMongo request timed out. Try again.'}), 504
     except Exception as e:
         if conn:
             conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/owner/subscription/cancel', methods=['POST'])
+def owner_cancel_subscription():
+    conn = None
+    cur = None
+    try:
+        data = request.get_json(silent=True) or {}
+        owner_id = _to_int(data.get('ownerId'), 0)
+        if not owner_id:
+            return jsonify({'error': 'Owner is required.'}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            UPDATE hotel_package_subscriptions
+            SET status = 'CANCELLED', updated_at = NOW()
+            WHERE owner_id = %s AND status IN ('ACTIVE', 'PENDING')
+            RETURNING *
+            """,
+            (owner_id,),
+        )
+        subscription = cur.fetchone()
+        if not subscription:
+            return jsonify({'error': 'No active subscription found to cancel.'}), 404
+
+        conn.commit()
+        cur.execute("SELECT * FROM owners WHERE id = %s LIMIT 1", (owner_id,))
+        owner = cur.fetchone()
+        return jsonify({
+            'message': 'Your owner subscription has been cancelled.',
+            'subscription': _serialize_owner_subscription(subscription),
+            'session': _owner_session_payload(cur, owner) if owner else None,
+        }), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)
 
@@ -5684,6 +5949,24 @@ def owner_verify_subscription_payment(link_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         _backfill_hotel_subscriptions(cur)
         _seed_membership_packages(cur)
+
+        if str(link_id).lower() == 'latest':
+            cur.execute(
+                """
+                SELECT paymongo_payment_id
+                FROM hotel_package_subscriptions
+                WHERE owner_id = %s
+                  AND paymongo_payment_id IS NOT NULL
+                  AND COALESCE(payment_status, 'UNPAID') <> 'PAID'
+                ORDER BY updated_at DESC NULLS LAST, id DESC
+                LIMIT 1
+                """,
+                (owner_id,),
+            )
+            latest = cur.fetchone()
+            if not latest or not latest.get('paymongo_payment_id'):
+                return jsonify({'error': 'No pending subscription payment found.'}), 404
+            link_id = latest.get('paymongo_payment_id')
 
         cur.execute(
             """
@@ -7147,6 +7430,7 @@ def register_staff():
     email = _normalize_email(data.get('email'))
     contact_number = str(data.get('contactNumber') or '').strip()
     password = data.get('password') or ''
+    otp_code = str(data.get('otpCode') or '').strip()
     role = str(data.get('role') or '').strip()
     hotel_code = str(data.get('hotelCode') or '').strip().upper()
 
@@ -7171,12 +7455,18 @@ def register_staff():
     password_error = _password_strength_message(password)
     if password_error:
         return jsonify({"error": password_error}), 400
+    if not re.fullmatch(r"\d{6}", otp_code):
+        return jsonify({"error": "Enter the 6-digit Gmail verification OTP."}), 400
 
     password_hash = generate_password_hash(password)
 
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        db_bootstrap.ensure_signup_otp_table(cur)
+        otp_error = _consume_signup_otp(cur, 'staff', email, otp_code)
+        if otp_error:
+            return jsonify({"error": otp_error}), 400
         
         # 1. Hanapin ang hotel_id base sa hotel_code
         cur.execute("SELECT id FROM hotels WHERE UPPER(hotel_code) = %s", (hotel_code,))
@@ -7187,7 +7477,7 @@ def register_staff():
             conn.close()
             return jsonify({"error": "Invalid Hotel Verification Code"}), 400
         
-        hotel_id = hotel[0]
+        hotel_id = hotel.get('id')
 
         # 2. Insert Staff Data
         cur.execute("SELECT id FROM staff WHERE LOWER(email) = %s LIMIT 1", (email,))
@@ -7209,7 +7499,7 @@ def register_staff():
 
         return jsonify({
             "message": "Staff registered successfully!",
-            "staff_id": new_staff[0]
+            "staff_id": new_staff.get('id')
         }), 201
 
     except Exception as e:
@@ -7336,6 +7626,8 @@ def add_room():
         desc = request.form.get('description', '')
         adults = int(request.form.get('maxAdults') or 2)
         children = int(request.form.get('maxChildren') or 0)
+        if adults < 1 or children < 0:
+            return jsonify({"error": "Adult capacity must be at least 1 and child capacity cannot be negative."}), 400
 
         # Parse amenities — frontend sends {"Wifi","Aircon"} or JSON array
         raw_amenities = request.form.get('amenities', '')
@@ -7392,6 +7684,8 @@ def update_room(room_id):
         desc = request.form.get('description', '')
         adults = int(request.form.get('maxAdults') or 2)
         children = int(request.form.get('maxChildren') or 0)
+        if adults < 1 or children < 0:
+            return jsonify({"error": "Adult capacity must be at least 1 and child capacity cannot be negative."}), 400
 
         raw_amenities = request.form.get('amenities', '')
         amenities_list = _parse_text_array(raw_amenities)
@@ -8019,7 +8313,11 @@ def create_reservation():
         duration_hours = _to_int(data.get('durationHours'), 0)
         if duration_hours not in (0, 3, 6, 12):
             return jsonify({'error': 'Duration must be overnight, 3, 6, or 12 hours.'}), 400
-        guests = _to_int(data.get('guests'), 1)
+        adults = max(_to_int(data.get('adults'), 0), 0)
+        children = max(_to_int(data.get('children'), 0), 0)
+        guests = _to_int(data.get('guests'), adults + children or 1)
+        if 'adults' not in data and 'children' not in data:
+            adults, children = guests, 0
         special_requests = (data.get('specialRequests') or '').strip()
         requested_points = data.get('pointsToUse', 0)
         use_all_points = bool(data.get('useAllPoints'))
@@ -8037,10 +8335,16 @@ def create_reservation():
         _ensure_hourly_room_rate_columns(cur)
 
         # Get room details
-        cur.execute('SELECT id, price_per_night, rate_3_hours, rate_6_hours, rate_12_hours, hotel_id, room_number, room_name FROM rooms WHERE id = %s', (room_id,))
+        cur.execute('SELECT id, price_per_night, rate_3_hours, rate_6_hours, rate_12_hours, hotel_id, room_number, room_name, max_adults, max_children FROM rooms WHERE id = %s', (room_id,))
         room = cur.fetchone()
         if not room:
             return jsonify({'error': 'Room not found'}), 404
+        max_adults = _to_int(room.get('max_adults'), 0)
+        max_children = _to_int(room.get('max_children'), 0)
+        if adults > max_adults or children > max_children:
+            return jsonify({'error': f'This room allows up to {max_adults} adult(s) and {max_children} child(ren).'}), 400
+        if adults + children < 1:
+            return jsonify({'error': 'At least one guest is required.'}), 400
 
         try:
             ci = datetime.strptime(check_in, '%Y-%m-%d').date()
@@ -10906,6 +11210,8 @@ def vision_rooms():
         view_filter = (request.args.get("view") or "").strip()
         hotel_id = request.args.get("hotel_id", type=int)
         guests = request.args.get("guests", type=int)
+        adults = request.args.get("adults", type=int)
+        children = request.args.get("children", type=int)
         from_date_raw = (request.args.get("from") or request.args.get("checkIn") or "").strip()
         to_date_raw = (request.args.get("to") or request.args.get("checkOut") or "").strip()
         conn = get_db_connection()
@@ -10929,6 +11235,7 @@ def vision_rooms():
         query = """
             SELECT
                 r.id,
+                r.room_number,
                 r.room_name,
                 r.room_type,
                 r.price_per_night,
@@ -10957,7 +11264,13 @@ def vision_rooms():
             query += " AND r.hotel_id = %s"
             params.append(hotel_id)
 
-        if guests and guests > 0:
+        if adults is not None and adults > 0:
+            query += " AND COALESCE(r.max_adults, 0) >= %s"
+            params.append(adults)
+        if children is not None and children > 0:
+            query += " AND COALESCE(r.max_children, 0) >= %s"
+            params.append(children)
+        if adults is None and children is None and guests and guests > 0:
             query += " AND (COALESCE(r.max_adults, 0) + COALESCE(r.max_children, 0)) >= %s"
             params.append(guests)
 
@@ -10995,6 +11308,8 @@ def vision_rooms():
             amenities = _parse_text_array(row.get("amenities"))
             capacity = max(_to_int(row.get("max_adults")) + _to_int(row.get("max_children")), 1)
             room_id = row.get("id")
+            room_number = row.get("room_number") or ""
+            room_name = row.get("room_name") or row.get("room_type") or "Vision Suite"
             has_tour = False
             try:
                 has_tour = bool((_build_tour_payload(cur, room_id) or {}).get("isInteractive"))
@@ -11006,12 +11321,15 @@ def vision_rooms():
 
             rooms.append({
                 "id": room_id,
-                "name": row.get("room_name") or row.get("room_type") or "Vision Suite",
+                "name": room_name,
+                "roomNumber": room_number,
                 "type": row.get("room_type") or "Suite",
                 "tagline": row.get("hotel_name") or "Luxury accommodation",
                 "description": "Designed for comfort with smart hospitality features.",
                 "basePricePhp": _to_float(row.get("price_per_night"), 0),
                 "capacity": capacity,
+                "maxAdults": _to_int(row.get("max_adults"), 0),
+                "maxChildren": _to_int(row.get("max_children"), 0),
                 "imageUrl": raw_img,
                 "viewPreference": row.get("room_type") or view_filter or "City View",
                 "amenities": amenities,

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Crown, Loader2, Lock, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 
 const OWNER_SESSION_KEY = 'ownerSession';
@@ -17,12 +17,6 @@ const formatPhp = (value) => {
   }
 };
 
-const planAccent = (slug) => {
-  if (slug === 'enterprise') return 'from-slate-900 to-slate-700';
-  if (slug === 'pro') return 'from-[#bf9b30] to-[#e2c35f]';
-  return 'from-emerald-700 to-emerald-500';
-};
-
 const parseSession = () => {
   try {
     return JSON.parse(localStorage.getItem(OWNER_SESSION_KEY) || '{}');
@@ -33,6 +27,7 @@ const parseSession = () => {
 
 export default function OwnerSubscription() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [session, setSession] = useState(parseSession());
   const [packages, setPackages] = useState([]);
   const [subscription, setSubscription] = useState(null);
@@ -44,7 +39,12 @@ export default function OwnerSubscription() {
   const [hotelForm, setHotelForm] = useState({ hotelCode: '', hotelName: '', hotelAddress: '' });
 
   const ownerId = session?.id;
-  const accessUnlocked = Boolean(session?.subscriptionActive && session?.hasHotel);
+
+  // Strict check para masigurong active lang kung may actual active subscription data galing sa database
+  const isSubscribed = Boolean(subscription?.isActive && subscription?.status === 'ACTIVE');
+  const accessUnlocked = Boolean(isSubscribed && session?.hasHotel);
+  
+  const activePackageId = subscription?.packageId || null;
 
   const persistSession = (nextSession) => {
     localStorage.setItem(OWNER_SESSION_KEY, JSON.stringify({
@@ -67,7 +67,16 @@ export default function OwnerSubscription() {
       const response = await fetch(`/api/owner/subscription/${ownerId}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to load subscription data.');
-      setPackages(data.packages || []);
+      
+      // Override or inject ₱1 price for starter package kung kinakailangan para sa thesis demo
+      const updatedPackages = (data.packages || []).map(pkg => {
+        if (pkg.slug === 'starter' || pkg.name?.toLowerCase().includes('starter')) {
+          return { ...pkg, monthlyPrice: 1 };
+        }
+        return pkg;
+      });
+
+      setPackages(updatedPackages);
       setSubscription(data.subscription || null);
       if (data.session) persistSession(data.session);
     } catch (err) {
@@ -81,7 +90,32 @@ export default function OwnerSubscription() {
     load();
   }, [ownerId]);
 
-  const currentPlanId = useMemo(() => subscription?.packageId, [subscription]);
+  useEffect(() => {
+    if (searchParams.get('payment') === 'failed') {
+      setError('Payment was cancelled or declined. Your subscription was not activated.');
+      navigate('/owner/subscription', { replace: true });
+      return;
+    }
+    if (!ownerId || searchParams.get('payment') !== 'success') return;
+    let cancelled = false;
+    const verifyPayment = async () => {
+      try {
+        const response = await fetch(`/api/owner/subscription/verify/latest?owner_id=${ownerId}`);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Unable to verify subscription payment.');
+        if (cancelled) return;
+        if (data.session) persistSession(data.session);
+        setSubscription(data.subscription || null);
+        setMessage('Payment confirmed. Your owner subscription is now active.');
+        navigate('/owner/subscription', { replace: true });
+        await load();
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Unable to verify subscription payment.');
+      }
+    };
+    verifyPayment();
+    return () => { cancelled = true; };
+  }, [ownerId, searchParams]);
 
   const activatePlan = async (pkg, billingCycle) => {
     if (!ownerId) return;
@@ -96,12 +130,40 @@ export default function OwnerSubscription() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Unable to activate subscription.');
+      if (data.checkoutUrl) {
+        window.location.assign(data.checkoutUrl);
+        return;
+      }
       if (data.session) persistSession(data.session);
       setSubscription(data.subscription || null);
       setMessage(data.message || `${pkg.name} ${billingCycle.toLowerCase()} subscription activated successfully.`);
       await load();
     } catch (err) {
       setError(err.message || 'Unable to activate subscription.');
+    } finally {
+      setPaymentLoading('');
+    }
+  };
+
+  const cancelSubscription = async () => {
+    if (!ownerId || !window.confirm('Are you sure you want to cancel your owner subscription?')) return;
+    setError('');
+    setMessage('');
+    setPaymentLoading('cancel');
+    try {
+      const response = await fetch('/api/owner/subscription/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to cancel subscription.');
+      if (data.session) persistSession(data.session);
+      setSubscription(null); // Clear subscription state immediately
+      setMessage(data.message || 'Your owner subscription has been cancelled.');
+      await load();
+    } catch (err) {
+      setError(err.message || 'Unable to cancel subscription.');
     } finally {
       setPaymentLoading('');
     }
@@ -131,210 +193,215 @@ export default function OwnerSubscription() {
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8f5ed_0%,#f4f6fb_100%)] p-6 md:p-10">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <section className="overflow-hidden rounded-[32px] border border-[#bf9b30]/15 bg-[#111111] text-white shadow-[0_30px_80px_-40px_rgba(15,23,42,0.85)]">
-          <div className="grid gap-8 px-8 py-10 md:grid-cols-[1.1fr_0.9fr]">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 p-6 md:p-8 font-sans">
+      <div className="mx-auto max-w-5xl space-y-6">
+        
+        {/* HEADER OVERVIEW SECTION */}
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.32em] text-[#d2b04e]">Owner Subscription</p>
-              <h1 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">
-                {accessUnlocked ? 'Subscription Active' : 'Portal Locked Until Activation'}
+              <span className="text-[10px] font-mono uppercase text-emerald-700 dark:text-emerald-400 font-bold block mb-1">Account Subscription</span>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                {accessUnlocked ? 'Subscription Active & Unlocked' : 'Subscription Required'}
               </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/70">
-                Choose a plan and it activates immediately. Owner access is now controlled by your active subscription,
-                plan limits, and linked hotel setup.
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                Manage your property billing plan, secure payment processing, and system feature access.
               </p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-white/70">
-                  {session?.subscriptionPlan || 'No active plan'}
-                </div>
-                <div className={`rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] ${session?.approvalStatus === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-white/65'}`}>
-                  {session?.approvalStatus === 'APPROVED' ? 'Profile Approved' : `Profile ${session?.approvalStatus || 'Pending'}`}
-                </div>
-                <div className={`rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] ${accessUnlocked ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
-                  {accessUnlocked ? 'Features Unlocked' : !session?.subscriptionActive ? 'Activation Required' : 'Hotel Setup Required'}
-                </div>
-              </div>
             </div>
-
-            <div className="rounded-[28px] border border-white/10 bg-white/5 p-6 backdrop-blur">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-[#bf9b30]/15 p-3 text-[#e8c868]"><ShieldCheck size={22} /></div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/50">Current Status</p>
-                  <h2 className="mt-1 text-2xl font-black">{subscription?.packageName || 'Subscription Needed'}</h2>
-                </div>
-              </div>
-              <div className="mt-6 space-y-3 text-sm text-white/75">
-                <div className="flex items-center justify-between"><span>Billing cycle</span><span className="font-black">{subscription?.billingCycle || '--'}</span></div>
-                <div className="flex items-center justify-between"><span>Renewal date</span><span className="font-black">{subscription?.renewalDate ? new Date(subscription.renewalDate).toLocaleDateString() : '--'}</span></div>
-                <div className="flex items-center justify-between"><span>Registered hotel</span><span className="font-black">{session?.hotelName || 'Pending'}</span></div>
-              </div>
-              {accessUnlocked && (
-                <button onClick={() => navigate('/owner')} className="mt-6 w-full rounded-2xl bg-[#bf9b30] px-5 py-3 text-[11px] font-black uppercase tracking-[0.24em] text-[#0d0c0a]">
-                  Open Owner Dashboard
-                </button>
-              )}
+            <div className="flex items-center gap-2">
+              <span className={`px-2.5 py-1 rounded text-xs font-semibold ${accessUnlocked ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}`}>
+                {accessUnlocked ? 'Active Access' : 'Pending Activation'}
+              </span>
             </div>
           </div>
-        </section>
 
-        {(error || message) && (
-          <div className={`rounded-2xl border px-5 py-4 text-sm font-semibold ${error ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
-            {error || message}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-xs">
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded">
+              <span className="text-slate-400 block mb-0.5">Current Plan</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">{subscription?.packageName || 'None'}</span>
+            </div>
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded">
+              <span className="text-slate-400 block mb-0.5">Billing Cycle</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">{subscription?.billingCycle || 'N/A'}</span>
+            </div>
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded">
+              <span className="text-slate-400 block mb-0.5">Renewal Date</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">
+                {subscription?.renewalDate ? new Date(subscription.renewalDate).toLocaleDateString() : 'N/A'}
+              </span>
+            </div>
           </div>
-        )}
 
-        <section className="grid gap-5 lg:grid-cols-3">
-          {loading ? (
-            <div className="col-span-full flex justify-center py-16"><Loader2 size={28} className="animate-spin text-[#bf9b30]" /></div>
-          ) : (
-            packages.map((pkg) => {
-              const isCurrent = Number(currentPlanId) === Number(pkg.id);
-              return (
-                <article key={pkg.id} className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)]">
-                  <div className={`bg-gradient-to-r ${planAccent(pkg.slug)} p-6 text-white`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/70">{pkg.isPopular ? 'Most Selected' : 'Owner Plan'}</p>
-                        <h3 className="mt-2 text-3xl font-black">{pkg.name}</h3>
-                      </div>
-                      <div className="rounded-2xl bg-white/10 p-3">{pkg.slug === 'enterprise' ? <Crown size={22} /> : <Sparkles size={22} />}</div>
-                    </div>
-                    <div className="mt-6 flex items-end gap-2">
-                      <span className="text-3xl font-black">{formatPhp(pkg.monthlyPrice)}</span>
-                      <span className="pb-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/70">Monthly</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-5 p-6">
-                    <p className="min-h-[48px] text-sm leading-relaxed text-slate-600">{pkg.description || 'Subscription package for hotel owner operations.'}</p>
-                    <div className="space-y-2">
-                      {(pkg.features || []).map((feature) => (
-                        <div key={feature} className="flex items-start gap-2 text-sm text-slate-700">
-                          <CheckCircle2 size={16} className="mt-0.5 text-[#bf9b30]" />
-                          <span>{feature}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => activatePlan(pkg, 'MONTHLY')}
-                        disabled={Boolean(paymentLoading)}
-                        className="rounded-2xl border border-slate-200 bg-slate-900 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white disabled:opacity-60"
-                      >
-                        {paymentLoading === `${pkg.id}-MONTHLY` ? 'Activating...' : isCurrent ? 'Renew Monthly' : 'Activate Monthly'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => activatePlan(pkg, 'ANNUAL')}
-                        disabled={Boolean(paymentLoading)}
-                        className="rounded-2xl border border-[#bf9b30]/30 bg-[#bf9b30]/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-[#8f7423] disabled:opacity-60"
-                      >
-                        {paymentLoading === `${pkg.id}-ANNUAL` ? 'Activating...' : isCurrent ? 'Renew Annual' : 'Activate Annual'}
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })
+          {accessUnlocked && (
+            <div className="mt-4 flex justify-end">
+              <button 
+                onClick={() => navigate('/owner')} 
+                className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm transition-colors"
+              >
+                Go to Owner Dashboard →
+              </button>
+            </div>
           )}
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[1fr_0.95fr]">
-          <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.28)]">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-slate-900 p-3 text-white"><Zap size={20} /></div>
+        {/* FEEDBACK ALERTS */}
+        {(error || message) && (
+          <div className={`p-4 rounded border text-xs flex items-center gap-3 ${error ? 'bg-red-50 dark:bg-red-950/30 border-red-300 text-red-800 dark:text-red-200' : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 text-emerald-800 dark:text-emerald-200'}`}>
+            <span className="font-bold">{error ? 'Error:' : 'Success:'}</span>
+            <span>{error || message}</span>
+          </div>
+        )}
+
+        {/* PACKAGES LIST */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">Available Subscription Packages</h3>
+          
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-emerald-700" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {packages.map((pkg) => {
+                const isThisPackageActive = isSubscribed && String(activePackageId) === String(pkg.id);
+
+                return (
+                  <div key={pkg.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 flex flex-col justify-between shadow-sm">
+                    <div>
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <span className="text-[10px] font-mono text-slate-400 uppercase">{pkg.slug}</span>
+                          <h4 className="font-bold text-slate-900 dark:text-white text-base">{pkg.name}</h4>
+                        </div>
+                        {isThisPackageActive && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold px-2 py-0.5 rounded">
+                            Active
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mb-4">
+                        <span className="text-xl font-bold text-slate-900 dark:text-white">{formatPhp(pkg.monthlyPrice)}</span>
+                        <span className="text-[11px] text-slate-500 ml-1">/ month</span>
+                      </div>
+
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mb-4 min-h-[36px]">
+                        {pkg.description || 'Standard management features for property operations.'}
+                      </p>
+
+                      <div className="space-y-1.5 mb-6 border-t border-slate-100 dark:border-slate-800 pt-3">
+                        {(pkg.features || []).map((feature, idx) => (
+                          <div key={idx} className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                            <CheckCircle2 size={14} className="text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
+                            <span>{feature}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* MGA BUTTONS: Kung Active ang package na ito -> Renew / Cancel | Kung Hindi -> Pay lang */}
+                    <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                      {isThisPackageActive ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => activatePlan(pkg, 'MONTHLY')}
+                            disabled={Boolean(paymentLoading)}
+                            className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded transition-colors disabled:opacity-50"
+                          >
+                            {paymentLoading === `${pkg.id}-MONTHLY` ? 'Processing...' : 'Renew Subscription'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelSubscription}
+                            disabled={Boolean(paymentLoading)}
+                            className="w-full py-2 border border-red-300 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-semibold rounded transition-colors disabled:opacity-50"
+                          >
+                            {paymentLoading === 'cancel' ? 'Cancelling...' : 'Cancel Subscription'}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => activatePlan(pkg, 'MONTHLY')}
+                          disabled={Boolean(paymentLoading)}
+                          className="w-full py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-bold rounded transition-colors disabled:opacity-50"
+                        >
+                          {paymentLoading === `${pkg.id}-MONTHLY` ? 'Processing...' : 'Pay Plan'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* HOTEL SETUP SECTION */}
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Registered Property Details</h3>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">
+            {session?.hasHotel ? 'Your establishment is linked to this owner account.' : 'Provide property details to finalize configuration.'}
+          </p>
+
+          {session?.hasHotel ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded">
+                <span className="text-slate-400 block mb-0.5">Hotel Name</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">{session?.hotelName || 'N/A'}</span>
+              </div>
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded">
+                <span className="text-slate-400 block mb-0.5">Hotel Code</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-sm">{session?.hotelCode || 'N/A'}</span>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={submitHotelSetup} className="space-y-4 max-w-xl">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Portal Access Rules</p>
-                <h2 className="mt-1 text-2xl font-black text-slate-900">Subscription controls owner access</h2>
-              </div>
-            </div>
-            <div className="mt-6 grid gap-3">
-              {[
-                'Activating a subscription immediately unlocks the owner tools included in that package.',
-                'Starter owners can manage rooms, reservations, customers, reviews, and dashboard access.',
-                'Higher plans unlock extra modules like staff, inventory, reports, and promotions based on the selected tier.',
-              ].map((item) => (
-                <div key={item} className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                  <Lock size={16} className="mt-0.5 text-[#bf9b30]" />
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.28)]">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Registered Property</p>
-            <h2 className="mt-2 text-2xl font-black text-slate-900">
-              {session?.hasHotel ? 'Hotel Already Registered' : 'Property Details Needed'}
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              {session?.hasHotel
-                ? 'Your hotel was created during owner signup. Subscription activation is the last step before the allowed owner tools unlock.'
-                : 'If this owner account has no linked hotel yet, you can still attach one here after activating a subscription.'}
-            </p>
-
-            {session?.hasHotel ? (
-              <div className="mt-6 space-y-3">
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Hotel Name</p>
-                  <p className="mt-2 text-lg font-black text-slate-900">{session?.hotelName || subscription?.hotelName || 'Registered Hotel'}</p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Hotel Code</p>
-                    <p className="mt-2 text-sm font-black text-slate-900">{session?.hotelCode || subscription?.hotelCode || '--'}</p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Portal Status</p>
-                    <p className={`mt-2 text-sm font-black ${accessUnlocked ? 'text-emerald-700' : 'text-amber-700'}`}>
-                      {accessUnlocked ? 'Unlocked after subscription activation' : !session?.subscriptionActive ? 'Waiting for activation' : 'Hotel setup required'}
-                    </p>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-dashed border-[#bf9b30]/35 bg-[#bf9b30]/[0.06] px-4 py-4 text-sm font-medium leading-relaxed text-slate-700">
-                  The modules visible to this owner depend on the active plan, including room limits and higher-tier feature access.
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={submitHotelSetup} className="mt-6 space-y-4">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Hotel Code (Optional)</label>
                 <input
                   type="text"
-                  placeholder="Existing Hotel Code (optional)"
+                  placeholder="INNOVAHMS-123"
                   value={hotelForm.hotelCode}
-                  disabled={!session?.subscriptionActive}
-                  onChange={(event) => setHotelForm((current) => ({ ...current, hotelCode: event.target.value.toUpperCase() }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!isSubscribed}
+                  onChange={(e) => setHotelForm((curr) => ({ ...curr, hotelCode: e.target.value.toUpperCase() }))}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded text-xs bg-slate-50 dark:bg-slate-800 outline-none disabled:opacity-50"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Hotel Name *</label>
                 <input
                   type="text"
-                  placeholder="Hotel Name"
+                  placeholder="Grand Vista Hotel"
                   value={hotelForm.hotelName}
-                  disabled={!session?.subscriptionActive}
-                  onChange={(event) => setHotelForm((current) => ({ ...current, hotelName: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!isSubscribed}
+                  onChange={(e) => setHotelForm((curr) => ({ ...curr, hotelName: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded text-xs bg-slate-50 dark:bg-slate-800 outline-none disabled:opacity-50"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Hotel Address *</label>
                 <input
                   type="text"
-                  placeholder="Hotel Address"
+                  placeholder="Complete Address"
                   value={hotelForm.hotelAddress}
-                  disabled={!session?.subscriptionActive}
-                  onChange={(event) => setHotelForm((current) => ({ ...current, hotelAddress: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!isSubscribed}
+                  onChange={(e) => setHotelForm((curr) => ({ ...curr, hotelAddress: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded text-xs bg-slate-50 dark:bg-slate-800 outline-none disabled:opacity-50"
                 />
-                <button
-                  type="submit"
-                  disabled={!session?.subscriptionActive || hotelSaving}
-                  className="w-full rounded-2xl bg-slate-900 px-5 py-3 text-[11px] font-black uppercase tracking-[0.24em] text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {hotelSaving ? 'Saving...' : 'Save Hotel Setup'}
-                </button>
-              </form>
-            )}
-          </div>
+              </div>
+              <button
+                type="submit"
+                disabled={!isSubscribed || hotelSaving}
+                className="px-4 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-white text-xs font-bold rounded transition-colors disabled:opacity-50"
+              >
+                {hotelSaving ? 'Saving...' : 'Save Property Details'}
+              </button>
+            </form>
+          )}
         </section>
+
       </div>
     </div>
   );

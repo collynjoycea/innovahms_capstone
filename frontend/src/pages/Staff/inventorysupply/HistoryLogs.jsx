@@ -6,7 +6,7 @@ import useStaffSession from '../../../hooks/useStaffSession';
 const TYPE_STYLE = {
   IN:     { icon: <ArrowUpRight size={14} />,  color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
   OUT:    { icon: <ArrowDownLeft size={14} />, color: 'text-red-500',     bg: 'bg-red-500/10' },
-  ADJUST: { icon: <Settings size={14} />,      color: 'text-[#b3903c]',   bg: 'bg-[#b3903c]/10' },
+  ADJUST: { icon: <Settings size={14} />,      color: 'text-[#2FA084]',   bg: 'bg-[#2FA084]/10' },
 };
 
 export default function HistoryLogs() {
@@ -36,7 +36,7 @@ export default function HistoryLogs() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className={`text-3xl font-black italic tracking-tighter uppercase flex items-center gap-3 ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-            <History className="text-[#b3903c]" size={28} /> Audit Trail
+            <History className="text-[#2FA084]" size={28} /> Audit Trail
           </h1>
           <p className={`text-[10px] font-black uppercase tracking-[0.3em] mt-1 ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
             {logs.length} movement records
@@ -46,7 +46,7 @@ export default function HistoryLogs() {
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={14} />
             <input type="text" placeholder="Filter by item or user..." value={search} onChange={e => setSearch(e.target.value)}
-              className={`pl-12 pr-6 py-2.5 text-[11px] font-bold outline-none w-64 transition-all rounded-full border ${isDarkMode ? 'bg-zinc-900/50 border-white/5 text-white focus:border-[#b3903c]/50' : 'bg-white border-zinc-200 text-zinc-900 focus:border-[#b3903c]'}`} />
+              className={`pl-12 pr-6 py-2.5 text-[11px] font-bold outline-none w-64 transition-all rounded-full border ${isDarkMode ? 'bg-zinc-900/50 border-white/5 text-white focus:border-[#2FA084]/50' : 'bg-white border-zinc-200 text-zinc-900 focus:border-[#2FA084]'}`} />
           </div>
           <button onClick={fetchLogs} className={`p-2.5 rounded-xl border ${isDarkMode ? 'bg-zinc-900 border-white/5 text-zinc-400 hover:text-white' : 'bg-white border-zinc-200 text-zinc-400'} transition-all`}>
             <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
@@ -83,19 +83,19 @@ export default function HistoryLogs() {
                   </td>
                   <td className="px-6 py-5">
                     <p className={`text-[11px] font-black ${isDarkMode ? 'text-zinc-300' : 'text-zinc-800'}`}>{log.itemName}</p>
-                    <p className="text-[8px] font-bold text-[#b3903c] uppercase tracking-widest">{log.skuId}</p>
+                    <p className="text-[8px] font-bold text-[#2FA084] uppercase tracking-widest">{log.skuId}</p>
                   </td>
                   <td className="px-6 py-5">
                     <p className={`text-[10px] font-bold ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
                       {log.type === 'IN' ? `+${log.quantity} ${log.unit}` : `-${log.quantity} ${log.unit}`}
-                      {log.department ? ` → ${log.department}` : ''}
+                      {log.department ? ` â†’ ${log.department}` : ''}
                       {log.supplier ? ` from ${log.supplier}` : ''}
                     </p>
                     {log.reason && <p className={`text-[9px] ${isDarkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>{log.reason}</p>}
                   </td>
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-[#b3903c]/40" />
+                      <div className="w-2 h-2 rounded-full bg-[#2FA084]/40" />
                       <span className={`font-black text-[10px] uppercase tracking-tighter ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>{log.performedBy || 'Staff'}</span>
                     </div>
                   </td>

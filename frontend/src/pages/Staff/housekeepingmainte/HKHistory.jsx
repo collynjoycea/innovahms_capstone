@@ -11,7 +11,7 @@ const HKHistory = () => {
   const { isDarkMode } = useOutletContext() || { isDarkMode: true };
   const { qs } = useStaffSession();
   const [historyData, setHistoryData] = useState([]);
-  const [stats, setStats] = useState({ completedThisWeek: 0, avgTaskTime: 'N/A', performanceScore: '—' });
+  const [stats, setStats] = useState({ completedThisWeek: 0, avgTaskTime: 'N/A', performanceScore: 'â€”' });
 
   useEffect(() => {
     axios.get(`/api/housekeeping/history${qs}`).then(res => {
@@ -23,7 +23,7 @@ const HKHistory = () => {
   const performanceStats = [
     { label: 'COMPLETED THIS WEEK', value: String(stats.completedThisWeek ?? 0), icon: <CheckCircle2 className="text-emerald-500" size={24} /> },
     { label: 'AVG TASK TIME',        value: stats.avgTaskTime || 'N/A',           icon: <Clock className="text-purple-500" size={24} /> },
-    { label: 'PERFORMANCE SCORE',   value: stats.performanceScore || '—',         icon: <Star className="text-yellow-500" size={24} /> },
+    { label: 'PERFORMANCE SCORE',   value: stats.performanceScore || 'â€”',         icon: <Star className="text-yellow-500" size={24} /> },
   ];
 
   const theme = {
@@ -33,10 +33,10 @@ const HKHistory = () => {
     textMain:  isDarkMode ? 'text-white'      : 'text-zinc-900',
     textSub:   isDarkMode ? 'text-zinc-500'   : 'text-zinc-500',
     border:    isDarkMode ? 'border-white/5'  : 'border-zinc-200',
-    gold:      '#c9a84c',
+    gold:      '#6FCF97',
     shadow:    isDarkMode ? 'shadow-[0_20px_50px_rgba(0,0,0,0.5)]' : 'shadow-[0_15px_40px_rgba(0,0,0,0.08)]',
   };
-  const goldTextClass = 'text-[#c9a84c]';
+  const goldTextClass = 'text-[#6FCF97]';
 
   return (
     <div className={`p-8 min-h-screen transition-all duration-500 ${theme.bg}`}>
@@ -48,14 +48,14 @@ const HKHistory = () => {
             Task <span className={goldTextClass}>History</span>
           </h1>
           <p className={`text-[10px] font-bold ${theme.textSub} uppercase tracking-[0.3em] mt-2`}>
-            Operations Portal • Performance & Cleaning Logs
+            Operations Portal â€¢ Performance & Cleaning Logs
           </p>
         </div>
         <div className="flex gap-4 mt-6 md:mt-0">
-          <button className={`p-3 rounded-xl border ${theme.border} ${theme.card} ${theme.textMain} hover:border-[#c9a84c]/50 transition-all`}>
+          <button className={`p-3 rounded-xl border ${theme.border} ${theme.card} ${theme.textMain} hover:border-[#6FCF97]/50 transition-all`}>
             <Download size={18} />
           </button>
-          <button className={`p-3 rounded-xl border ${theme.border} ${theme.card} ${theme.textMain} hover:border-[#c9a84c]/50 transition-all`}>
+          <button className={`p-3 rounded-xl border ${theme.border} ${theme.card} ${theme.textMain} hover:border-[#6FCF97]/50 transition-all`}>
             <Calendar size={18} />
           </button>
         </div>
@@ -79,7 +79,7 @@ const HKHistory = () => {
       {/* 3. COMPLETED TASKS LIST */}
       <div className={`${theme.card} border rounded-[3rem] p-10 ${theme.shadow} overflow-hidden`}>
         <div className="flex items-center gap-4 mb-10">
-          <div className={`p-4 rounded-2xl ${isDarkMode ? 'bg-[#c9a84c]/10' : 'bg-[#c9a84c]/5'} text-[#c9a84c] border border-[#c9a84c]/20`}>
+          <div className={`p-4 rounded-2xl ${isDarkMode ? 'bg-[#6FCF97]/10' : 'bg-[#6FCF97]/5'} text-[#6FCF97] border border-[#6FCF97]/20`}>
             <Clock size={24} />
           </div>
           <div className="text-left">
@@ -94,7 +94,7 @@ const HKHistory = () => {
           ) : historyData.map((item, i) => (
             <div 
               key={i} 
-              className={`group flex items-center justify-between p-6 rounded-3xl border ${theme.border} ${theme.innerCard} hover:border-[#c9a84c]/40 transition-all duration-300 cursor-pointer text-left relative overflow-hidden`}
+              className={`group flex items-center justify-between p-6 rounded-3xl border ${theme.border} ${theme.innerCard} hover:border-[#6FCF97]/40 transition-all duration-300 cursor-pointer text-left relative overflow-hidden`}
             >
               <div className="flex items-center gap-6 relative z-10">
                 <div className={`w-14 h-14 rounded-2xl ${isDarkMode ? 'bg-emerald-500/10' : 'bg-emerald-50'} flex items-center justify-center border ${isDarkMode ? 'border-emerald-500/20' : 'border-emerald-100'}`}>
@@ -102,10 +102,10 @@ const HKHistory = () => {
                 </div>
                 <div>
                   <h4 className={`text-[15px] font-black uppercase tracking-tight ${theme.textMain}`}>
-                    {item.task_type} — <span className={goldTextClass}>{item.room_label}</span>
+                    {item.task_type} â€” <span className={goldTextClass}>{item.room_label}</span>
                   </h4>
                   <p className={`text-[12px] font-medium ${theme.textSub} mt-1 leading-relaxed`}>
-                    {item.staff_name ? `Assigned to ${item.staff_name} • ` : ''}{item.completed_at ? new Date(item.completed_at).toLocaleString() : ''}
+                    {item.staff_name ? `Assigned to ${item.staff_name} â€¢ ` : ''}{item.completed_at ? new Date(item.completed_at).toLocaleString() : ''}
                   </p>
                 </div>
               </div>
@@ -113,14 +113,14 @@ const HKHistory = () => {
                 <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${theme.border} text-emerald-500 bg-emerald-500/5`}>
                   {item.status}
                 </span>
-                <ChevronRight size={20} className={`${theme.textSub} group-hover:translate-x-1 group-hover:text-[#c9a84c] transition-all`} />
+                <ChevronRight size={20} className={`${theme.textSub} group-hover:translate-x-1 group-hover:text-[#6FCF97] transition-all`} />
               </div>
-              <div className={`absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 rounded-tr-3xl opacity-0 group-hover:opacity-100 transition-opacity border-[#c9a84c]`} />
+              <div className={`absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 rounded-tr-3xl opacity-0 group-hover:opacity-100 transition-opacity border-[#6FCF97]`} />
             </div>
           ))}
         </div>
 
-        <button className={`w-full mt-10 py-5 rounded-2xl border-2 border-dashed ${theme.border} ${theme.card} ${theme.textSub} font-black uppercase tracking-widest text-[11px] hover:text-[#c9a84c] hover:border-[#c9a84c]/50 transition-all`}>
+        <button className={`w-full mt-10 py-5 rounded-2xl border-2 border-dashed ${theme.border} ${theme.card} ${theme.textSub} font-black uppercase tracking-widest text-[11px] hover:text-[#6FCF97] hover:border-[#6FCF97]/50 transition-all`}>
           Load Older Records
         </button>
       </div>

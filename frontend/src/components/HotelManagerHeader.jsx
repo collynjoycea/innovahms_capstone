@@ -32,7 +32,7 @@ const HotelManagerHeader = ({ isDarkMode, toggleTheme }) => {
     border:   isDarkMode ? 'border-zinc-900' : 'border-zinc-200',
     input:    isDarkMode ? 'bg-zinc-950 border-zinc-900' : 'bg-zinc-100 border-zinc-200',
     dropdown: isDarkMode ? 'bg-[#0d0c0a] border-white/10' : 'bg-white border-gray-100',
-    gold: '#b3903c',
+    gold: '#2FA084',
   };
 
   const displayName = `${firstName || ''} ${lastName || ''}`.trim() || 'Staff';
@@ -44,15 +44,15 @@ const HotelManagerHeader = ({ isDarkMode, toggleTheme }) => {
 
         {/* LEFT */}
         <div className="flex items-center gap-4">
-          <div className="p-2 rounded-xl bg-[#b3903c]/10 border border-[#b3903c]/20">
+          <div className="p-2 rounded-xl bg-[#2FA084]/10 border border-[#2FA084]/20">
             <ShieldCheck size={20} color={theme.gold} />
           </div>
           <div>
             <h1 className={`text-sm font-black uppercase tracking-[0.2em] italic ${theme.textMain}`}>
-              Manager <span className="text-[#b3903c]">Console</span>
+              Manager <span className="text-[#2FA084]">Console</span>
             </h1>
             <p className={`text-[9px] font-bold ${theme.textSub} uppercase tracking-widest`}>
-              Executive Oversight · {new Date().toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
+              Executive Oversight Â· {new Date().toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
         </div>
@@ -60,9 +60,9 @@ const HotelManagerHeader = ({ isDarkMode, toggleTheme }) => {
         {/* CENTER */}
         <div className="hidden md:flex flex-1 max-w-md mx-8">
           <div className="relative w-full group transition-all">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors group-focus-within:text-[#b3903c]" size={16} color={isDarkMode ? '#3f3f46' : '#a1a1aa'} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors group-focus-within:text-[#2FA084]" size={16} color={isDarkMode ? '#3f3f46' : '#a1a1aa'} />
             <input type="text" placeholder="Search analytics, staff, or reports..."
-              className={`w-full h-11 pl-12 pr-4 rounded-xl border text-[11px] font-bold uppercase tracking-widest transition-all outline-none focus:ring-1 focus:ring-[#b3903c]/30 ${theme.input} ${theme.textMain} placeholder:text-zinc-600`} />
+              className={`w-full h-11 pl-12 pr-4 rounded-xl border text-[11px] font-bold uppercase tracking-widest transition-all outline-none focus:ring-1 focus:ring-[#2FA084]/30 ${theme.input} ${theme.textMain} placeholder:text-zinc-600`} />
           </div>
         </div>
 
@@ -71,7 +71,7 @@ const HotelManagerHeader = ({ isDarkMode, toggleTheme }) => {
           <button onClick={toggleTheme} className={`p-2.5 rounded-xl border transition-all hover:scale-105 active:scale-95 ${theme.border} ${theme.input}`}>
             {isDarkMode ? <Sun size={18} color={theme.gold} /> : <Moon size={18} color={theme.gold} />}
           </button>
-          <button className={`p-2.5 rounded-xl border relative transition-all hover:bg-[#b3903c]/5 ${theme.border} ${theme.input}`}>
+          <button className={`p-2.5 rounded-xl border relative transition-all hover:bg-[#2FA084]/5 ${theme.border} ${theme.input}`}>
             <Bell size={18} color={theme.gold} />
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-600 rounded-full border-2 border-black animate-pulse" />
           </button>
@@ -84,10 +84,10 @@ const HotelManagerHeader = ({ isDarkMode, toggleTheme }) => {
               className={`flex items-center gap-3 pl-2 p-1.5 rounded-2xl transition-all ${showProfileMenu ? (isDarkMode ? 'bg-white/5' : 'bg-gray-100') : 'hover:bg-white/5'}`}>
               <div className="text-right hidden sm:block">
                 <h2 className={`text-[11px] font-black uppercase tracking-tight ${theme.textMain}`}>{displayName}</h2>
-                <p className="text-[#b3903c] text-[8px] font-black uppercase tracking-[0.2em] italic">{role || 'Hotel Manager'}</p>
+                <p className="text-[#2FA084] text-[8px] font-black uppercase tracking-[0.2em] italic">{role || 'Hotel Manager'}</p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-zinc-950 border border-[#b3903c]/30 flex items-center justify-center overflow-hidden hover:border-[#b3903c] transition-all">
-                <div className={`w-full h-full flex items-center justify-center font-black text-xs transition-all ${showProfileMenu ? 'bg-[#b3903c] text-black' : 'bg-[#b3903c]/10 text-[#b3903c]'}`}>
+              <div className="w-10 h-10 rounded-xl bg-zinc-950 border border-[#2FA084]/30 flex items-center justify-center overflow-hidden hover:border-[#2FA084] transition-all">
+                <div className={`w-full h-full flex items-center justify-center font-black text-xs transition-all ${showProfileMenu ? 'bg-[#2FA084] text-black' : 'bg-[#2FA084]/10 text-[#2FA084]'}`}>
                   {initials}
                 </div>
               </div>
@@ -98,7 +98,7 @@ const HotelManagerHeader = ({ isDarkMode, toggleTheme }) => {
                 <div className={`px-3 py-2 border-b mb-1 ${isDarkMode ? 'border-white/5' : 'border-gray-100'}`}>
                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em]">Manager Actions</p>
                 </div>
-                <button className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#b3903c]/10 hover:text-[#b3903c] text-xs transition-all ${theme.textMain}`}>
+                <button className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#2FA084]/10 hover:text-[#2FA084] text-xs transition-all ${theme.textMain}`}>
                   <UserCircle size={16} /> Administrative Profile
                 </button>
                 <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/10 text-red-500 text-xs transition-all font-bold">

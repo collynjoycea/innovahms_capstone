@@ -59,7 +59,7 @@ const InventoryLayout = () => {
           border-radius: 20px; 
         }
         .custom-inventory-scroll::-webkit-scrollbar-thumb:hover { 
-          background: #b3903c; 
+          background: #2FA084; 
         }
       `}} />
     </div>

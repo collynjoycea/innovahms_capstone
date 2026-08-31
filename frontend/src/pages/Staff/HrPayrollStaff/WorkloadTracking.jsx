@@ -79,20 +79,20 @@ const WorkloadTracking = () => {
                   <tr key={row.staffId} className={isDarkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-zinc-50'}>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#b3903c]/10 text-[10px] font-black text-[#b3903c]">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2FA084]/10 text-[10px] font-black text-[#2FA084]">
                           {getInitials(row.name)}
                         </div>
                         <span className={`text-[12px] font-black uppercase tracking-tight ${theme.textMain}`}>{row.name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-[11px] font-bold text-[#b3903c]">{row.dept}</td>
+                    <td className="px-4 py-4 text-[11px] font-bold text-[#2FA084]">{row.dept}</td>
                     <td className={`px-4 py-4 text-center text-[12px] font-mono ${theme.textMain}`}>{row.completed}/{row.assigned}</td>
                     <td className="px-4 py-4 text-center text-[12px] font-mono text-rose-500">{row.overdue}</td>
                     <td className="px-4 py-4">
                       <div className="flex flex-col items-end gap-1">
-                        <span className={`text-[11px] font-mono font-bold ${row.capacity >= 100 ? 'text-rose-500' : 'text-[#b3903c]'}`}>{row.capacity}%</span>
+                        <span className={`text-[11px] font-mono font-bold ${row.capacity >= 100 ? 'text-rose-500' : 'text-[#2FA084]'}`}>{row.capacity}%</span>
                         <div className={`h-2 w-20 overflow-hidden rounded-full ${isDarkMode ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
-                          <div className={`h-full ${row.capacity >= 100 ? 'bg-rose-500' : 'bg-[#b3903c]'}`} style={{ width: `${Math.min(row.capacity, 100)}%` }} />
+                          <div className={`h-full ${row.capacity >= 100 ? 'bg-rose-500' : 'bg-[#2FA084]'}`} style={{ width: `${Math.min(row.capacity, 100)}%` }} />
                         </div>
                       </div>
                     </td>
@@ -114,7 +114,7 @@ const WorkloadTracking = () => {
                   <p className={`text-sm font-black ${theme.textMain}`}>{item.count}</p>
                 </div>
                 <div className={`h-2 overflow-hidden rounded-full ${isDarkMode ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
-                  <div className="h-full bg-[#b3903c]" style={{ width: `${Math.min((item.count || 0) * 20, 100)}%` }} />
+                  <div className="h-full bg-[#2FA084]" style={{ width: `${Math.min((item.count || 0) * 20, 100)}%` }} />
                 </div>
               </div>
             ))}

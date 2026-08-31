@@ -28,7 +28,7 @@ const AttendanceTracking = () => {
     textSub: isDarkMode ? "text-zinc-500" : "text-zinc-400",
     tableHeader: isDarkMode ? "bg-white/5 text-zinc-500" : "bg-zinc-50 text-zinc-600",
     input: isDarkMode ? "bg-[#050505] border-zinc-800 text-white" : "bg-zinc-50 border-zinc-200 text-zinc-900",
-    accent: "#b3903c"
+    accent: "#2FA084"
   };
 
   // 2. FETCH DATA FROM DB (FLASK API)
@@ -41,8 +41,8 @@ const AttendanceTracking = () => {
         setLogs(staffList.map(st => ({
           name: st.name,
           dept: st.role,
-          time: st.clockIn || '—',
-          clockOut: st.clockOut || '—',
+          time: st.clockIn || 'â€”',
+          clockOut: st.clockOut || 'â€”',
           status: st.shiftStatus,
         })));
         setStats({
@@ -77,7 +77,7 @@ const AttendanceTracking = () => {
   if (loading) {
     return (
       <div className={`h-screen flex flex-col items-center justify-center ${theme.container}`}>
-        <Loader2 className="animate-spin text-[#b3903c] mb-4" size={40} />
+        <Loader2 className="animate-spin text-[#2FA084] mb-4" size={40} />
         <p className={`text-[10px] font-black uppercase tracking-[0.3em] ${theme.textSub}`}>Scanning Bio-Matrix...</p>
       </div>
     );
@@ -94,7 +94,7 @@ const AttendanceTracking = () => {
             <p className={`text-[10px] font-black uppercase tracking-[0.3em] ${theme.textSub}`}>Daily Time-In/Out Logs</p>
           </div>
           <h1 className={`text-3xl font-black uppercase tracking-tighter ${theme.textMain}`}>
-            Attendance <span className="text-[#b3903c]">Tracking</span>
+            Attendance <span className="text-[#2FA084]">Tracking</span>
           </h1>
         </div>
         
@@ -102,7 +102,7 @@ const AttendanceTracking = () => {
           <button className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-zinc-200 text-zinc-600'}`}>
             <Download size={14} /> Export Report
           </button>
-          <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#b3903c] text-white text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-[#b3903c]/20">
+          <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2FA084] text-white text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-[#2FA084]/20">
             <UserCheck size={14} /> Log Attendance
           </button>
         </div>
@@ -135,7 +135,7 @@ const AttendanceTracking = () => {
             placeholder="Search employee history..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className={`w-full pl-12 pr-4 py-3 rounded-2xl text-xs outline-none border transition-all ${theme.input} focus:border-[#b3903c]`}
+            className={`w-full pl-12 pr-4 py-3 rounded-2xl text-xs outline-none border transition-all ${theme.input} focus:border-[#2FA084]`}
           />
         </div>
         
@@ -160,7 +160,7 @@ const AttendanceTracking = () => {
         <div className={`lg:col-span-2 rounded-[2rem] border overflow-hidden ${theme.card}`}>
            <div className="p-6 border-b border-zinc-900/10 flex justify-between items-center">
              <h2 className={`text-xs font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Today's Live Logs</h2>
-             <span className="text-[9px] font-bold text-[#b3903c] px-3 py-1 bg-[#b3903c]/10 rounded-full border border-[#b3903c]/20 italic">Intelligence Active</span>
+             <span className="text-[9px] font-bold text-[#2FA084] px-3 py-1 bg-[#2FA084]/10 rounded-full border border-[#2FA084]/20 italic">Intelligence Active</span>
            </div>
            
            <div className="overflow-x-auto">
@@ -177,17 +177,17 @@ const AttendanceTracking = () => {
                </thead>
                <tbody className={`divide-y ${isDarkMode ? 'divide-zinc-900/50' : 'divide-zinc-100'}`}>
                  {filteredLogs.map((log, idx) => (
-                   <tr key={idx} className="group hover:bg-[#b3903c]/5 transition-colors">
+                   <tr key={idx} className="group hover:bg-[#2FA084]/5 transition-colors">
                      <td className="px-8 py-5">
                         <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-[10px] border ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-[#b3903c]' : 'bg-zinc-50 border-zinc-200 text-[#b3903c]'}`}>
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-[10px] border ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-[#2FA084]' : 'bg-zinc-50 border-zinc-200 text-[#2FA084]'}`}>
                             {log.name.split(' ').map(n => n[0]).join('')}
                           </div>
                           <span className={`text-[12px] font-black uppercase tracking-tight ${theme.textMain}`}>{log.name}</span>
                         </div>
                      </td>
                      <td className="px-6 py-5">
-                       <span className="text-[10px] font-bold text-[#b3903c] bg-[#b3903c]/5 px-2 py-1 rounded-md border border-[#b3903c]/10">{log.dept}</span>
+                       <span className="text-[10px] font-bold text-[#2FA084] bg-[#2FA084]/5 px-2 py-1 rounded-md border border-[#2FA084]/10">{log.dept}</span>
                      </td>
                      <td className="px-6 py-5">
                        <div className="flex flex-col">
@@ -236,30 +236,30 @@ const AttendanceTracking = () => {
           <div className={`p-8 rounded-[2rem] border ${theme.card}`}>
             <div className="flex items-center justify-between mb-8">
               <h2 className={`text-xs font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Overtime Tracker</h2>
-              <Clock size={16} className="text-[#b3903c]" />
+              <Clock size={16} className="text-[#2FA084]" />
             </div>
             
             <div className="space-y-6">
               {logs.slice(0, 4).map((log, i) => (
                 <div key={i} className="flex justify-between items-center group cursor-pointer">
-                  <p className={`text-[11px] font-black uppercase tracking-tight ${theme.textMain} group-hover:text-[#b3903c] transition-colors`}>{log.name}</p>
+                  <p className={`text-[11px] font-black uppercase tracking-tight ${theme.textMain} group-hover:text-[#2FA084] transition-colors`}>{log.name}</p>
                   <div className="text-right">
                     <p className="text-[10px] font-black text-amber-500 tracking-tighter">+1.5h OT</p>
-                    <p className={`text-[9px] font-bold ${theme.textSub}`}>Est. +₱320.00</p>
+                    <p className={`text-[9px] font-bold ${theme.textSub}`}>Est. +â‚±320.00</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <button className="w-full mt-8 py-3 rounded-2xl border border-zinc-900/10 text-[9px] font-black uppercase tracking-[0.2em] text-[#b3903c] hover:bg-[#b3903c]/5 transition-all">
+            <button className="w-full mt-8 py-3 rounded-2xl border border-zinc-900/10 text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] hover:bg-[#2FA084]/5 transition-all">
               View OT Distribution
             </button>
           </div>
 
-          <div className={`p-8 rounded-[2rem] border bg-gradient-to-br from-[#b3903c]/10 to-transparent ${isDarkMode ? 'border-zinc-900' : 'border-zinc-200'}`}>
+          <div className={`p-8 rounded-[2rem] border bg-gradient-to-br from-[#2FA084]/10 to-transparent ${isDarkMode ? 'border-zinc-900' : 'border-zinc-200'}`}>
             <h2 className={`text-xs font-black uppercase tracking-[0.2em] mb-4 ${theme.textMain}`}>Weekly Forecast</h2>
             <p className={`text-[10px] font-bold leading-relaxed ${theme.textSub}`}>
-              Predictive analytics shows a <span className="text-[#b3903c]">12% increase</span> in early clock-ins for the next week due to shifts in maintenance schedules.
+              Predictive analytics shows a <span className="text-[#2FA084]">12% increase</span> in early clock-ins for the next week due to shifts in maintenance schedules.
             </p>
           </div>
         </div>

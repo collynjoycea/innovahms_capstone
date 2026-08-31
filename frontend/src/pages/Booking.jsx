@@ -463,7 +463,8 @@ export default function Booking() {
     const value = Number(params.get('duration'));
     return [3, 6, 12].includes(value) ? value : 0;
   });
-  const [guests, setGuests] = useState(1);
+  const [adults, setAdults] = useState(1);
+  const [children, setChildren] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [useAllPoints, setUseAllPoints] = useState(false);
   const [pointsToUse, setPointsToUse] = useState('');
@@ -677,7 +678,9 @@ export default function Booking() {
           checkInTime,
           checkOutTime,
           durationHours,
-          guests,
+          guests: adults + children,
+          adults,
+          children,
           paymentMethod,
           pointsToUse: pointsRedeemed,
           useAllPoints,
@@ -860,13 +863,21 @@ export default function Booking() {
                     <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Guests & Payment</h2>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Number of Guests</label>
+                      <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Adults (max {room?.maxAdults ?? 0})</label>
                       <div className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
-                        <button type="button" onClick={() => setGuests((v) => Math.max(1, v - 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">-</button>
-                        <span className="flex-1 text-center text-sm font-semibold text-slate-800 dark:text-slate-100">{guests}</span>
-                        <button type="button" onClick={() => setGuests((v) => Math.min(10, v + 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">+</button>
+                        <button type="button" onClick={() => setAdults((v) => Math.max(1, v - 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">-</button>
+                        <span className="flex-1 text-center text-sm font-semibold text-slate-800 dark:text-slate-100">{adults}</span>
+                        <button type="button" onClick={() => setAdults((v) => Math.min(Number(room?.maxAdults || 10), v + 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">+</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Children (max {room?.maxChildren ?? 0})</label>
+                      <div className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
+                        <button type="button" onClick={() => setChildren((v) => Math.max(0, v - 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">-</button>
+                        <span className="flex-1 text-center text-sm font-semibold text-slate-800 dark:text-slate-100">{children}</span>
+                        <button type="button" onClick={() => setChildren((v) => Math.min(Number(room?.maxChildren || 0), v + 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">+</button>
                       </div>
                     </div>
                     <div>
@@ -945,7 +956,7 @@ export default function Booking() {
                     { label: 'Check-in', value: checkIn ? `${checkIn} at ${checkInTime}` : '--' },
                     { label: 'Check-out', value: checkOut ? `${checkOut} at ${checkOutTime}` : '--' },
                     { label: 'Duration', value: nights > 0 ? `${nights} night${nights > 1 ? 's' : ''}` : '--' },
-                    { label: 'Guests', value: guests },
+                    { label: 'Guests', value: `${adults} adult${adults === 1 ? '' : 's'}${children ? `, ${children} child${children === 1 ? '' : 'ren'}` : ''}` },
                     { label: 'Payment', value: paymentMethod },
                   ].map((item) => (
                     <div key={item.label} className="flex justify-between">

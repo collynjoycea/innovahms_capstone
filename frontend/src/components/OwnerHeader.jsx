@@ -288,11 +288,11 @@ const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
   return (
     <header className={`sticky top-0 z-40 flex h-20 items-center justify-between border-b px-10 backdrop-blur-md transition-colors duration-300 ${isDarkMode ? 'border-white/10 bg-[#0b0f16]/85' : 'border-black/5 bg-white/80'}`}>
       <div className="flex min-w-0 flex-1 items-center gap-4">
-        <div className="h-10 w-1 shrink-0 rounded-full bg-gradient-to-b from-[#bf9b30] to-[#8e7223] opacity-80" />
+        <div className="h-10 w-1 shrink-0 rounded-full bg-gradient-to-b from-[#2FA084] to-[#1F6F5F] opacity-80" />
 
         <div className="flex min-w-0 flex-col overflow-hidden">
           <div className="flex items-center gap-2">
-            <span className="whitespace-nowrap text-[9px] font-black uppercase tracking-[0.3em] text-[#bf9b30]">
+            <span className="whitespace-nowrap text-[9px] font-black uppercase tracking-[0.3em] text-[#2FA084]">
               Management Portal
             </span>
           </div>
@@ -309,7 +309,7 @@ const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
         <button
           type="button"
           onClick={toggleTheme}
-          className={`rounded-2xl border px-3 py-3 transition-all ${isDarkMode ? 'border-white/10 bg-white/5 text-slate-200 hover:text-[#f5d37e]' : 'border-black/5 bg-white text-slate-600 hover:text-[#bf9b30]'}`}
+          className={`rounded-2xl border px-3 py-3 transition-all ${isDarkMode ? 'border-white/10 bg-white/5 text-slate-200 hover:text-[#f5d37e]' : 'border-black/5 bg-white text-slate-600 hover:text-[#2FA084]'}`}
           title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         >
           {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
@@ -319,7 +319,7 @@ const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
           <button
             type="button"
             onClick={handleNotificationToggle}
-            className={`relative rounded-2xl border px-3 py-3 shadow-sm transition-all ${isDarkMode ? 'border-white/10 bg-white/5 text-slate-300 hover:border-[#bf9b30]/30 hover:text-[#f5d37e]' : 'border-black/5 bg-white text-slate-600 hover:border-[#bf9b30]/30 hover:text-[#bf9b30]'}`}
+            className={`relative rounded-2xl border px-3 py-3 shadow-sm transition-all ${isDarkMode ? 'border-white/10 bg-white/5 text-slate-300 hover:border-[#2FA084]/30 hover:text-[#f5d37e]' : 'border-black/5 bg-white text-slate-600 hover:border-[#2FA084]/30 hover:text-[#2FA084]'}`}
             title="Owner notifications"
           >
             <Bell size={18} />
@@ -367,7 +367,7 @@ const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
                             notification.priority === 'HIGH' || notification.priority === 'CRITICAL'
                               ? 'bg-red-500'
                               : notification.priority === 'NORMAL'
-                                ? 'bg-[#bf9b30]'
+                                ? 'bg-[#2FA084]'
                                 : 'bg-slate-300'
                           }`}
                         />
@@ -399,12 +399,12 @@ const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
           >
             <div className="hidden text-right sm:block">
               <p className={`text-xs font-bold capitalize tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{ownerInfo.fullName}</p>
-              <p className="text-[9px] font-bold uppercase tracking-widest text-[#bf9b30] opacity-80">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-[#2FA084] opacity-80">
                 {ownerInfo.subscriptionActive ? 'Verified Owner' : 'Subscription Required'}
               </p>
             </div>
-            <div className="h-10 w-10 rounded-full border border-[#bf9b30]/20 bg-gradient-to-tr from-[#bf9b30]/10 to-transparent p-0.5">
-              <div className={`flex h-full w-full items-center justify-center overflow-hidden rounded-full text-[#bf9b30] shadow-sm ${isDarkMode ? 'bg-[#11151d]' : 'bg-white'}`}>
+            <div className="h-10 w-10 rounded-full border border-[#2FA084]/20 bg-gradient-to-tr from-[#2FA084]/10 to-transparent p-0.5">
+              <div className={`flex h-full w-full items-center justify-center overflow-hidden rounded-full text-[#2FA084] shadow-sm ${isDarkMode ? 'bg-[#11151d]' : 'bg-white'}`}>
                 {ownerInfo.profileImage ? (
                   <img src={ownerInfo.profileImage} alt={ownerInfo.fullName} className="h-full w-full object-cover" />
                 ) : (
@@ -421,7 +421,7 @@ const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
             <div className={`absolute right-0 z-50 mt-3 w-64 rounded-2xl border p-2 shadow-2xl animate-in fade-in zoom-in duration-200 ${isDarkMode ? 'border-white/10 bg-[#121824]' : 'border-black/5 bg-white'}`}>
               <div className={`mb-1 border-b px-3 py-2.5 ${isDarkMode ? 'border-white/10' : 'border-black/5'}`}>
                 <p className={`text-xs font-bold capitalize ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{ownerInfo.fullName}</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#bf9b30]">{ownerInfo.hotelName}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#2FA084]">{ownerInfo.hotelName}</p>
               </div>
 
               <button
@@ -430,7 +430,7 @@ const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
                   setShowMenu(false);
                   navigate('/owner/profile');
                 }}
-                className={`w-full rounded-xl px-3 py-2.5 text-left text-xs transition-all hover:bg-[#bf9b30]/10 hover:text-[#bf9b30] ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}
+                className={`w-full rounded-xl px-3 py-2.5 text-left text-xs transition-all hover:bg-[#2FA084]/10 hover:text-[#2FA084] ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}
               >
                 <span className="flex items-center gap-3">
                   <Building2 size={15} /> My Profile
@@ -443,7 +443,7 @@ const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
                   setShowMenu(false);
                   navigate('/owner/subscription');
                 }}
-                className={`w-full rounded-xl px-3 py-2.5 text-left text-xs transition-all hover:bg-[#bf9b30]/10 hover:text-[#bf9b30] ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}
+                className={`w-full rounded-xl px-3 py-2.5 text-left text-xs transition-all hover:bg-[#2FA084]/10 hover:text-[#2FA084] ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}
               >
                 <span className="flex items-center gap-3">
                   <CreditCard size={15} /> Manage Subscription
@@ -456,7 +456,7 @@ const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
                   setShowMenu(false);
                   navigate('/owner/rooms');
                 }}
-                className={`w-full rounded-xl px-3 py-2.5 text-left text-xs transition-all hover:bg-[#bf9b30]/10 hover:text-[#bf9b30] ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}
+                className={`w-full rounded-xl px-3 py-2.5 text-left text-xs transition-all hover:bg-[#2FA084]/10 hover:text-[#2FA084] ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}
               >
                 <span className="flex items-center gap-3">
                   {ownerInfo.hasHotel ? <Building2 size={15} /> : <MapPin size={15} />}

@@ -57,7 +57,7 @@ const HrPayrollStaffLayout = () => {
           background: ${isDarkMode ? '#18181b' : '#e4e4e7'}; 
           border-radius: 20px; 
         }
-        .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #b3903c; }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #2FA084; }
       `}} />
     </div>
   );

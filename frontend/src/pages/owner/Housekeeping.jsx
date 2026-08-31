@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { AlertCircle, BedDouble, CheckCircle2, Clock3, RefreshCcw, Sparkles } from "lucide-react";
+import { AlertCircle, BedDouble, CheckCircle2, Clock3, RefreshCcw, Sparkles, Filter, Search } from "lucide-react";
 
 const FILTERS = [
   { key: "all", label: "All Tasks" },
@@ -17,11 +17,11 @@ const formatStamp = (value) => {
     : date.toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 };
 
-const getStatusTone = (status, isDarkMode) => {
+const getStatusTone = (status) => {
   const normalized = String(status || "").toLowerCase();
-  if (normalized === "completed") return isDarkMode ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700";
-  if (normalized === "in_progress") return isDarkMode ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-700";
-  return isDarkMode ? "bg-rose-500/15 text-rose-300" : "bg-rose-50 text-rose-700";
+  if (normalized === "completed") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300";
+  if (normalized === "in_progress") return "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300";
+  return "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300";
 };
 
 export default function Housekeeping() {
@@ -30,6 +30,7 @@ export default function Housekeeping() {
   const [summary, setSummary] = useState({ totalRooms: 0, cleanedToday: 0, pending: 0, inProgress: 0 });
   const [tasks, setTasks] = useState([]);
   const [activeFilter, setActiveFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const ownerSession = useMemo(() => {
     try {
@@ -89,7 +90,13 @@ export default function Housekeeping() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const filteredTasks = activeFilter === "all" ? tasks : tasks.filter((task) => task.status === activeFilter);
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchesFilter = activeFilter === "all" || task.status === activeFilter;
+      const matchesSearch = `${task.room} ${task.type} ${task.assignedTo}`.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesFilter && matchesSearch;
+    });
+  }, [tasks, activeFilter, searchTerm]);
 
   const cards = [
     { label: "Total Rooms", value: summary.totalRooms, icon: BedDouble },
@@ -99,105 +106,127 @@ export default function Housekeeping() {
   ];
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
-      <div className="mx-auto max-w-7xl space-y-8">
-        <section className={`overflow-hidden rounded-[32px] border p-8 ${isDarkMode ? "border-white/10 bg-[radial-gradient(circle_at_top_left,#1a1f2b_0%,#10141d_60%,#0c0f16_100%)]" : "border-[#eadfc8] bg-[radial-gradient(circle_at_top_left,#fffaf1_0%,#ffffff_55%,#f7f2e6_100%)]"}`}>
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+    <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans p-4 md:p-8">
+      <main className="max-w-6xl mx-auto space-y-6">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-200 dark:border-slate-800 pb-4 gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Housekeeping Command Center</h2>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+              Live task statuses, room turnaround, and staff assignments connected to housekeeping database endpoints.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={fetchHousekeepingData}
+            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded shadow-sm flex items-center gap-1.5 transition-colors"
+          >
+            <RefreshCcw size={14} /> Refresh Data
+          </button>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {cards.map(({ label, value, icon: Icon }) => (
+            <div key={label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
+              <div className="flex justify-between items-start mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+                <span className="text-emerald-700 dark:text-emerald-400"><Icon size={16} /></span>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">{value}</h3>
+            </div>
+          ))}
+        </div>
+
+        {/* Task Queue Section */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-200 dark:border-slate-800 p-6 gap-4">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#bf9b30]">Owner Operations</p>
-              <h1 className="mt-3 text-4xl font-black tracking-tight">Housekeeping Command Center</h1>
-              <p className={`mt-3 max-w-2xl text-sm leading-relaxed ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}>
-                Live task statuses, room turnaround, and staffing assignments are now coming from the housekeeping database endpoints.
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white">Housekeeping Workload</h3>
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold mt-0.5">
+                Showing {filteredTasks.length} active tasks
               </p>
             </div>
-            <button
-              type="button"
-              onClick={fetchHousekeepingData}
-              className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "bg-white/5 text-slate-100 hover:bg-white/10" : "bg-slate-900 text-white hover:bg-slate-800"}`}
-            >
-              <RefreshCcw size={15} /> Refresh
-            </button>
-          </div>
-        </section>
 
-        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {cards.map(({ label, value, icon: Icon }) => (
-            <article key={label} className={`rounded-[28px] border p-6 ${isDarkMode ? "border-white/10 bg-[#11151d]" : "border-slate-200 bg-white"}`}>
-              <div className="flex items-center justify-between">
-                <div className="rounded-2xl bg-[#bf9b30]/12 p-3 text-[#bf9b30]">
-                  <Icon size={20} />
-                </div>
-                <Sparkles size={16} className={isDarkMode ? "text-slate-600" : "text-slate-300"} />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+              {/* Search input */}
+              <div className="relative w-full sm:w-60">
+                <Search className="absolute left-3 top-2.5 text-slate-400" size={15} />
+                <input
+                  type="text"
+                  placeholder="Search room, staff..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none focus:border-emerald-600 transition-colors"
+                />
               </div>
-              <p className={`mt-5 text-[10px] font-black uppercase tracking-[0.24em] ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>{label}</p>
-              <p className="mt-2 text-3xl font-black tracking-tight">{value}</p>
-            </article>
-          ))}
-        </section>
 
-        <section className={`rounded-[32px] border p-6 ${isDarkMode ? "border-white/10 bg-[#11151d]" : "border-slate-200 bg-white"}`}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#bf9b30]">Task Queue</p>
-              <h2 className="mt-2 text-2xl font-black tracking-tight">Housekeeping workload</h2>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {FILTERS.map((filter) => (
-                <button
-                  key={filter.key}
-                  type="button"
-                  onClick={() => setActiveFilter(filter.key)}
-                  className={`rounded-2xl px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] transition ${
-                    activeFilter === filter.key
-                      ? "bg-[#bf9b30] text-[#0f1117]"
-                      : isDarkMode
-                        ? "bg-white/5 text-slate-300 hover:bg-white/10"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-6 overflow-hidden rounded-[24px] border border-black/5">
-            {loading ? (
-              <div className={`px-6 py-14 text-center text-sm ${isDarkMode ? "bg-[#0d1118] text-slate-400" : "bg-slate-50 text-slate-500"}`}>Loading housekeeping data...</div>
-            ) : filteredTasks.length === 0 ? (
-              <div className={`px-6 py-14 text-center text-sm ${isDarkMode ? "bg-[#0d1118] text-slate-400" : "bg-slate-50 text-slate-500"}`}>No tasks matched the current filter.</div>
-            ) : (
-              <div className={isDarkMode ? "bg-[#0d1118]" : "bg-white"}>
-                {filteredTasks.map((task) => (
-                  <div key={task.id} className={`grid gap-4 border-b px-6 py-5 lg:grid-cols-[1.1fr,0.9fr,0.7fr,0.9fr] ${isDarkMode ? "border-white/5" : "border-slate-100"}`}>
-                    <div>
-                      <p className="text-sm font-black uppercase tracking-[0.14em]">{task.room}</p>
-                      <p className={`mt-1 text-sm ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}>{task.type}</p>
-                      <p className={`mt-2 text-xs ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>{task.notes}</p>
-                    </div>
-                    <div>
-                      <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>Assigned To</p>
-                      <p className="mt-2 text-sm font-semibold">{task.assignedTo}</p>
-                    </div>
-                    <div>
-                      <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>Status</p>
-                      <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${getStatusTone(task.status, isDarkMode)}`}>
-                        {task.status.replace(/_/g, " ")}
-                      </span>
-                    </div>
-                    <div>
-                      <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>Last Update</p>
-                      <p className="mt-2 text-sm font-semibold">{formatStamp(task.updatedAt)}</p>
-                      <p className={`mt-1 text-xs ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>Priority: {task.priority}</p>
-                    </div>
-                  </div>
+              {/* Filters */}
+              <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded">
+                {FILTERS.map((filter) => (
+                  <button
+                    key={filter.key}
+                    type="button"
+                    onClick={() => setActiveFilter(filter.key)}
+                    className={`px-3 py-1 text-[10px] font-bold uppercase rounded transition-colors ${
+                      activeFilter === filter.key
+                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* Task List / Table */}
+          <div className="overflow-x-auto">
+            {loading ? (
+              <div className="p-12 text-center text-xs text-slate-400">Loading housekeeping data...</div>
+            ) : filteredTasks.length === 0 ? (
+              <div className="p-12 text-center text-xs text-slate-400">No tasks matched the current filter or search criteria.</div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 dark:bg-slate-950/60 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="p-4">Room & Details</th>
+                    <th className="py-4 px-3">Assigned Staff</th>
+                    <th className="py-4 px-3">Status</th>
+                    <th className="py-4 px-3">Priority / Last Update</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                  {filteredTasks.map((task) => (
+                    <tr key={task.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="p-4">
+                        <div className="font-bold text-slate-900 dark:text-white text-sm">{task.room}</div>
+                        <div className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">{task.type}</div>
+                        <div className="text-[10px] text-slate-400 mt-1">{task.notes}</div>
+                      </td>
+                      <td className="py-4 px-3 font-semibold text-slate-700 dark:text-slate-300">
+                        {task.assignedTo}
+                      </td>
+                      <td className="py-4 px-3">
+                        <span className={`inline-flex rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${getStatusTone(task.status)}`}>
+                          {task.status.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="py-4 px-3">
+                        <div className="font-semibold text-slate-800 dark:text-slate-200">{formatStamp(task.updatedAt)}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Priority: {task.priority}</div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
-        </section>
-      </div>
+        </div>
+
+      </main>
     </div>
   );
 }

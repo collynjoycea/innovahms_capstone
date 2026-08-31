@@ -7,14 +7,14 @@ const STATUS_COLORS = {
   Available:   { border: 'border-emerald-500/50', text: 'text-emerald-500', bg: 'bg-emerald-500/5',  dot: 'bg-emerald-500',  label: 'Available' },
   Occupied:    { border: 'border-red-500/50',     text: 'text-red-500',     bg: 'bg-red-500/5',      dot: 'bg-red-500',      label: 'Occupied' },
   Dirty:       { border: 'border-amber-500/50',   text: 'text-amber-500',   bg: 'bg-amber-500/5',    dot: 'bg-amber-500',    label: 'Dirty' },
-  Clean:       { border: 'border-emerald-400/50', text: 'text-emerald-400', bg: 'bg-emerald-400/5',  dot: 'bg-emerald-400',  label: 'Clean ✓' },
+  Clean:       { border: 'border-emerald-400/50', text: 'text-emerald-400', bg: 'bg-emerald-400/5',  dot: 'bg-emerald-400',  label: 'Clean âœ“' },
   InProgress:  { border: 'border-cyan-500/50',    text: 'text-cyan-500',    bg: 'bg-cyan-500/5',     dot: 'bg-cyan-500',     label: 'In Prog' },
   Maintenance: { border: 'border-purple-500/50',  text: 'text-purple-500',  bg: 'bg-purple-500/5',   dot: 'bg-purple-500',   label: 'Maint.' },
   Cleaning:    { border: 'border-orange-500/50',  text: 'text-orange-500',  bg: 'bg-orange-500/5',   dot: 'bg-orange-500',   label: 'Cleaning' },
 };
 
 const STATUS_CYCLE = ['Available', 'Dirty', 'InProgress', 'Clean', 'Occupied', 'Maintenance'];
-const getStyle = (s) => STATUS_COLORS[s] || { border: 'border-zinc-700', text: 'text-zinc-400', bg: '', dot: 'bg-zinc-500', label: s || '—' };
+const getStyle = (s) => STATUS_COLORS[s] || { border: 'border-zinc-700', text: 'text-zinc-400', bg: '', dot: 'bg-zinc-500', label: s || 'â€”' };
 const nextStatus = (current) => STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
 
 export default function RoomStatusMap() {
@@ -98,15 +98,15 @@ export default function RoomStatusMap() {
       <div className={`flex flex-col md:flex-row justify-between items-end border-b pb-6 ${theme.border} mb-8`}>
         <div className="text-left">
           <h1 className={`text-3xl font-black uppercase tracking-tighter ${theme.textMain}`}>
-            Room Status <span className="text-[#c9a84c]">Map</span>
+            Room Status <span className="text-[#6FCF97]">Map</span>
           </h1>
           <p className={`text-[10px] font-bold ${theme.textSub} uppercase tracking-[0.3em] mt-1`}>
-            Live Room Status · Click a room to cycle status
+            Live Room Status Â· Click a room to cycle status
           </p>
         </div>
         <div className="flex items-center gap-3 mt-4 md:mt-0">
           <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border ${theme.input}`}>
-            <Search size={14} className="text-[#c9a84c] shrink-0" />
+            <Search size={14} className="text-[#6FCF97] shrink-0" />
             <input type="text" placeholder="Search room..." value={search}
               onChange={e => setSearch(e.target.value)}
               className="bg-transparent border-none outline-none text-[11px] font-bold uppercase tracking-widest w-28" />
@@ -129,7 +129,7 @@ export default function RoomStatusMap() {
           <div key={key} className="flex items-center gap-2">
             <div className={`w-2.5 h-2.5 rounded-full ${val.dot}`} />
             <span className={`text-[10px] font-black uppercase tracking-widest ${theme.textSub}`}>
-              {key} <span className="text-[#c9a84c]">({counts[key] || 0})</span>
+              {key} <span className="text-[#6FCF97]">({counts[key] || 0})</span>
             </span>
           </div>
         ))}
@@ -149,7 +149,7 @@ export default function RoomStatusMap() {
       <div className={`${theme.card} border ${theme.border} p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)]`}>
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 size={36} className="animate-spin text-[#c9a84c]" />
+            <Loader2 size={36} className="animate-spin text-[#6FCF97]" />
           </div>
         ) : filtered.length === 0 ? (
           <p className={`text-center py-16 text-[11px] font-bold uppercase tracking-widest ${theme.textSub}`}>
@@ -169,11 +169,11 @@ export default function RoomStatusMap() {
                 >
                   {isUpdating && (
                     <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/30">
-                      <Loader2 size={16} className="animate-spin text-[#c9a84c]" />
+                      <Loader2 size={16} className="animate-spin text-[#6FCF97]" />
                     </div>
                   )}
                   <div className="text-center space-y-1">
-                    <h4 className={`text-xl font-black uppercase tracking-tighter ${theme.textMain} group-hover:text-[#c9a84c] transition-colors`}>
+                    <h4 className={`text-xl font-black uppercase tracking-tighter ${theme.textMain} group-hover:text-[#6FCF97] transition-colors`}>
                       {room.room_label}
                     </h4>
                     <p className={`text-[8px] font-black uppercase tracking-[0.15em] ${theme.textSub}`}>
@@ -185,7 +185,7 @@ export default function RoomStatusMap() {
                       {sc.label}
                     </span>
                   </div>
-                  <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 rounded-tr-xl opacity-0 group-hover:opacity-100 transition-opacity border-[#c9a84c]" />
+                  <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 rounded-tr-xl opacity-0 group-hover:opacity-100 transition-opacity border-[#6FCF97]" />
                 </button>
               );
             })}
@@ -196,7 +196,7 @@ export default function RoomStatusMap() {
       {/* FOOTER STATS */}
       <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className={`p-5 rounded-2xl border ${theme.border} ${theme.card} flex items-center gap-4`}>
-          <div className="p-3 rounded-xl bg-[#c9a84c] text-black shrink-0">
+          <div className="p-3 rounded-xl bg-[#6FCF97] text-black shrink-0">
             <Clock size={18} strokeWidth={3} />
           </div>
           <div className="text-left">

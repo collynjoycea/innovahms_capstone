@@ -41,7 +41,7 @@ const StaffingEstimator = () => {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         <HrSection theme={theme}>
           <div className="mb-6 flex items-center gap-3">
-            <BrainCircuit size={18} className="text-[#b3903c]" />
+            <BrainCircuit size={18} className="text-[#2FA084]" />
             <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Forecast Parameters</h2>
           </div>
           <div className="space-y-6">
@@ -55,10 +55,10 @@ const StaffingEstimator = () => {
               max="100"
               value={effectiveOccupancy}
               onChange={(event) => setOccupancy(Number(event.target.value))}
-              className="w-full accent-[#b3903c]"
+              className="w-full accent-[#2FA084]"
             />
-            <div className="space-y-3 rounded-2xl border border-[#b3903c]/20 bg-[#b3903c]/10 p-4">
-              <div className="flex items-center gap-2 text-[#b3903c]">
+            <div className="space-y-3 rounded-2xl border border-[#2FA084]/20 bg-[#2FA084]/10 p-4">
+              <div className="flex items-center gap-2 text-[#2FA084]">
                 <Users size={14} />
                 <span className="text-[10px] font-black uppercase tracking-widest">Current Scope</span>
               </div>
@@ -69,7 +69,7 @@ const StaffingEstimator = () => {
 
         <HrSection theme={theme} className="lg:col-span-2">
           <div className="mb-6 flex items-center gap-3">
-            <Users size={18} className="text-[#b3903c]" />
+            <Users size={18} className="text-[#2FA084]" />
             <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Required Staff (Live Preview)</h2>
           </div>
           <div className="space-y-4">
@@ -78,7 +78,7 @@ const StaffingEstimator = () => {
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className={`text-sm font-black uppercase tracking-tight ${theme.textMain}`}>{dept.name}</p>
-                    <p className={`text-[10px] font-bold uppercase tracking-widest ${theme.textSub}`}>Current {dept.current} · Normal {dept.normal} · Peak {dept.peak}</p>
+                    <p className={`text-[10px] font-bold uppercase tracking-widest ${theme.textSub}`}>Current {dept.current} Â· Normal {dept.normal} Â· Peak {dept.peak}</p>
                   </div>
                   <div className="flex items-center gap-4 text-[11px] font-bold">
                     <span className={theme.textMain}>Required: {dept.required}</span>
@@ -96,7 +96,7 @@ const StaffingEstimator = () => {
 
       <HrSection theme={theme}>
         <div className="mb-6 flex items-center gap-3">
-          <Calendar size={18} className="text-[#b3903c]" />
+          <Calendar size={18} className="text-[#2FA084]" />
           <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Daily Staffing Forecast</h2>
         </div>
         <div className="overflow-x-auto">
@@ -112,9 +112,9 @@ const StaffingEstimator = () => {
               {(staffing.dailyForecast || []).map((day) => (
                 <tr key={day.day} className={isDarkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-zinc-50'}>
                   <td className={`px-4 py-4 text-[12px] font-black uppercase tracking-tight ${theme.textMain}`}>{day.day}</td>
-                  <td className="px-4 py-4 text-[11px] font-black text-[#b3903c]">{day.occupancy}%</td>
+                  <td className="px-4 py-4 text-[11px] font-black text-[#2FA084]">{day.occupancy}%</td>
                   <td className={`px-4 py-4 text-[11px] ${theme.textMain}`}>
-                    {(day.departments || []).map((dept) => `${dept.name}: ${dept.required}`).join(' · ')}
+                    {(day.departments || []).map((dept) => `${dept.name}: ${dept.required}`).join(' Â· ')}
                   </td>
                 </tr>
               ))}

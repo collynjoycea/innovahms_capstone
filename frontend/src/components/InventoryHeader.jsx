@@ -43,7 +43,7 @@ const InventoryHeader = ({ isDarkMode, toggleTheme }) => {
           {location.pathname.includes('dashboard') ? 'Inventory Dashboard' : 'Inventory Management'}
         </h2>
         <p className={`text-[10px] font-medium tracking-widest mt-0.5 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-          SUPPLY CHAIN <span className="text-[#b3903c]">OPERATIONS</span> · {currentDate}
+          SUPPLY CHAIN <span className="text-[#2FA084]">OPERATIONS</span> Â· {currentDate}
         </p>
       </div>
 
@@ -65,7 +65,7 @@ const InventoryHeader = ({ isDarkMode, toggleTheme }) => {
           {/* THEME TOGGLE */}
           <button 
             onClick={toggleTheme} 
-            className={`p-2.5 rounded-xl transition-all ${isDarkMode ? 'hover:bg-white/5 text-gray-400 hover:text-[#b3903c]' : 'hover:bg-gray-100 text-gray-500 hover:text-[#b3903c]'}`}
+            className={`p-2.5 rounded-xl transition-all ${isDarkMode ? 'hover:bg-white/5 text-gray-400 hover:text-[#2FA084]' : 'hover:bg-gray-100 text-gray-500 hover:text-[#2FA084]'}`}
           >
             {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -86,14 +86,14 @@ const InventoryHeader = ({ isDarkMode, toggleTheme }) => {
             className={`flex items-center gap-3 p-1.5 pr-3 rounded-2xl transition-all duration-300 
               ${showProfileMenu ? (isDarkMode ? 'bg-white/10' : 'bg-gray-100') : 'hover:bg-white/5'}`}
           >
-            <div className="w-9 h-9 rounded-xl border border-[#b3903c]/30 p-0.5 bg-gradient-to-tr from-[#b3903c]/20 to-transparent">
-              <div className={`w-full h-full rounded-lg flex items-center justify-center text-[#b3903c] ${isDarkMode ? 'bg-[#14130f]' : 'bg-white shadow-sm'}`}>
+            <div className="w-9 h-9 rounded-xl border border-[#2FA084]/30 p-0.5 bg-gradient-to-tr from-[#2FA084]/20 to-transparent">
+              <div className={`w-full h-full rounded-lg flex items-center justify-center text-[#2FA084] ${isDarkMode ? 'bg-[#14130f]' : 'bg-white shadow-sm'}`}>
                 <User size={18} />
               </div>
             </div>
             <div className="text-left hidden sm:block">
               <p className={`text-xs font-bold uppercase leading-none ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>{firstName || lastName ? `${firstName} ${lastName}`.trim() : 'Staff'}</p>
-              <p className="text-[9px] font-bold text-[#b3903c]/60 tracking-widest mt-1">{role || 'INVENTORY DEPT'}</p>
+              <p className="text-[9px] font-bold text-[#2FA084]/60 tracking-widest mt-1">{role || 'INVENTORY DEPT'}</p>
             </div>
             <ChevronDown size={14} className={`text-gray-500 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
           </button>
@@ -107,7 +107,7 @@ const InventoryHeader = ({ isDarkMode, toggleTheme }) => {
                 <p className="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em]">Management Actions</p>
               </div>
               
-              <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#b3903c]/10 hover:text-[#b3903c] text-xs transition-all">
+              <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#2FA084]/10 hover:text-[#2FA084] text-xs transition-all">
                 <UserCircle size={16} /> View Inventory Profile
               </button>
 

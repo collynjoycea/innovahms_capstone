@@ -30,10 +30,10 @@ export default function StaffDashboard() {
   };
 
   const stats = [
-    { label: 'Arrivals Today',  val: data?.arrivalsToday  ?? '--', icon: <TrendingUp size={20}/>,  color: 'text-[#b3903c]' },
+    { label: 'Arrivals Today',  val: data?.arrivalsToday  ?? '--', icon: <TrendingUp size={20}/>,  color: 'text-[#2FA084]' },
     { label: 'Departures Today',val: data?.departuresToday ?? '--', icon: <BedDouble size={20}/>,   color: 'text-blue-500' },
     { label: 'In-House Guests', val: data?.inHouse         ?? '--', icon: <Users size={20}/>,       color: 'text-emerald-500' },
-    { label: 'Pending Balance', val: data ? `₱${Number(data.pendingBalance).toLocaleString()}` : '--', icon: <Banknote size={20}/>, color: 'text-amber-500' },
+    { label: 'Pending Balance', val: data ? `â‚±${Number(data.pendingBalance).toLocaleString()}` : '--', icon: <Banknote size={20}/>, color: 'text-amber-500' },
   ];
 
   return (
@@ -46,15 +46,15 @@ export default function StaffDashboard() {
         <div className={`flex justify-between items-end border-b pb-6 ${theme.div}`}>
           <div className="space-y-1">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-[#b3903c]/10 border border-[#b3903c]/20">
-                <LayoutDashboard size={20} color="#b3903c" />
+              <div className="p-2 rounded-xl bg-[#2FA084]/10 border border-[#2FA084]/20">
+                <LayoutDashboard size={20} color="#2FA084" />
               </div>
               <h1 className={`text-3xl font-black uppercase tracking-tighter italic ${theme.text}`}>
-                Hotel <span className="text-[#b3903c]">Manager</span>
+                Hotel <span className="text-[#2FA084]">Manager</span>
               </h1>
             </div>
             <p className={`text-[10px] font-black uppercase tracking-[0.3em] ml-12 ${theme.sub}`}>
-              {hotelName || 'Innova HMS'} · {new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })}
+              {hotelName || 'Innova HMS'} Â· {new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
           </div>
           <button onClick={fetchData} className={`p-3 rounded-xl border ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border-zinc-200 text-zinc-400 hover:text-zinc-900'} transition-all`}>
@@ -91,13 +91,13 @@ export default function StaffDashboard() {
             <table className="w-full">
               <tbody className={`divide-y ${theme.div}`}>
                 {(data?.arrivals || []).map(r => (
-                  <tr key={r.id} className="hover:bg-[#b3903c]/5 transition-all">
+                  <tr key={r.id} className="hover:bg-[#2FA084]/5 transition-all">
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-[#b3903c] flex items-center justify-center text-black font-black text-sm">{r.roomNumber}</div>
+                        <div className="w-12 h-12 rounded-2xl bg-[#2FA084] flex items-center justify-center text-black font-black text-sm">{r.roomNumber}</div>
                         <div>
                           <p className={`text-[13px] font-black ${theme.text}`}>{r.guestName}</p>
-                          <p className={`text-[10px] font-bold uppercase tracking-tighter ${theme.sub}`}>{r.roomName} · {r.bookingNumber}</p>
+                          <p className={`text-[10px] font-bold uppercase tracking-tighter ${theme.sub}`}>{r.roomName} Â· {r.bookingNumber}</p>
                         </div>
                       </div>
                     </td>

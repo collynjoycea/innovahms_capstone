@@ -28,9 +28,9 @@ export default function InventoryDashboard() {
   const sub  = isDarkMode ? 'text-zinc-500' : 'text-zinc-400';
 
   const stats = [
-    { label: 'Total SKUs',      val: data?.stats.totalSkus     ?? '--', sub: 'Items tracked',      icon: <Box />,           color: 'text-[#b3903c]' },
+    { label: 'Total SKUs',      val: data?.stats.totalSkus     ?? '--', sub: 'Items tracked',      icon: <Box />,           color: 'text-[#2FA084]' },
     { label: 'Low-Stock Items', val: data?.stats.lowStock      ?? '--', sub: 'Need reorder',       icon: <AlertTriangle />, color: 'text-red-500' },
-    { label: 'Items Out Today', val: data?.stats.itemsOutToday ?? '--', sub: 'Units disbursed',    icon: <ArrowDownLeft />, color: 'text-[#b3903c]' },
+    { label: 'Items Out Today', val: data?.stats.itemsOutToday ?? '--', sub: 'Units disbursed',    icon: <ArrowDownLeft />, color: 'text-[#2FA084]' },
     { label: 'Pending Orders',  val: data?.stats.pendingPos    ?? '--', sub: 'Purchase orders',    icon: <Truck />,         color: 'text-emerald-400' },
   ];
 
@@ -39,12 +39,12 @@ export default function InventoryDashboard() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
         <div>
           <h1 className={`text-4xl font-black italic uppercase tracking-tighter leading-none ${text}`}>
-            Inventory <span className="text-[#b3903c]">Dashboard</span>
+            Inventory <span className="text-[#2FA084]">Dashboard</span>
           </h1>
           <div className="flex items-center gap-3 mt-2">
-            <div className="w-2 h-2 rounded-full bg-[#b3903c] animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-[#2FA084] animate-pulse" />
             <p className={`text-[10px] font-black uppercase tracking-[0.3em] ${sub}`}>
-              {hotelName || 'Innova HMS'} · {now.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })}
+              {hotelName || 'Innova HMS'} Â· {now.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })}
             </p>
           </div>
         </div>
@@ -57,13 +57,13 @@ export default function InventoryDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {stats.map((s, i) => (
           <div key={i} className={`p-6 rounded-[2rem] border group transition-all hover:-translate-y-1 ${card}`}>
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${isDarkMode ? 'bg-zinc-900 group-hover:bg-[#b3903c]/10' : 'bg-zinc-50 group-hover:bg-[#b3903c]/5'} ${s.color}`}>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${isDarkMode ? 'bg-zinc-900 group-hover:bg-[#2FA084]/10' : 'bg-zinc-50 group-hover:bg-[#2FA084]/5'} ${s.color}`}>
               {React.cloneElement(s.icon, { size: 22, strokeWidth: 2.5 })}
             </div>
             <p className={`text-[10px] font-black uppercase tracking-widest ${sub}`}>{s.label}</p>
             <div className="flex items-end gap-2 mt-1">
               <h2 className={`text-3xl font-black tracking-tighter ${text}`}>{loading ? '--' : s.val}</h2>
-              <span className={`text-[9px] font-bold mb-1.5 uppercase ${s.label === 'Low-Stock Items' ? 'text-red-500' : 'text-[#b3903c]'}`}>{s.sub}</span>
+              <span className={`text-[9px] font-bold mb-1.5 uppercase ${s.label === 'Low-Stock Items' ? 'text-red-500' : 'text-[#2FA084]'}`}>{s.sub}</span>
             </div>
           </div>
         ))}
@@ -94,7 +94,7 @@ export default function InventoryDashboard() {
           <div className={`rounded-[2.5rem] border overflow-hidden ${card}`}>
             <div className={`p-6 border-b ${isDarkMode ? 'border-zinc-800/50' : 'border-zinc-100'} flex items-center justify-between`}>
               <div className="flex items-center gap-3">
-                <RefreshCcw size={16} className="text-[#b3903c]" />
+                <RefreshCcw size={16} className="text-[#2FA084]" />
                 <h2 className={`text-sm font-black uppercase tracking-widest ${text}`}>Recent Movements</h2>
               </div>
             </div>
@@ -136,7 +136,7 @@ export default function InventoryDashboard() {
           <div className={`p-8 rounded-[2.5rem] border ${card}`}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <BarChart3 size={18} className="text-[#b3903c]" />
+                <BarChart3 size={18} className="text-[#2FA084]" />
                 <h2 className={`text-sm font-black uppercase tracking-widest ${text}`}>Stock by Category</h2>
               </div>
             </div>
@@ -147,12 +147,12 @@ export default function InventoryDashboard() {
                 <div key={i} className="space-y-2">
                   <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
                     <span className={sub}>{cat.name}</span>
-                    <span className={cat.avgPercent < 30 ? 'text-orange-500' : 'text-[#b3903c]'}>
+                    <span className={cat.avgPercent < 30 ? 'text-orange-500' : 'text-[#2FA084]'}>
                       {cat.avgPercent}% <span className={`${sub} font-bold ml-1`}>STOCKED</span>
                     </span>
                   </div>
                   <div className={`h-1.5 w-full rounded-full overflow-hidden ${isDarkMode ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
-                    <div className={`h-full rounded-full transition-all duration-1000 ${cat.avgPercent < 30 ? 'bg-orange-500' : 'bg-[#b3903c]'}`}
+                    <div className={`h-full rounded-full transition-all duration-1000 ${cat.avgPercent < 30 ? 'bg-orange-500' : 'bg-[#2FA084]'}`}
                       style={{ width: `${cat.avgPercent}%` }} />
                   </div>
                 </div>
@@ -161,12 +161,12 @@ export default function InventoryDashboard() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <button className={`p-5 rounded-3xl border flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] ${isDarkMode ? 'bg-[#b3903c] text-black border-transparent' : 'bg-zinc-900 text-white border-transparent'}`}>
+            <button className={`p-5 rounded-3xl border flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] ${isDarkMode ? 'bg-[#2FA084] text-black border-transparent' : 'bg-zinc-900 text-white border-transparent'}`}>
               <LayoutGrid size={20} />
               <span className="text-[9px] font-black uppercase tracking-widest">Stock Registry</span>
             </button>
             <button className={`p-5 rounded-3xl border flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] ${isDarkMode ? 'bg-zinc-900 text-white border-zinc-800' : 'bg-white text-zinc-900 border-zinc-200 shadow-sm'}`}>
-              <PackageCheck size={20} className="text-[#b3903c]" />
+              <PackageCheck size={20} className="text-[#2FA084]" />
               <span className="text-[9px] font-black uppercase tracking-widest">Audit Logs</span>
             </button>
           </div>

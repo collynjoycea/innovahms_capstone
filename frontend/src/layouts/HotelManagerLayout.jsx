@@ -35,7 +35,7 @@ const HotelManagerLayout = () => {
 
         {/* Subtle background glow effect kapag naka-Dark Mode lang */}
         {isDarkMode && (
-          <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#b3903c]/5 blur-[120px] rounded-full pointer-events-none -z-10" />
+          <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#2FA084]/5 blur-[120px] rounded-full pointer-events-none -z-10" />
         )}
       </div>
 
@@ -52,7 +52,7 @@ const HotelManagerLayout = () => {
           border-radius: 20px; 
         }
         .custom-main-scroll::-webkit-scrollbar-thumb:hover { 
-          background: #b3903c; 
+          background: #2FA084; 
         }
 
         /* Standardized transitions */

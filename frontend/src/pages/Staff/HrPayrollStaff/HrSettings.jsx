@@ -58,7 +58,7 @@ const HrSettings = () => {
 
   const SectionTitle = ({ icon: Icon, title }) => (
     <div className="mb-5 flex items-center gap-3">
-      <div className="rounded-xl border border-[#b3903c]/20 bg-[#b3903c]/10 p-2 text-[#b3903c]">
+      <div className="rounded-xl border border-[#2FA084]/20 bg-[#2FA084]/10 p-2 text-[#2FA084]">
         <Icon size={18} />
       </div>
       <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>{title}</h2>
@@ -83,7 +83,7 @@ const HrSettings = () => {
       <button
         type="button"
         onClick={() => onChange(!value)}
-        className={`relative h-6 w-11 rounded-full transition-colors ${value ? 'bg-[#b3903c]' : isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`}
+        className={`relative h-6 w-11 rounded-full transition-colors ${value ? 'bg-[#2FA084]' : isDarkMode ? 'bg-zinc-800' : 'bg-zinc-300'}`}
       >
         <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${value ? 'translate-x-5' : 'translate-x-0.5'}`} />
       </button>
@@ -102,7 +102,7 @@ const HrSettings = () => {
             type="button"
             onClick={handleSave}
             disabled={saving || !form}
-            className="flex items-center gap-2 rounded-xl bg-[#b3903c] px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-60"
+            className="flex items-center gap-2 rounded-xl bg-[#2FA084] px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-60"
           >
             <Save size={14} />
             {saving ? 'Saving...' : 'Save Changes'}

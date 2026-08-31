@@ -76,20 +76,20 @@ export default function StockManagement() {
       <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-8">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-2 h-8 bg-[#b3903c] rounded-full" />
+            <div className="w-2 h-8 bg-[#2FA084] rounded-full" />
             <h1 className={`text-4xl font-black italic uppercase tracking-tighter leading-none ${text}`}>
-              Inventory <span className="text-[#b3903c]">List</span>
+              Inventory <span className="text-[#2FA084]">List</span>
             </h1>
           </div>
           <p className={`text-[11px] font-black uppercase tracking-[0.25em] ml-5 ${sub}`}>
-            {summary.total || 0} SKUs · {summary.critical || 0} Critical · {summary.low || 0} Low Stock
+            {summary.total || 0} SKUs Â· {summary.critical || 0} Critical Â· {summary.low || 0} Low Stock
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={fetchItems} className={`p-3 rounded-xl border ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border-zinc-200 text-zinc-400'} transition-all`}>
             <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={openAdd} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#b3903c] text-black text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-[#b3903c]/20">
+          <button onClick={openAdd} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#2FA084] text-black text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-[#2FA084]/20">
             <Plus size={16} strokeWidth={3} /> Add Item
           </button>
         </div>
@@ -101,8 +101,8 @@ export default function StockManagement() {
           {CATEGORIES.map(cat => (
             <button key={cat} onClick={() => setCategory(cat)}
               className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
-                category === cat ? 'bg-[#b3903c] text-black border-transparent shadow-lg shadow-[#b3903c]/20 scale-105'
-                : isDarkMode ? 'bg-zinc-900/40 border-zinc-800 text-zinc-500 hover:border-[#b3903c]/30' : 'bg-white border-zinc-200 text-zinc-500 hover:bg-zinc-50'
+                category === cat ? 'bg-[#2FA084] text-black border-transparent shadow-lg shadow-[#2FA084]/20 scale-105'
+                : isDarkMode ? 'bg-zinc-900/40 border-zinc-800 text-zinc-500 hover:border-[#2FA084]/30' : 'bg-white border-zinc-200 text-zinc-500 hover:bg-zinc-50'
               }`}>{cat}</button>
           ))}
         </div>
@@ -135,11 +135,11 @@ export default function StockManagement() {
               ) : items.length === 0 ? (
                 <tr><td colSpan="8" className={`p-16 text-center text-[10px] font-bold uppercase italic ${sub}`}>No items found.</td></tr>
               ) : items.map(item => (
-                <tr key={item.id} className={`group transition-all ${isDarkMode ? 'hover:bg-[#b3903c]/[0.02]' : 'hover:bg-zinc-50/50'}`}>
-                  <td className="px-6 py-5"><span className="text-[11px] font-black font-mono text-[#b3903c]">{item.skuId}</span></td>
+                <tr key={item.id} className={`group transition-all ${isDarkMode ? 'hover:bg-[#2FA084]/[0.02]' : 'hover:bg-zinc-50/50'}`}>
+                  <td className="px-6 py-5"><span className="text-[11px] font-black font-mono text-[#2FA084]">{item.skuId}</span></td>
                   <td className="px-6 py-5">
                     <p className={`text-xs font-black uppercase ${text}`}>{item.name}</p>
-                    <p className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${sub}`}>{item.unit} · {item.supplier}</p>
+                    <p className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${sub}`}>{item.unit} Â· {item.supplier}</p>
                   </td>
                   <td className="px-6 py-5">
                     <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${isDarkMode ? 'bg-zinc-900 text-zinc-400 border border-zinc-800' : 'bg-zinc-100 text-zinc-500'}`}>{item.category}</span>
@@ -163,7 +163,7 @@ export default function StockManagement() {
                       <span className="text-[10px] font-black text-emerald-500">{item.maxStock}</span>
                     </div>
                   </td>
-                  <td className={`px-6 py-5 text-[11px] font-black ${text}`}>₱{Number(item.unitCost).toLocaleString()}</td>
+                  <td className={`px-6 py-5 text-[11px] font-black ${text}`}>â‚±{Number(item.unitCost).toLocaleString()}</td>
                   <td className="px-6 py-5">
                     <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase border ${
                       item.status === 'CRITICAL' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
@@ -173,7 +173,7 @@ export default function StockManagement() {
                   </td>
                   <td className="px-6 py-5 text-right">
                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                      <button onClick={() => openEdit(item)} className={`p-2 rounded-lg border transition-all ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-[#b3903c]' : 'bg-white border-zinc-200 text-zinc-400 hover:text-[#b3903c]'}`}>
+                      <button onClick={() => openEdit(item)} className={`p-2 rounded-lg border transition-all ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-[#2FA084]' : 'bg-white border-zinc-200 text-zinc-400 hover:text-[#2FA084]'}`}>
                         <Edit3 size={14} />
                       </button>
                       <button onClick={() => handleDelete(item.id)} disabled={deleting === item.id} className={`p-2 rounded-lg border transition-all ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-red-500' : 'bg-white border-zinc-200 text-zinc-400 hover:text-red-500'}`}>
@@ -193,7 +193,7 @@ export default function StockManagement() {
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className={`w-full max-w-2xl rounded-[2.5rem] border shadow-2xl overflow-hidden ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800' : 'bg-white border-zinc-200'}`}>
             <div className={`p-6 border-b ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'} flex justify-between items-center`}>
-              <h2 className={`text-xl font-black uppercase tracking-tighter text-[#b3903c]`}>{modal === 'add' ? 'Add New Item' : 'Edit Item'}</h2>
+              <h2 className={`text-xl font-black uppercase tracking-tighter text-[#2FA084]`}>{modal === 'add' ? 'Add New Item' : 'Edit Item'}</h2>
               <button onClick={() => setModal(null)} className={`${sub} hover:text-red-500 transition-all`}><X size={22} strokeWidth={3} /></button>
             </div>
             <form onSubmit={handleSave} className="p-6 grid grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
@@ -203,7 +203,7 @@ export default function StockManagement() {
                 { label: 'Unit', key: 'unit', type: 'text' },
                 { label: 'Supplier', key: 'supplier', type: 'text' },
                 { label: 'Stock Level', key: 'stockLevel', type: 'number' },
-                { label: 'Unit Cost (₱)', key: 'unitCost', type: 'number' },
+                { label: 'Unit Cost (â‚±)', key: 'unitCost', type: 'number' },
                 { label: 'Min Stock', key: 'minStock', type: 'number' },
                 { label: 'Max Stock', key: 'maxStock', type: 'number' },
                 { label: 'Reorder Point', key: 'reorderPoint', type: 'number' },
@@ -212,25 +212,25 @@ export default function StockManagement() {
                   <label className={`text-[9px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>{f.label}</label>
                   <input type={f.type} value={form[f.key]} disabled={f.disabled}
                     onChange={e => setForm(p => ({ ...p, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value }))}
-                    className={`w-full p-3 rounded-xl border outline-none focus:border-[#b3903c] transition-all ${inp} ${f.disabled ? 'opacity-50 cursor-not-allowed' : ''}`} required />
+                    className={`w-full p-3 rounded-xl border outline-none focus:border-[#2FA084] transition-all ${inp} ${f.disabled ? 'opacity-50 cursor-not-allowed' : ''}`} required />
                 </div>
               ))}
               <div>
                 <label className={`text-[9px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Category</label>
                 <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
-                  className={`w-full p-3 rounded-xl border outline-none focus:border-[#b3903c] transition-all ${inp}`}>
+                  className={`w-full p-3 rounded-xl border outline-none focus:border-[#2FA084] transition-all ${inp}`}>
                   {CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
                 <label className={`text-[9px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Description</label>
                 <textarea rows={2} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-                  className={`w-full p-3 rounded-xl border outline-none focus:border-[#b3903c] transition-all resize-none ${inp}`} />
+                  className={`w-full p-3 rounded-xl border outline-none focus:border-[#2FA084] transition-all resize-none ${inp}`} />
               </div>
               {msg && <p className="col-span-2 text-rose-500 text-[11px] font-bold">{msg}</p>}
               <div className="col-span-2 flex gap-3 pt-2">
                 <button type="button" onClick={() => setModal(null)} className={`flex-1 py-3 rounded-xl border font-black uppercase text-[10px] tracking-widest ${isDarkMode ? 'border-zinc-800 text-zinc-500 hover:text-white' : 'border-zinc-200 text-zinc-500 hover:text-zinc-900'} transition-all`}>Cancel</button>
-                <button type="submit" disabled={saving} className="flex-1 py-3 rounded-xl bg-[#b3903c] text-black font-black uppercase text-[10px] tracking-widest hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                <button type="submit" disabled={saving} className="flex-1 py-3 rounded-xl bg-[#2FA084] text-black font-black uppercase text-[10px] tracking-widest hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                   {saving ? <Loader2 size={14} className="animate-spin" /> : null}
                   {modal === 'add' ? 'Add Item' : 'Save Changes'}
                 </button>

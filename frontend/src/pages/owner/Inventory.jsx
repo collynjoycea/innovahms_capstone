@@ -104,85 +104,98 @@ const Inventory = () => {
   ];
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? "text-white" : "text-slate-900"}`}>
-      <div className="mx-auto max-w-7xl space-y-8">
-        <section className={`overflow-hidden rounded-[32px] border p-8 ${isDarkMode ? "border-white/10 bg-[radial-gradient(circle_at_top_left,#1d1528_0%,#11151d_55%,#0c1018_100%)]" : "border-[#eadfc8] bg-[radial-gradient(circle_at_top_left,#fffaf0_0%,#ffffff_60%,#f8f1e1_100%)]"}`}>
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+    <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        
+        {/* Header Section */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#bf9b30]">Inventory Control</p>
-              <h1 className="mt-3 text-4xl font-black tracking-tight">Live Stock Intelligence</h1>
-              <p className={`mt-3 max-w-2xl text-sm leading-relaxed ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}>
-                Tinanggal ko na yung filler simulation rows at placeholder hotel copy. This page now uses live inventory, dashboard, low-stock, purchase-order, and forecast endpoints.
+              <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">Inventory Control</span>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Live Stock Intelligence</h1>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
+                Real-time monitoring of live inventory, low-stock alerts, purchase orders, and AI forecast analytics.
               </p>
             </div>
             <button
               type="button"
               onClick={refreshInventory}
-              className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "bg-white/5 text-slate-100 hover:bg-white/10" : "bg-slate-900 text-white hover:bg-slate-800"}`}
+              className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1.5 transition-colors self-start lg:self-auto"
             >
-              <RefreshCcw size={15} /> Refresh
+              <RefreshCcw size={14} /> Refresh Data
             </button>
           </div>
-        </section>
+        </div>
 
-        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        {/* Metric Cards Grid */}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {metricCards.map(({ label, value, icon: Icon }) => (
-            <article key={label} className={`rounded-[28px] border p-6 ${isDarkMode ? "border-white/10 bg-[#11151d]" : "border-slate-200 bg-white"}`}>
+            <div key={label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
               <div className="flex items-center justify-between">
-                <div className="rounded-2xl bg-[#bf9b30]/12 p-3 text-[#bf9b30]">
-                  <Icon size={20} />
+                <div className="p-2.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300">
+                  <Icon size={18} />
                 </div>
-                <p className={`text-[10px] font-black uppercase tracking-[0.24em] ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>{label}</p>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold">{label}</span>
               </div>
-              <p className="mt-5 text-3xl font-black tracking-tight">{value}</p>
-            </article>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white mt-4">{value}</p>
+            </div>
           ))}
-        </section>
+        </div>
 
-        <section className="grid gap-8 xl:grid-cols-[1.15fr,0.85fr]">
-          <div className={`rounded-[32px] border p-6 ${isDarkMode ? "border-white/10 bg-[#11151d]" : "border-slate-200 bg-white"}`}>
-            <div className="flex items-center justify-between">
+        {/* Main Section Grid: Inventory Ledger & AI Forecast / Low Stock */}
+        <div className="grid gap-6 xl:grid-cols-[1.15fr,0.85fr]">
+          
+          {/* Inventory Ledger */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5 flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#bf9b30]">Inventory Ledger</p>
-                <h2 className="mt-2 text-2xl font-black tracking-tight">Current item status</h2>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                  Inventory Ledger
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Current item status and stock levels.</p>
               </div>
-              <p className={`text-xs font-semibold ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Consumption rate: {overview.consumRate}%</p>
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded">
+                Consumption rate: {overview.consumRate}%
+              </span>
             </div>
 
-            <div className="mt-6 overflow-hidden rounded-[24px] border border-black/5">
+            <div className="overflow-hidden rounded border border-slate-200 dark:border-slate-800">
               {loading ? (
-                <div className={`px-6 py-14 text-center text-sm ${isDarkMode ? "bg-[#0d1118] text-slate-400" : "bg-slate-50 text-slate-500"}`}>Loading inventory records...</div>
+                <div className="px-6 py-12 text-center text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900">
+                  Loading inventory records...
+                </div>
               ) : inventoryData.length === 0 ? (
-                <div className={`px-6 py-14 text-center text-sm ${isDarkMode ? "bg-[#0d1118] text-slate-400" : "bg-slate-50 text-slate-500"}`}>No inventory items found for this hotel.</div>
+                <div className="px-6 py-12 text-center text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900">
+                  No inventory items found for this hotel.
+                </div>
               ) : (
-                <div className={isDarkMode ? "bg-[#0d1118]" : "bg-white"}>
+                <div className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-800">
                   {inventoryData.slice(0, 8).map((item) => {
                     const ratio = Math.max(0, Math.min(100, Math.round((Number(item.stock_level || 0) / Math.max(Number(item.max_stock || 1), 1)) * 100)));
                     return (
-                      <div key={item.id} className={`grid gap-4 border-b px-6 py-5 lg:grid-cols-[1.1fr,0.65fr,1fr,0.7fr] ${isDarkMode ? "border-white/5" : "border-slate-100"}`}>
+                      <div key={item.id} className="grid gap-3 p-4 lg:grid-cols-[1.1fr,0.65fr,1fr,0.7fr] items-center text-xs">
                         <div>
-                          <p className="text-sm font-black uppercase tracking-[0.14em]">{item.item_name}</p>
-                          <p className={`mt-1 text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>{item.category} • {item.supplier || "No supplier"}</p>
+                          <p className="font-bold text-slate-900 dark:text-white uppercase">{item.item_name}</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{item.category} • {item.supplier || "No supplier"}</p>
                         </div>
                         <div>
-                          <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>SKU</p>
-                          <p className="mt-2 text-sm font-semibold">{item.sku_id}</p>
+                          <span className="text-[10px] font-mono text-slate-400 block sm:hidden">SKU</span>
+                          <span className="font-mono text-slate-700 dark:text-slate-300">{item.sku_id}</span>
                         </div>
                         <div>
-                          <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>Stock Level</p>
-                          <div className="mt-2 flex items-center gap-3">
-                            <div className={`h-2 w-full rounded-full ${isDarkMode ? "bg-white/10" : "bg-slate-100"}`}>
-                              <div className={`h-full rounded-full ${ratio <= 30 ? "bg-rose-500" : ratio <= 60 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${ratio}%` }} />
-                            </div>
-                            <span className="text-xs font-black">{item.stock_level}/{item.max_stock}</span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-slate-400">Stock Level</span>
+                            <span className="font-bold text-slate-700 dark:text-slate-300">{item.stock_level}/{item.max_stock}</span>
+                          </div>
+                          <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                            <div className={`h-full rounded-full ${ratio <= 30 ? "bg-red-500" : ratio <= 60 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${ratio}%` }} />
                           </div>
                         </div>
                         <div>
-                          <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>Status</p>
-                          <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${
+                          <span className={`inline-flex rounded px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                             item.status === "LOW"
-                              ? isDarkMode ? "bg-rose-500/15 text-rose-300" : "bg-rose-50 text-rose-700"
-                              : isDarkMode ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700"
+                              ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                              : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
                           }`}>
                             {item.status}
                           </span>
@@ -195,155 +208,166 @@ const Inventory = () => {
             </div>
           </div>
 
-          <div className="space-y-8">
-            <section className={`rounded-[32px] border p-6 ${isDarkMode ? "border-white/10 bg-[#11151d]" : "border-slate-200 bg-white"}`}>
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-[#bf9b30]/12 p-3 text-[#bf9b30]">
-                  <BrainCircuit size={20} />
-                </div>
+          {/* Right Column: AI Forecast & Low Stock Priorities */}
+          <div className="space-y-6">
+            
+            {/* AI Forecast Planner */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 flex items-center gap-2">
+                <BrainCircuit size={18} className="text-emerald-700 dark:text-emerald-400" />
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#bf9b30]">AI Forecast</p>
-                  <h2 className="text-xl font-black tracking-tight">Scenario planner</h2>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">AI Scenario Planner</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Run occupancy and demand projections.</p>
                 </div>
               </div>
 
-              <div className="mt-6 space-y-4">
-                <input
-                  type="text"
-                  value={forecastInput.event}
-                  onChange={(event) => setForecastInput((current) => ({ ...current, event: event.target.value }))}
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm font-semibold outline-none ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}
-                  placeholder="Event or demand scenario"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={forecastInput.occupancy}
-                  onChange={(event) => setForecastInput((current) => ({ ...current, occupancy: event.target.value }))}
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm font-semibold outline-none ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}
-                  placeholder="Projected occupancy %"
-                />
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Event / Demand Scenario</label>
+                  <input
+                    type="text"
+                    value={forecastInput.event}
+                    onChange={(event) => setForecastInput((current) => ({ ...current, event: event.target.value }))}
+                    className="w-full rounded border border-slate-300 dark:border-slate-700 dark:bg-slate-800 px-3 py-2 text-xs text-slate-800 dark:text-slate-100 outline-none"
+                    placeholder="e.g. Weekend peak"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Projected Occupancy (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={forecastInput.occupancy}
+                    onChange={(event) => setForecastInput((current) => ({ ...current, occupancy: event.target.value }))}
+                    className="w-full rounded border border-slate-300 dark:border-slate-700 dark:bg-slate-800 px-3 py-2 text-xs text-slate-800 dark:text-slate-100 outline-none"
+                    placeholder="92"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={runForecast}
                   disabled={forecastLoading}
-                  className="w-full rounded-2xl bg-[#bf9b30] px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-[#0f1117] transition hover:brightness-110 disabled:opacity-60"
+                  className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded transition disabled:opacity-50"
                 >
                   {forecastLoading ? "Running Forecast..." : "Run Forecast"}
                 </button>
               </div>
 
               {forecastResult ? (
-                <div className={`mt-5 rounded-[24px] border p-5 ${isDarkMode ? "border-white/10 bg-[#0d1118]" : "border-slate-200 bg-slate-50"}`}>
-                  <p className="text-sm font-bold">{forecastResult.title || "Forecast result"}</p>
-                  <p className={`mt-2 text-sm leading-relaxed ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}>{forecastResult.message}</p>
+                <div className="mt-4 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-4 text-xs">
+                  <p className="font-bold text-slate-900 dark:text-white">{forecastResult.title || "Forecast result"}</p>
+                  <p className="mt-1 text-slate-600 dark:text-slate-300 leading-relaxed">{forecastResult.message}</p>
                   {Array.isArray(forecastResult.recommendations) ? (
-                    <div className="mt-4 space-y-3">
+                    <div className="mt-3 space-y-2">
                       {forecastResult.recommendations.map((item) => (
-                        <div key={item.item} className={`rounded-2xl px-4 py-3 ${isDarkMode ? "bg-white/5" : "bg-white"}`}>
-                          <p className="text-sm font-black">{item.item}</p>
-                          <p className={`mt-1 text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Increase by {item.recommendedIncreasePercent}% • {item.reason}</p>
+                        <div key={item.item} className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5">
+                          <p className="font-bold text-slate-900 dark:text-white">{item.item}</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Increase by {item.recommendedIncreasePercent}% • {item.reason}</p>
                         </div>
                       ))}
                     </div>
                   ) : null}
                 </div>
               ) : null}
-            </section>
+            </div>
 
-            <section className={`rounded-[32px] border p-6 ${isDarkMode ? "border-white/10 bg-[#11151d]" : "border-slate-200 bg-white"}`}>
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-[#bf9b30]/12 p-3 text-[#bf9b30]">
-                  <AlertTriangle size={20} />
-                </div>
+            {/* Low Stock Priorities */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 flex items-center gap-2">
+                <AlertTriangle size={18} className="text-amber-600" />
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#bf9b30]">Low Stock</p>
-                  <h2 className="text-xl font-black tracking-tight">Reorder priorities</h2>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Low Stock Priorities</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Items requiring immediate reorder.</p>
                 </div>
               </div>
-              <div className="mt-5 space-y-3">
+              
+              <div className="space-y-3">
                 {lowStockItems.slice(0, 5).map((item) => (
-                  <div key={item.id} className={`rounded-2xl border px-4 py-3 ${isDarkMode ? "border-white/10 bg-[#0d1118]" : "border-slate-100 bg-slate-50"}`}>
-                    <div className="flex items-start justify-between gap-3">
+                  <div key={item.id} className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-3 text-xs">
+                    <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-sm font-black">{item.name}</p>
-                        <p className={`mt-1 text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>{item.category} • {item.supplier || "No supplier"}</p>
+                        <p className="font-bold text-slate-900 dark:text-white">{item.name}</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{item.category} • {item.supplier || "No supplier"}</p>
                       </div>
-                      <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${item.severity === "CRITICAL" ? "bg-rose-500/15 text-rose-300" : "bg-amber-500/15 text-amber-300"}`}>
+                      <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${item.severity === "CRITICAL" ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"}`}>
                         {item.severity}
                       </span>
                     </div>
-                    <p className={`mt-3 text-xs ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}>Stock: {item.stockLevel} / {item.maxStock} • Reorder point: {item.reorderPoint}</p>
+                    <p className="mt-2 text-[11px] text-slate-600 dark:text-slate-300 font-mono">Stock: {item.stockLevel} / {item.maxStock} • Reorder point: {item.reorderPoint}</p>
                   </div>
                 ))}
                 {!lowStockItems.length ? (
-                  <p className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>No low-stock alerts right now.</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 py-2">No low-stock alerts right now.</p>
                 ) : null}
               </div>
-            </section>
-          </div>
-        </section>
+            </div>
 
-        <section className="grid gap-8 xl:grid-cols-2">
-          <div className={`rounded-[32px] border p-6 ${isDarkMode ? "border-white/10 bg-[#11151d]" : "border-slate-200 bg-white"}`}>
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-[#bf9b30]/12 p-3 text-[#bf9b30]">
-                <ClipboardList size={20} />
-              </div>
+          </div>
+        </div>
+
+        {/* Bottom Section Grid: Purchase Orders & Recent Movements */}
+        <div className="grid gap-6 xl:grid-cols-2">
+          
+          {/* Purchase Orders Pipeline */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 flex items-center gap-2">
+              <ClipboardList size={18} className="text-emerald-700 dark:text-emerald-400" />
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#bf9b30]">Purchase Orders</p>
-                <h2 className="text-xl font-black tracking-tight">Supplier pipeline</h2>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Supplier Pipeline (Purchase Orders)</h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">Track pending and active orders.</p>
               </div>
             </div>
-            <div className="mt-5 space-y-3">
+
+            <div className="space-y-3">
               {purchaseOrders.slice(0, 5).map((order) => (
-                <div key={order.id} className={`rounded-2xl border px-4 py-3 ${isDarkMode ? "border-white/10 bg-[#0d1118]" : "border-slate-100 bg-slate-50"}`}>
-                  <div className="flex items-start justify-between gap-3">
+                <div key={order.id} className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-3 text-xs">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-black">{order.poNumber}</p>
-                      <p className={`mt-1 text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>{order.supplier}</p>
+                      <p className="font-bold text-slate-900 dark:text-white font-mono">{order.poNumber}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{order.supplier}</p>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${isDarkMode ? "bg-white/5 text-slate-300" : "bg-white text-slate-700"}`}>
+                    <span className="rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase">
                       {order.status}
                     </span>
                   </div>
-                  <p className={`mt-3 text-xs ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}>Expected: {formatDate(order.expectedDate)} • {formatCurrency(order.totalAmount)}</p>
+                  <p className="mt-2 text-[11px] text-slate-600 dark:text-slate-300 font-mono">Expected: {formatDate(order.expectedDate)} • {formatCurrency(order.totalAmount)}</p>
                 </div>
               ))}
-              {!purchaseOrders.length ? <p className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>No purchase orders found.</p> : null}
+              {!purchaseOrders.length ? <p className="text-xs text-slate-500 dark:text-slate-400 py-2">No purchase orders found.</p> : null}
             </div>
           </div>
 
-          <div className={`rounded-[32px] border p-6 ${isDarkMode ? "border-white/10 bg-[#11151d]" : "border-slate-200 bg-white"}`}>
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-[#bf9b30]/12 p-3 text-[#bf9b30]">
-                <TrendingUp size={20} />
-              </div>
+          {/* Recent Stock Movements */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 flex items-center gap-2">
+              <TrendingUp size={18} className="text-emerald-700 dark:text-emerald-400" />
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#bf9b30]">Recent Movements</p>
-                <h2 className="text-xl font-black tracking-tight">Stock activity</h2>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Stock Activity & Recent Movements</h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">Audit logs for item inflows and outflows.</p>
               </div>
             </div>
-            <div className="mt-5 space-y-3">
+
+            <div className="space-y-3">
               {(dashboard?.recentMovements || []).map((movement, index) => (
-                <div key={`${movement.item}-${index}`} className={`rounded-2xl border px-4 py-3 ${isDarkMode ? "border-white/10 bg-[#0d1118]" : "border-slate-100 bg-slate-50"}`}>
-                  <div className="flex items-start justify-between gap-3">
+                <div key={`${movement.item}-${index}`} className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-3 text-xs">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-black">{movement.item}</p>
-                      <p className={`mt-1 text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>{movement.type} • {movement.qty} {movement.unit}</p>
+                      <p className="font-bold text-slate-900 dark:text-white">{movement.item}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{movement.type} • {movement.qty} {movement.unit}</p>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${movement.type === "OUT" ? "bg-rose-500/15 text-rose-300" : "bg-emerald-500/15 text-emerald-300"}`}>
+                    <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${movement.type === "OUT" ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"}`}>
                       {movement.type}
                     </span>
                   </div>
-                  <p className={`mt-3 text-xs ${isDarkMode ? "text-slate-300" : "text-slate-600"}`}>By {movement.by || "Staff"} • {formatDate(movement.time)}</p>
+                  <p className="mt-2 text-[11px] text-slate-600 dark:text-slate-300 font-mono">By {movement.by || "Staff"} • {formatDate(movement.time)}</p>
                 </div>
               ))}
-              {!dashboard?.recentMovements?.length ? <p className={`text-sm ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>No movement logs found.</p> : null}
+              {!dashboard?.recentMovements?.length ? <p className="text-xs text-slate-500 dark:text-slate-400 py-2">No movement logs found.</p> : null}
             </div>
           </div>
-        </section>
+
+        </div>
       </div>
     </div>
   );

@@ -1,43 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { User, Lock, Eye, EyeOff, ArrowRight, Globe, AlertCircle, ShieldCheck, Cpu } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { User, Lock, Eye, EyeOff, ArrowRight, Globe, AlertCircle, ShieldCheck } from 'lucide-react';
 import ForgotPasswordModal from '../../components/ForgotPasswordModal';
 import { isValidEmail, normalizeEmail } from '../../utils/authValidation';
 
-const InputField = ({ label, type, icon, placeholder, value, onChange, isFocused, onFocus, onBlur, children }) => (
-  <div className="group relative">
-    <div className="flex justify-between items-center mb-2 px-1">
-      <label className={`text-[10px] font-black tracking-[0.2em] uppercase transition-colors duration-300 ${isFocused ? 'text-[#2FA084]' : 'text-black/40'}`}>
-        {label}
-      </label>
-      {isFocused && <span className="text-[9px] text-[#2FA084] animate-pulse uppercase font-bold tracking-tighter">System Listening...</span>}
-    </div>
-    
-    <div className={`relative rounded-2xl border-2 transition-all duration-500 overflow-hidden ${
-      isFocused 
-      ? 'border-[#2FA084] bg-white shadow-[0_20px_40px_rgba(47,160,132,0.12)]' 
-      : 'border-black/[0.03] bg-black/[0.02] hover:border-black/10'
-    }`}>
-      <span className={`absolute left-5 top-1/2 -translate-y-1/2 transition-all duration-300 ${isFocused ? 'text-[#2FA084] scale-110' : 'text-black/20'}`}>
-        {icon}
-      </span>
-      <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        className="w-full py-5 pl-14 pr-12 bg-transparent border-none outline-none text-[#1F6F5F] text-sm font-bold placeholder:text-black/10 transition-all"
-      />
-      {children}
-    </div>
-  </div>
-);
-
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const [focused, setFocused] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -89,7 +57,7 @@ const AdminLogin = () => {
       } else {
         setFeedback(data.error || 'Identity Verification Failed');
       }
-    } catch (error) {
+    } catch {
       setFeedback('Link Failure: Cannot reach main server');
     } finally {
       setIsSubmitting(false);
@@ -97,133 +65,126 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className="min-h-screen flex font-sans overflow-hidden bg-[#EEEEEE]">
+    <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans">
       
-      {/* LEFT PANEL - BRANDING (PREMIUM DARK MODE) */}
-      <div className="hidden lg:flex flex-col justify-center w-[40%] relative p-20 bg-gradient-to-br from-[#1F6F5F] via-[#1F6F5F] to-[#2FA084] overflow-hidden">
-        {/* Animated Background Grids */}
-        <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]" />
-        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#6FCF97]/20 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-15%] left-[-10%] w-[400px] h-[400px] bg-[#6FCF97]/10 rounded-full blur-[100px]" />
+      {/* MAIN CONTAINER (Katulad ng OwnerSignUp layout structure) */}
+      <main className="max-w-xl mx-auto px-4 py-12">
         
-        <div className={`z-10 transition-all duration-1000 transform ${loaded ? 'translate-x-0 opacity-100' : '-translate-x-20 opacity-0'}`}>
-          <div className="flex items-center gap-3 mb-16">
-            <div className="p-2 bg-[#2FA084] rounded-lg shadow-[0_0_20px_rgba(47,160,132,0.5)]">
-               <ShieldCheck className="text-black" size={24} />
-            </div>
-            <span className="text-white font-black tracking-[0.4em] text-xs uppercase">Innova Admin</span>
+        {/* TITLE HEADER */}
+        <div className={`mb-6 border-b border-slate-200 dark:border-slate-800 pb-4 transition-all duration-1000 ${loaded ? 'opacity-100' : 'opacity-0'}`}>
+          <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-400 mb-1">
           </div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+            System Administration Sign In
+          </h2>
+                </div>
 
-          <h1 className="text-7xl font-black leading-[1.1] text-white tracking-tighter">
-            ELEVATING<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2FA084] to-[#6FCF97]">CONTROL.</span>
-          </h1>
-          
-          <div className="h-1 w-20 bg-[#2FA084] mt-10 mb-8 rounded-full" />
-          
-          <p className="text-sm leading-relaxed text-white/40 max-w-[320px] font-medium tracking-wide">
-            Access the central intelligence of your hospitality network. Real-time analytics and global configuration starts here.
-          </p>
-        </div>
-
-        {/* Decorative Element */}
-        <div className="absolute bottom-10 left-20 flex items-center gap-4 text-white/20">
-            <Cpu size={16} />
-            <span className="text-[10px] font-black tracking-widest uppercase">System Version 3.0.1 - Caloocan Node</span>
-        </div>
-      </div>
-
-      {/* RIGHT PANEL - LOGIN FORM */}
-      <div className="flex-1 flex items-center justify-center p-8 lg:p-24 relative bg-white">
-        {/* Subtle grid pattern for the background */}
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/grid-me.png')]" />
-        
-        <div className={`w-full max-w-[420px] transition-all duration-1000 delay-300 ${loaded ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-          
-          <div className="mb-14 text-center lg:text-left">
-            <h2 className="text-4xl font-black text-[#1F6F5F] uppercase tracking-tighter mb-3">Administrator</h2>
-            <div className="flex items-center justify-center lg:justify-start gap-3">
-               <div className="h-[2px] w-8 bg-[#2FA084]" />
-               <p className="text-[11px] text-black/40 font-black uppercase tracking-[0.3em]">Identification Protocol</p>
+        {/* ERROR ALERT */}
+        {feedback && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border-l-4 border-red-600 rounded-r text-red-800 dark:text-red-200 text-xs flex items-start gap-3">
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <strong className="font-bold block mb-0.5">Alert</strong>
+              <span>{feedback}</span>
             </div>
           </div>
+        )}
 
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <InputField 
-              label="System Identifier" 
-              type="email" 
-              placeholder="admin@innovahms.com"
-              icon={<User size={20} />}
-              value={formData.email}
-              isFocused={focused === 'email'}
-              onFocus={() => setFocused('email')}
-              onBlur={() => setFocused(null)}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
-            />
-
-            <InputField 
-              label="Secure Access Key" 
-              type={showPassword ? 'text' : 'password'} 
-              placeholder="••••••••••••"
-              icon={<Lock size={20} />}
-              value={formData.password}
-              isFocused={focused === 'pass'}
-              onFocus={() => setFocused('pass')}
-              onBlur={() => setFocused(null)}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
-            >
-              <button 
-                type="button" 
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-5 top-1/2 -translate-y-1/2 text-black/20 hover:text-[#2FA084] transition-all"
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </InputField>
-
-            <div className="flex justify-end -mt-4">
-              <button
-                type="button"
-                onClick={() => setShowForgotPassword(true)}
-                className="text-[10px] font-black uppercase tracking-[0.24em] text-black/35 transition hover:text-[#2FA084]"
-              >
-                Forgot Password
-              </button>
+        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+          
+          {/* CARD CONTAINER */}
+          <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                <span className="w-5 h-5 bg-emerald-800 text-white rounded-full inline-flex items-center justify-center text-[11px] font-bold">1</span>
+                Identification Protocol
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Provide your authorized administrative email and secure access key.
+              </p>
             </div>
 
-            {feedback && (
-              <div className="flex items-center gap-3 text-red-600 font-bold text-[11px] uppercase tracking-wider bg-red-50 p-4 rounded-2xl border border-red-100 animate-bounce">
-                <AlertCircle size={18} />
-                {feedback}
+            <div className="space-y-4">
+              
+              {/* System Identifier Email */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  System Identifier Email <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <User size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none focus:border-emerald-700 transition-colors"
+                    placeholder="admin@gmail.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  />
+                </div>
               </div>
-            )}
 
-            <div className="pt-2">
+              {/* Secure Access Key */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Secure Access Key <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Lock size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    className="w-full pl-9 pr-10 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none focus:border-emerald-700 transition-colors"
+                    placeholder="••••••••••••"
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowPassword(!showPassword)} 
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Forgot Password Trigger */}
+              <div className="flex justify-end pt-1">
                 <button
-                type="submit"
-                disabled={isSubmitting}
-                className={`group relative w-full py-6 rounded-2xl bg-[#1F6F5F] text-white shadow-2xl overflow-hidden transition-all duration-500 hover:shadow-[#2FA084]/20 active:scale-[0.97] ${isSubmitting ? 'opacity-70 cursor-wait' : ''}`}
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 hover:underline"
                 >
-                <div className="absolute inset-0 bg-gradient-to-r from-[#2FA084] to-[#6FCF97] translate-y-[101%] group-hover:translate-y-0 transition-transform duration-500 ease-out" />
-                <span className="relative z-10 flex items-center justify-center gap-4 text-xs font-black uppercase tracking-[0.4em] group-hover:text-black transition-colors duration-500">
-                    {isSubmitting ? 'Verifying Node...' : 'Establish Connection'}
-                    <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform duration-500" />
-                </span>
+                  Forgot Password?
                 </button>
-            </div>
-          </form>
+              </div>
 
-          <div className="mt-16 pt-8 border-t border-black/[0.05] text-center">
-            <button 
-              onClick={() => navigate('/')}
-              className="group inline-flex items-center gap-3 text-[10px] font-black text-black/30 uppercase tracking-[0.25em] hover:text-[#2FA084] transition-all"
+            </div>
+          </section>
+
+          {/* ACTION CONTROLS */}
+          <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-6">
+            <Link 
+              to="/"
+              className="group inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-emerald-800 dark:hover:text-emerald-400 transition-colors"
             >
               <Globe size={14} className="group-hover:rotate-180 transition-transform duration-700" /> 
               Exit to Public Terminal
+            </Link>
+
+            <button 
+              type="submit"
+              disabled={isSubmitting}
+              className="px-6 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+            >
+              {isSubmitting ? "Verifying Node..." : "Sign In"} <ArrowRight size={14} />
             </button>
           </div>
-        </div>
-      </div>
+
+        </form>
+      </main>
+
       <ForgotPasswordModal
         isOpen={showForgotPassword}
         onClose={() => setShowForgotPassword(false)}

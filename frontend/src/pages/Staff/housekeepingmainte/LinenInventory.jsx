@@ -57,10 +57,10 @@ const LinenInventory = () => {
     <div className={`${theme.card} border ${theme.border} rounded-[2rem] overflow-hidden ${theme.shadow} mb-10`}>
       <div className={`px-8 py-6 border-b ${theme.border} flex justify-between items-center bg-white/5`}>
         <div className="flex items-center gap-3">
-          <Package className="text-[#c9a84c]" size={20} />
+          <Package className="text-[#6FCF97]" size={20} />
           <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>{title}</h2>
         </div>
-        <button className="px-5 py-2 rounded-xl bg-[#c9a84c] text-black font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-all">
+        <button className="px-5 py-2 rounded-xl bg-[#6FCF97] text-black font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-all">
           <Plus size={14} strokeWidth={3} /> Request Restock
         </button>
       </div>
@@ -99,7 +99,7 @@ const LinenInventory = () => {
                   </span>
                 </td>
                 <td className="px-8 py-5 text-right">
-                  <button onClick={() => handleRestock(row.id)} className={`p-2 rounded-lg border ${theme.border} text-[#c9a84c] hover:bg-[#c9a84c] hover:text-black transition-all`}>
+                  <button onClick={() => handleRestock(row.id)} className={`p-2 rounded-lg border ${theme.border} text-[#6FCF97] hover:bg-[#6FCF97] hover:text-black transition-all`}>
                     <ShoppingCart size={14} />
                   </button>
                 </td>
@@ -118,7 +118,7 @@ const LinenInventory = () => {
       <div className={`flex flex-col md:flex-row justify-between items-end border-b pb-6 ${theme.border} mb-10`}>
         <div className="text-left">
           <h1 className={`text-3xl font-black uppercase tracking-tighter ${theme.textMain}`}>
-            Linen & <span className="text-[#c9a84c]">Supplies</span>
+            Linen & <span className="text-[#6FCF97]">Supplies</span>
           </h1>
           <p className={`text-[10px] font-bold ${theme.textSub} uppercase tracking-[0.3em] mt-1`}>
             Stock Levels and Inventory Management
@@ -126,7 +126,7 @@ const LinenInventory = () => {
         </div>
         <div className="flex gap-4">
           <div className={`flex items-center gap-3 px-4 py-2 rounded-xl border ${theme.border} ${theme.card}`}>
-            <Search size={16} className="text-[#c9a84c]" />
+            <Search size={16} className="text-[#6FCF97]" />
             <input
               type="text"
               placeholder="Search Item..."
@@ -135,7 +135,7 @@ const LinenInventory = () => {
               className="bg-transparent border-none outline-none text-[11px] font-bold uppercase tracking-widest w-32"
             />
           </div>
-          <button className={`p-2 rounded-xl border ${theme.border} ${theme.textMain} hover:border-[#c9a84c]/50 transition-all`}>
+          <button className={`p-2 rounded-xl border ${theme.border} ${theme.textMain} hover:border-[#6FCF97]/50 transition-all`}>
             <History size={18} />
           </button>
         </div>
@@ -154,7 +154,7 @@ const LinenInventory = () => {
               <h4 className={`text-2xl font-black ${theme.textMain}`}>{stat.value}</h4>
               <p className={`text-[8px] font-bold ${theme.textSub} mt-1`}>{stat.sub}</p>
             </div>
-            <div className={`w-12 h-12 rounded-2xl border ${theme.border} flex items-center justify-center bg-white/5 text-[#c9a84c]`}>
+            <div className={`w-12 h-12 rounded-2xl border ${theme.border} flex items-center justify-center bg-white/5 text-[#6FCF97]`}>
               {stat.icon}
             </div>
           </div>

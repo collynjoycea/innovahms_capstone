@@ -45,7 +45,7 @@ const EmployeeDirectory = () => {
             <button className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[10px] font-black uppercase tracking-widest ${theme.card} ${theme.textMain}`}>
               <Download size={14} /> Export CSV
             </button>
-            <button className="flex items-center gap-2 rounded-xl bg-[#b3903c] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white">
+            <button className="flex items-center gap-2 rounded-xl bg-[#2FA084] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white">
               <UserPlus size={14} /> Add New Staff
             </button>
           </>
@@ -74,7 +74,7 @@ const EmployeeDirectory = () => {
       <HrSection theme={theme}>
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <Users size={18} className="text-[#b3903c]" />
+            <Users size={18} className="text-[#2FA084]" />
             <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Employee Directory</h2>
           </div>
           <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${theme.input}`}>
@@ -105,7 +105,7 @@ const EmployeeDirectory = () => {
                 <tr key={employee.id} className={isDarkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-zinc-50'}>
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-3">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl border text-[10px] font-black ${isDarkMode ? 'border-zinc-800 bg-zinc-900 text-[#b3903c]' : 'border-zinc-200 bg-zinc-50 text-[#b3903c]'}`}>
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl border text-[10px] font-black ${isDarkMode ? 'border-zinc-800 bg-zinc-900 text-[#2FA084]' : 'border-zinc-200 bg-zinc-50 text-[#2FA084]'}`}>
                         {getInitials(employee.name)}
                       </div>
                       <div>
@@ -117,7 +117,7 @@ const EmployeeDirectory = () => {
                   <td className="px-4 py-4">
                     <div className="flex flex-col">
                       <span className={`text-[11px] font-black uppercase ${theme.textMain}`}>{employee.role}</span>
-                      <span className="text-[10px] font-bold text-[#b3903c]">{employee.department}</span>
+                      <span className="text-[10px] font-bold text-[#2FA084]">{employee.department}</span>
                     </div>
                   </td>
                   <td className={`px-4 py-4 text-[11px] font-mono ${theme.textSub}`}>{employee.employeeId}</td>

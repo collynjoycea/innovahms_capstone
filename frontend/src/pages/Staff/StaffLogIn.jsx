@@ -1,10 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Mail, Lock, Key, Eye, EyeOff, ArrowRight, 
-  ShieldCheck, Globe, Briefcase, Quote, AlertCircle 
-} from "lucide-react";
+import { Mail, Lock, Key, Eye, EyeOff, ArrowRight, AlertCircle, ShieldCheck } from "lucide-react";
 import ForgotPasswordModal from "../../components/ForgotPasswordModal";
 import { isValidEmail, isValidHotelCode, normalizeEmail } from "../../utils/authValidation";
 
@@ -12,30 +8,11 @@ const StaffLogin = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [error, setError] = useState("");
-  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "", hotelCode: "" });
-
-  const staffQuotes = [
-    { text: "Hospitality is making your guests feel like they are at home, even if they wish they were.", author: "Innova Core" },
-    { text: "The magic is in the details. Excellence is not a skill, it's an attitude.", author: "Management" },
-    { text: "Great service is the invisible architecture of a memorable stay.", author: "Team Lead" }
-  ];
-
-  useEffect(() => {
-    setIsLoaded(true);
-    document.body.style.overflow = 'hidden';
-    const interval = setInterval(() => {
-      setQuoteIndex((prev) => (prev + 1) % staffQuotes.length);
-    }, 5000);
-    return () => { 
-      document.body.style.overflow = 'auto';
-      clearInterval(interval);
-    };
-  }, []);
 
   // --- LOGIC HANDLERS ---
   const handleVerifyCode = () => {
@@ -43,7 +20,7 @@ const StaffLogin = () => {
       setIsVerified(true);
       setError("");
     } else {
-      setError("Hotel code must follow the INNOVAHMS-123 format.");
+      setError("Hotel code must strictly follow format: INNOVAHMS-123.");
       setIsVerified(false);
     }
   };
@@ -51,6 +28,7 @@ const StaffLogin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setSuccessMessage("");
     
     if (!isVerified) {
       setError("Please verify your Hotel Owner Code first.");
@@ -102,7 +80,7 @@ const StaffLogin = () => {
       } else {
         setError(result.error || "Login failed");
       }
-    } catch (error) {
+    } catch {
       setError("Server connection error. Ensure Flask is running.");
     } finally {
       setIsLoading(false);
@@ -110,162 +88,165 @@ const StaffLogin = () => {
   };
 
   return (
-    <div className="h-screen w-full flex items-center justify-center bg-[#f3f4f6] font-sans pt-24 pb-10 px-6 overflow-hidden fixed inset-0">
+    <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans">
       
-      {/* BACKGROUND DECOR */}
-      <div className="absolute inset-0 z-0">
-        <div className="absolute top-0 left-0 w-[30%] h-[30%] bg-[#bf9b30]/5 rounded-full blur-[100px]" />
-        <div className="absolute bottom-0 right-0 w-[30%] h-[30%] bg-slate-200 rounded-full blur-[100px]" />
-        <div className="absolute inset-0 opacity-[0.3] bg-[url('https://www.transparenttextures.com/patterns/graphy.png')]" />
-      </div>
-
-      {/* MAIN CONTAINER */}
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.8 }}
-        className="relative z-10 flex w-full max-w-4xl h-[550px] overflow-hidden rounded-[28px] border border-white bg-white/70 shadow-[0_30px_70px_rgba(0,0,0,0.08)] backdrop-blur-2xl"
-      >
+      {/* MAIN CONTAINER (Katulad ng StaffSignUp structure) */}
+      <main className="max-w-xl mx-auto px-4 py-12">
         
-        {/* LEFT PANEL: QUOTES & BRANDING */}
-        <div className="hidden lg:flex flex-col justify-between w-[40%] p-10 bg-[#1e293b] relative">
-          <div className="z-10">
-            <div className="flex items-center gap-3 mb-10">
-              <div className="p-2 bg-[#bf9b30] rounded-lg">
-                <Briefcase className="text-white" size={16} />
-              </div>
-              <span className="text-white font-black tracking-[0.4em] text-[8px] uppercase opacity-50">Staff Node</span>
-            </div>
-
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={quoteIndex}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                className="min-h-[140px]"
-              >
-                <h1 className="text-2xl font-medium text-white leading-snug italic font-serif">
-                  "{staffQuotes[quoteIndex].text}"
-                </h1>
-                <p className="mt-4 text-[#bf9b30] font-bold text-[9px] uppercase tracking-[0.5em]">
-                  — {staffQuotes[quoteIndex].author}
-                </p>
-              </motion.div>
-            </AnimatePresence>
+        {/* TITLE HEADER */}
+        <div className="mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-400 mb-1">
           </div>
-          <div className="z-10 flex items-center gap-3 opacity-20">
-            <ShieldCheck size={12} className="text-white" />
-            <span className="text-[7px] font-black text-white tracking-[0.3em] uppercase">Secured Terminal</span>
-          </div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Staff Member Sign In
+          </h2>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+            Provide your verified credentials and hotel code to initialize your shift session.
+          </p>
         </div>
 
-        {/* RIGHT PANEL: FORM */}
-        <div className="flex-1 bg-white/40 flex flex-col items-center justify-center p-8 lg:p-12">
-          <div className="w-full max-w-[320px]">
-            <div className="mb-6 text-center lg:text-left">
-              <h2 className="text-2xl font-black text-[#1e293b] tracking-tighter uppercase">Internal <span className="text-[#bf9b30]">Access</span></h2>
-              <p className="text-[8px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1 italic">Identity Verification Required</p>
+        {/* ERROR ALERT */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border-l-4 border-red-600 rounded-r text-red-800 dark:text-red-200 text-xs flex items-start gap-3">
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <strong className="font-bold block mb-0.5">Alert</strong>
+              <span>{error}</span>
+            </div>
+          </div>
+        )}
+
+        {/* SUCCESS ALERT */}
+        {successMessage && (
+          <div className="mb-6 p-4 bg-emerald-50 dark:bg-emerald-950/40 border-l-4 border-emerald-600 rounded-r text-emerald-800 dark:text-emerald-200 text-xs flex items-start gap-3">
+            <ShieldCheck size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <strong className="font-bold block mb-0.5">Success</strong>
+              <span>{successMessage}</span>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+          
+          {/* CARD CONTAINER */}
+          <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                <span className="w-5 h-5 bg-emerald-800 text-white rounded-full inline-flex items-center justify-center text-[11px] font-bold">1</span>
+                Security Authentication
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Enter your registered business email, security password, and hotel code.
+              </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Email Input */}
-              <div className="space-y-1">
-                <label className="text-[8px] font-black uppercase text-slate-500 ml-1 tracking-widest">Employee Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
-                  <input
-                    type="email"
-                    required
-                    className="w-full py-2.5 pl-10 pr-4 bg-white/50 border border-slate-200 rounded-xl text-[12px] font-bold outline-none focus:border-[#bf9b30] focus:ring-4 focus:ring-[#bf9b30]/5 transition-all"
-                    placeholder="staff@innovahms.com"
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              {/* Password Input */}
-              <div className="space-y-1">
-                <label className="text-[8px] font-black uppercase text-slate-500 ml-1 tracking-widest">Security Key</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    className="w-full py-2.5 pl-10 pr-12 bg-white/50 border border-slate-200 rounded-xl text-[12px] font-bold outline-none focus:border-[#bf9b30] focus:ring-4 focus:ring-[#bf9b30]/5 transition-all"
-                    placeholder="••••••••"
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
-                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-              </div>
-
+            <div className="space-y-4">
+              
               {/* Hotel Code Verification Section */}
-              <div className={`p-4 rounded-2xl border transition-all ${isVerified ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50/80 border-slate-200'}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Key size={12} className={isVerified ? 'text-emerald-500' : 'text-[#bf9b30]'} />
-                  <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Hotel Affiliation Code</span>
+              <div className={`p-4 rounded border transition-all ${isVerified ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800' : 'bg-slate-50 border-slate-200 dark:bg-slate-800/50 dark:border-slate-700'}`}>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Key size={14} className={isVerified ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'} />
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Hotel Code <span className="text-red-500">*</span>
+                  </label>
                 </div>
                 <div className="flex gap-2">
                   <input 
                     type="text" 
-                    className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase outline-none focus:border-[#bf9b30]"
-                    placeholder="CODE-XXXX"
+                    className="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-mono font-bold uppercase outline-none focus:border-emerald-700"
+                    placeholder="INNOVAHMS-123"
                     value={formData.hotelCode}
                     onChange={(e) => setFormData({...formData, hotelCode: e.target.value.toUpperCase()})}
                   />
                   <button 
                     type="button" 
                     onClick={handleVerifyCode} 
-                    className={`px-3 rounded-lg text-[8px] font-black uppercase transition-all ${isVerified ? 'bg-emerald-500 text-white' : 'bg-[#1e293b] text-white hover:bg-black'}`}
+                    className={`px-4 rounded text-xs font-bold uppercase transition-all ${isVerified ? 'bg-emerald-600 text-white' : 'bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-700 dark:hover:bg-slate-600'}`}
                   >
                     {isVerified ? 'Verified' : 'Verify'}
                   </button>
                 </div>
               </div>
 
-              {/* Error Message */}
-              {error && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -5 }} 
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-2 p-2.5 bg-red-50 border border-red-100 rounded-lg text-red-600"
-                >
-                  <AlertCircle size={14} />
-                  <span className="text-[9px] font-bold uppercase">{error}</span>
-                </motion.div>
-              )}
-
-              {/* Submit Button */}
-              <button 
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3.5 bg-[#bf9b30] hover:bg-[#a68628] disabled:bg-slate-300 text-white rounded-xl shadow-lg shadow-[#bf9b30]/20 transition-all text-[9px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 active:scale-95"
-              >
-                {isLoading ? "Validating..." : "Initialize Shift"} <ArrowRight size={14} />
-              </button>
-            </form>
-
-              <div className="mt-6 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => setShowForgotPassword(true)}
-                className="flex items-center justify-center gap-2 text-[8px] font-bold uppercase tracking-[0.3em] text-slate-500 transition-colors hover:text-[#bf9b30]"
-              >
-                <Key size={12} /> Forgot Password
-              </button>
-              <button onClick={() => navigate('/')} className="flex items-center justify-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-[0.3em] hover:text-[#bf9b30] transition-colors">
-                <Globe size={12} /> Public Terminal
-              </button>
-              <div className="text-center text-[8px] text-slate-300 font-bold uppercase tracking-widest">
-                No account? <Link to="/staff/signup" className="text-[#bf9b30] hover:underline">Request Access</Link>
+              {/* Email Input */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Employee Business Email <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Mail size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none focus:border-emerald-700 transition-colors"
+                    placeholder="staff@gmail.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  />
+                </div>
               </div>
+
+              {/* Password Input */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Lock size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    className="w-full pl-9 pr-10 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none focus:border-emerald-700 transition-colors"
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowPassword(!showPassword)} 
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Forgot Password Trigger */}
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 hover:underline"
+                >
+                  Forgot your password?
+                </button>
+              </div>
+
             </div>
+          </section>
+
+          {/* ACTION CONTROLS */}
+          <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-6">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              No account yet?{' '}
+              <Link to="/staff/signup" className="font-bold text-emerald-800 dark:text-emerald-400 hover:underline">
+                Request access
+              </Link>
+            </p>
+
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className="px-6 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+            >
+              {isLoading ? "Validating..." : "Sign In"} <ArrowRight size={14} />
+            </button>
           </div>
-        </div>
-      </motion.div>
+
+        </form>
+      </main>
+
       <ForgotPasswordModal
         isOpen={showForgotPassword}
         onClose={() => setShowForgotPassword(false)}

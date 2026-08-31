@@ -29,6 +29,8 @@ export default function SignUp() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
 
   const validateSingleField = (key, value, currentFormData = formData) => {
     let error = null;
@@ -135,10 +137,30 @@ export default function SignUp() {
     const normalizedForm = {
       ...formData,
       email: normalizeEmail(formData.email),
+      otpCode,
     };
 
     setIsSubmitting(true);
     try {
+      if (!otpSent) {
+        const otpResponse = await fetch('/api/auth/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userType: 'customer', email: normalizedForm.email }),
+        });
+        const otpResult = await otpResponse.json().catch(() => ({}));
+        if (!otpResponse.ok) {
+          setErrorMessage(otpResult.error || 'Unable to send Gmail verification OTP.');
+          return;
+        }
+        setOtpSent(true);
+        setErrorMessage('OTP sent to your Gmail. Enter it below, then submit again.');
+        return;
+      }
+      if (!/^\d{6}$/.test(otpCode)) {
+        setErrorMessage('Enter the 6-digit Gmail verification OTP.');
+        return;
+      }
       const signupResponse = await fetch("/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -351,6 +373,22 @@ export default function SignUp() {
                   </span>
                 )}
               </div>
+
+              {otpSent && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Gmail Verification OTP</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, ''))}
+                    className="w-full rounded-xl border border-emerald-500 bg-emerald-50 px-4 py-3 text-center text-lg font-black tracking-[0.35em] outline-none"
+                    placeholder="123456"
+                  />
+                  <p className="mt-1 text-xs text-emerald-700">Check your Gmail inbox for the 6-digit code.</p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">

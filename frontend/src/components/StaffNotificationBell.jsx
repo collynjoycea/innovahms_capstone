@@ -77,8 +77,8 @@ const StaffNotificationBell = ({ isDarkMode = false, className = "" }) => {
   const theme = useMemo(
     () => ({
       button: isDarkMode
-        ? "border-white/10 bg-[#14130f] text-gray-400 hover:text-[#b3903c] hover:bg-white/5"
-        : "border-gray-200 bg-white text-gray-500 hover:text-[#b3903c] hover:bg-gray-100",
+        ? "border-white/10 bg-[#14130f] text-gray-400 hover:text-[#2FA084] hover:bg-white/5"
+        : "border-gray-200 bg-white text-gray-500 hover:text-[#2FA084] hover:bg-gray-100",
       panel: isDarkMode ? "border-white/10 bg-[#14130f] text-white" : "border-gray-200 bg-white text-slate-900",
       item: isDarkMode ? "border-white/5 hover:bg-white/5" : "border-gray-100 hover:bg-slate-50",
       muted: isDarkMode ? "text-slate-400" : "text-slate-500",

@@ -79,7 +79,7 @@ const TaskCompletionLogs = () => {
                   <tr key={row.staffId} className={isDarkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-zinc-50'}>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#b3903c]/10 text-[10px] font-black text-[#b3903c]">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2FA084]/10 text-[10px] font-black text-[#2FA084]">
                           {getInitials(row.name)}
                         </div>
                         <div>
@@ -117,7 +117,7 @@ const TaskCompletionLogs = () => {
 
         <HrSection theme={theme}>
           <div className="mb-6 flex items-center gap-3">
-            <BarChart3 size={18} className="text-[#b3903c]" />
+            <BarChart3 size={18} className="text-[#2FA084]" />
             <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Avg Completion Time</h2>
           </div>
           <div className="space-y-5">
@@ -128,7 +128,7 @@ const TaskCompletionLogs = () => {
                   <p className={`text-sm font-black ${theme.textMain}`}>{item.minutes} min</p>
                 </div>
                 <div className={`h-2 overflow-hidden rounded-full ${isDarkMode ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
-                  <div className="h-full bg-[#b3903c]" style={{ width: `${Math.min(item.minutes, 100)}%` }} />
+                  <div className="h-full bg-[#2FA084]" style={{ width: `${Math.min(item.minutes, 100)}%` }} />
                 </div>
               </div>
             ))}

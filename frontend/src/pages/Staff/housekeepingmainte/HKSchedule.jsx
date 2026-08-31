@@ -49,8 +49,8 @@ const HKSchedule = () => {
     border: isDarkMode ? "border-white/10" : "border-gray-300",
     textMain: isDarkMode ? "text-white" : "text-gray-900",
     textSub: isDarkMode ? "text-gray-500" : "text-gray-400",
-    gold: "#c9a84c",
-    accent: "text-[#c9a84c]",
+    gold: "#6FCF97",
+    accent: "text-[#6FCF97]",
     shadow: "shadow-[0_20px_50px_rgba(0,0,0,0.4)]"
   };
 
@@ -64,7 +64,7 @@ const HKSchedule = () => {
             Work <span className={theme.accent}>Schedule</span>
           </h1>
           <p className={`text-[10px] font-bold ${theme.textSub} uppercase tracking-[0.3em] mt-1`}>
-            Housekeeping Operations • Obsidian Sanctuary
+            Housekeeping Operations â€¢ Obsidian Sanctuary
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -96,7 +96,7 @@ const HKSchedule = () => {
                   onClick={() => setSelectedDate(item.iso)}
                   className={`flex-1 flex flex-col items-center p-4 rounded-2xl transition-all border ${
                     item.status === 'active' 
-                    ? 'bg-[#c9a84c] border-[#c9a84c] scale-110 shadow-lg shadow-[#c9a84c]/20' 
+                    ? 'bg-[#6FCF97] border-[#6FCF97] scale-110 shadow-lg shadow-[#6FCF97]/20' 
                     : `hover:bg-white/5 ${theme.border}`
                   }`}
                 >
@@ -116,7 +116,7 @@ const HKSchedule = () => {
           <div className="space-y-4">
             <h3 className={`text-[10px] font-black uppercase tracking-[0.3em] pl-2 ${theme.textSub}`}>Shift Timeline</h3>
             {displayShifts.map((shift, i) => (
-              <div key={i} className={`${theme.card} border ${theme.border} p-6 rounded-2xl flex items-center justify-between group hover:border-[#c9a84c]/50 transition-all`}>
+              <div key={i} className={`${theme.card} border ${theme.border} p-6 rounded-2xl flex items-center justify-between group hover:border-[#6FCF97]/50 transition-all`}>
                 <div className="flex items-center gap-6">
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${theme.border} bg-white/5 ${theme.accent}`}>
                     {shift.icon}
@@ -152,14 +152,14 @@ const HKSchedule = () => {
                     <span className={`text-[11px] font-black ${theme.textMain}`}>{stat.value}</span>
                   </div>
                   <div className={`w-full h-1 rounded-full bg-white/5`}>
-                    <div className="h-full bg-[#c9a84c] rounded-full" style={{ width: stat.value }}></div>
+                    <div className="h-full bg-[#6FCF97] rounded-full" style={{ width: stat.value }}></div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className={`p-6 rounded-2xl border ${theme.border} bg-[#c9a84c]/5`}>
+          <div className={`p-6 rounded-2xl border ${theme.border} bg-[#6FCF97]/5`}>
             <div className="flex items-start gap-4">
               <Info size={20} className={theme.accent} />
               <div>

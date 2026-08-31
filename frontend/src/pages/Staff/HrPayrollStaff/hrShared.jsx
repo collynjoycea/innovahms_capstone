@@ -8,7 +8,7 @@ export const getHrTheme = (isDarkMode) => ({
   textSub: isDarkMode ? 'text-zinc-500' : 'text-zinc-500',
   tableHeader: isDarkMode ? 'bg-white/5 text-zinc-500' : 'bg-zinc-50 text-zinc-600',
   input: isDarkMode ? 'bg-[#050505] border-zinc-800 text-zinc-100' : 'bg-zinc-50 border-zinc-200 text-zinc-900',
-  accent: '#b3903c',
+  accent: '#2FA084',
 });
 
 export const formatCurrency = (value) =>
@@ -42,7 +42,7 @@ export const getInitials = (name) =>
 export function HrLoadingState({ theme, label = 'Syncing HR records...' }) {
   return (
     <div className={`flex min-h-[50vh] flex-col items-center justify-center gap-4 ${theme.container}`}>
-      <Loader2 className="animate-spin text-[#b3903c]" size={40} />
+      <Loader2 className="animate-spin text-[#2FA084]" size={40} />
       <p className={`text-[10px] font-black uppercase tracking-[0.3em] ${theme.textSub}`}>{label}</p>
     </div>
   );
@@ -62,11 +62,11 @@ export function HrPageHeader({ theme, eyebrow, title, accent, actions }) {
     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
         <div className="mb-1 flex items-center gap-2">
-          <span className="flex h-2 w-2 rounded-full bg-[#b3903c] animate-pulse" />
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#b3903c]">{eyebrow}</p>
+          <span className="flex h-2 w-2 rounded-full bg-[#2FA084] animate-pulse" />
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#2FA084]">{eyebrow}</p>
         </div>
         <h1 className={`text-3xl font-black uppercase tracking-tighter ${theme.textMain}`}>
-          {title} {accent ? <span className="text-[#b3903c]">{accent}</span> : null}
+          {title} {accent ? <span className="text-[#2FA084]">{accent}</span> : null}
         </h1>
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-3">{actions}</div> : null}
@@ -84,8 +84,8 @@ export function HrStatGrid({ theme, stats }) {
       {stats.map((item) => (
         <div key={item.label} className={`rounded-3xl border p-6 ${theme.card}`}>
           <div className="mb-4 flex items-start justify-between">
-            <div className="rounded-2xl border border-[#b3903c]/20 bg-[#b3903c]/10 p-3 text-[#b3903c]">{item.icon}</div>
-            {item.meta ? <span className="text-[9px] font-black uppercase tracking-wider text-[#b3903c]">{item.meta}</span> : null}
+            <div className="rounded-2xl border border-[#2FA084]/20 bg-[#2FA084]/10 p-3 text-[#2FA084]">{item.icon}</div>
+            {item.meta ? <span className="text-[9px] font-black uppercase tracking-wider text-[#2FA084]">{item.meta}</span> : null}
           </div>
           <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${theme.textSub}`}>{item.label}</p>
           <h3 className={`mt-1 text-3xl font-black tracking-tighter ${theme.textMain}`}>{item.value}</h3>

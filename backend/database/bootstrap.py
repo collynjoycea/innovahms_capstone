@@ -64,6 +64,23 @@ def ensure_password_reset_tables(cur):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_otps_lookup ON password_reset_otps (user_type, user_id, created_at DESC)")
 
 
+def ensure_signup_otp_table(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS signup_otps (
+            id SERIAL PRIMARY KEY,
+            user_type VARCHAR(20) NOT NULL,
+            email VARCHAR(120) NOT NULL,
+            otp_hash TEXT NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            consumed_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_signup_otps_lookup ON signup_otps (user_type, email, created_at DESC)")
+
+
 def ensure_admin_feature_tables(cur):
     """Admin profile fields and staff role permissions used by the admin UI."""
     for statement in [

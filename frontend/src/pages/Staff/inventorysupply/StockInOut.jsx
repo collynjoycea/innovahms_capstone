@@ -97,7 +97,7 @@ export default function StockInOut() {
               <div>
                 <label className={`text-[10px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Item *</label>
                 <select value={form.itemId} onChange={e => setForm(p => ({ ...p, itemId: e.target.value }))}
-                  className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#b3903c] ${inp}`} required>
+                  className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#2FA084] ${inp}`} required>
                   {items.map(i => <option key={i.id} value={i.id}>{i.name} ({i.stockLevel} {i.unit})</option>)}
                 </select>
               </div>
@@ -111,19 +111,19 @@ export default function StockInOut() {
                 <div>
                   <label className={`text-[10px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Quantity *</label>
                   <input type="number" min="1" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))}
-                    className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#b3903c] ${inp}`} required />
+                    className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#2FA084] ${inp}`} required />
                 </div>
                 {modal === 'IN' ? (
                   <div>
-                    <label className={`text-[10px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Unit Cost (₱)</label>
+                    <label className={`text-[10px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Unit Cost (â‚±)</label>
                     <input type="number" min="0" step="0.01" value={form.unitCost} onChange={e => setForm(p => ({ ...p, unitCost: e.target.value }))}
-                      className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#b3903c] ${inp}`} />
+                      className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#2FA084] ${inp}`} />
                   </div>
                 ) : (
                   <div>
                     <label className={`text-[10px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Department</label>
                     <select value={form.department} onChange={e => setForm(p => ({ ...p, department: e.target.value }))}
-                      className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#b3903c] ${inp}`}>
+                      className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#2FA084] ${inp}`}>
                       {['Housekeeping','F&B Service','Maintenance','Front Desk','Admin'].map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
                   </div>
@@ -134,19 +134,19 @@ export default function StockInOut() {
                   <div>
                     <label className={`text-[10px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Supplier</label>
                     <input type="text" value={form.supplier} onChange={e => setForm(p => ({ ...p, supplier: e.target.value }))}
-                      className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#b3903c] ${inp}`} />
+                      className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#2FA084] ${inp}`} />
                   </div>
                   <div>
                     <label className={`text-[10px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>PO Number</label>
                     <input type="text" value={form.poNumber} onChange={e => setForm(p => ({ ...p, poNumber: e.target.value }))}
-                      className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#b3903c] ${inp}`} />
+                      className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#2FA084] ${inp}`} />
                   </div>
                 </div>
               ) : (
                 <div>
                   <label className={`text-[10px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Reason</label>
                   <select value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))}
-                    className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#b3903c] ${inp}`}>
+                    className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none focus:border-[#2FA084] ${inp}`}>
                     {['Regular Replenishment','Guest Request','Damage Replacement','Maintenance Use','Event Setup'].map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
@@ -154,7 +154,7 @@ export default function StockInOut() {
               <div>
                 <label className={`text-[10px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Notes</label>
                 <textarea rows={2} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
-                  className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none resize-none focus:border-[#b3903c] ${inp}`} />
+                  className={`w-full px-4 py-3 rounded-2xl border text-[11px] font-bold outline-none resize-none focus:border-[#2FA084] ${inp}`} />
               </div>
               {msg.text && <p className={`text-[11px] font-bold ${msg.type === 'success' ? 'text-emerald-500' : 'text-rose-500'}`}>{msg.text}</p>}
               <button type="submit" disabled={saving}
@@ -181,7 +181,7 @@ export default function StockInOut() {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 mb-10">
         <div>
           <h1 className={`text-4xl font-black italic uppercase tracking-tighter leading-none ${text}`}>
-            Stock <span className="text-[#b3903c]">Movements</span>
+            Stock <span className="text-[#2FA084]">Movements</span>
           </h1>
           <p className={`text-[11px] font-bold uppercase tracking-widest mt-2 ${sub}`}>Live monitoring of inventory inflow and disbursement</p>
         </div>
@@ -203,9 +203,9 @@ export default function StockInOut() {
         {[
           { label: 'Daily Dispatch',    val: stats.dailyDispatch,    color: 'text-red-500',     desc: 'Units out today' },
           { label: 'Restock Received',  val: stats.restockReceived,  color: 'text-emerald-500', desc: 'Units in today' },
-          { label: 'Low Stock Items',   val: lowStock.length,        color: 'text-[#b3903c]',   desc: 'Need reorder' },
+          { label: 'Low Stock Items',   val: lowStock.length,        color: 'text-[#2FA084]',   desc: 'Need reorder' },
         ].map((s, i) => (
-          <div key={i} className={`p-6 rounded-[2rem] border ${card} transition-all hover:border-[#b3903c]/50`}>
+          <div key={i} className={`p-6 rounded-[2rem] border ${card} transition-all hover:border-[#2FA084]/50`}>
             <p className={`text-[10px] font-black uppercase tracking-widest ${sub} mb-1`}>{s.label}</p>
             <h2 className={`text-3xl font-black tracking-tighter ${text}`}>{loading ? '--' : s.val}</h2>
             <p className={`text-[9px] font-bold uppercase tracking-widest mt-1 ${s.color}`}>{s.desc}</p>
@@ -217,7 +217,7 @@ export default function StockInOut() {
       <div className={`rounded-[2.5rem] border overflow-hidden ${card}`}>
         <div className={`p-6 border-b ${isDarkMode ? 'border-zinc-500/10' : 'border-zinc-100'} flex items-center justify-between`}>
           <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-[#b3903c] animate-ping" />
+            <div className="w-2 h-2 rounded-full bg-[#2FA084] animate-ping" />
             <h3 className={`text-xs font-black uppercase tracking-[0.3em] ${text}`}>Real-time Movement Archive</h3>
           </div>
         </div>
@@ -239,10 +239,10 @@ export default function StockInOut() {
               ) : movements.length === 0 ? (
                 <tr><td colSpan="6" className={`p-12 text-center text-[10px] font-bold uppercase italic ${sub}`}>No movements recorded yet.</td></tr>
               ) : movements.map((m, i) => (
-                <tr key={i} className={`group hover:bg-[#b3903c]/[0.03] transition-all`}>
+                <tr key={i} className={`group hover:bg-[#2FA084]/[0.03] transition-all`}>
                   <td className="px-6 py-4">
                     <p className={`text-[11px] font-black uppercase ${text}`}>{m.itemName}</p>
-                    <p className="text-[8px] font-bold text-[#b3903c] uppercase tracking-widest">{m.skuId}</p>
+                    <p className="text-[8px] font-bold text-[#2FA084] uppercase tracking-widest">{m.skuId}</p>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className={`px-3 py-1 rounded-full text-[8px] font-black tracking-widest border ${m.type === 'IN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
@@ -252,7 +252,7 @@ export default function StockInOut() {
                   <td className={`px-6 py-4 text-center font-black text-sm ${m.type === 'IN' ? 'text-emerald-500' : 'text-red-500'}`}>
                     {m.type === 'IN' ? '+' : '-'}{m.quantity}
                   </td>
-                  <td className={`px-6 py-4 text-[10px] font-bold uppercase ${sub}`}>{m.department || m.supplier || '—'}</td>
+                  <td className={`px-6 py-4 text-[10px] font-bold uppercase ${sub}`}>{m.department || m.supplier || 'â€”'}</td>
                   <td className={`px-6 py-4 text-[10px] font-bold uppercase ${sub}`}>{m.performedBy}</td>
                   <td className={`px-6 py-4 text-right text-[10px] font-bold font-mono italic ${sub}`}>
                     {m.createdAt ? new Date(m.createdAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--'}

@@ -69,7 +69,7 @@ const HrPayrollStaffSidebar = ({ isDarkMode }) => {
   };
 
   const bgColor = isDarkMode ? 'bg-[#09090b]' : 'bg-gray-50';
-  const borderColor = isDarkMode ? 'border-[#b3903c]/20' : 'border-gray-200';
+  const borderColor = isDarkMode ? 'border-[#2FA084]/20' : 'border-gray-200';
   const sectionTitleColor = isDarkMode ? 'text-gray-600' : 'text-gray-400';
 
   return (
@@ -91,13 +91,13 @@ const HrPayrollStaffSidebar = ({ isDarkMode }) => {
 
         {/* PROFILE MINI-CARD */}
         <div className="px-4 mb-6 shrink-0">
-          <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${isDarkMode ? 'bg-[#b3903c]/5 border-[#b3903c]/10' : 'bg-white border-gray-200 shadow-sm'}`}>
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#b3903c] to-[#96772f] flex items-center justify-center text-black text-sm shadow-lg">
+          <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${isDarkMode ? 'bg-[#2FA084]/5 border-[#2FA084]/10' : 'bg-white border-gray-200 shadow-sm'}`}>
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#2FA084] to-[#1F6F5F] flex items-center justify-center text-black text-sm shadow-lg">
               <span className="font-black">CF</span>
             </div>
             <div className="overflow-hidden">
               <h4 className={`text-[11px] font-black uppercase tracking-tight leading-none ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Collyn Fernandez</h4>
-              <p className="text-[8px] font-bold text-[#b3903c] uppercase tracking-widest mt-1.5 opacity-80">HR Manager</p>
+              <p className="text-[8px] font-bold text-[#2FA084] uppercase tracking-widest mt-1.5 opacity-80">HR Manager</p>
             </div>
           </div>
         </div>
@@ -117,11 +117,11 @@ const HrPayrollStaffSidebar = ({ isDarkMode }) => {
                     to={item.path}
                     className={`group flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 relative ${
                       active 
-                        ? "bg-[#b3903c]/10 text-[#b3903c]" 
-                        : (isDarkMode ? "text-gray-500 hover:text-gray-200 hover:bg-white/5" : "text-gray-500 hover:text-[#b3903c] hover:bg-white")
+                        ? "bg-[#2FA084]/10 text-[#2FA084]" 
+                        : (isDarkMode ? "text-gray-500 hover:text-gray-200 hover:bg-white/5" : "text-gray-500 hover:text-[#2FA084] hover:bg-white")
                     }`}
                   >
-                    <span className={`${active ? "text-[#b3903c]" : "text-gray-500 group-hover:text-[#b3903c]"} transition-colors`}>
+                    <span className={`${active ? "text-[#2FA084]" : "text-gray-500 group-hover:text-[#2FA084]"} transition-colors`}>
                       {React.cloneElement(item.icon, { size: 18, strokeWidth: active ? 2.5 : 2 })}
                     </span>
                     <span className={`text-[11px] uppercase tracking-wide flex-1 ${active ? 'font-black' : 'font-bold'}`}>
@@ -131,7 +131,7 @@ const HrPayrollStaffSidebar = ({ isDarkMode }) => {
                     {item.badge && (
                       <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md text-center ${
                         item.badge === "DUE" ? 'bg-emerald-600/20 text-emerald-500 border border-emerald-500/30' : 
-                        item.badge === "AI" ? 'bg-[#b3903c] text-black shadow-[0_0_10px_rgba(179,144,60,0.3)]' : 
+                        item.badge === "AI" ? 'bg-[#2FA084] text-black shadow-[0_0_10px_rgba(179,144,60,0.3)]' : 
                         'bg-red-500 text-white'
                       }`}>
                         {item.badge}
@@ -139,7 +139,7 @@ const HrPayrollStaffSidebar = ({ isDarkMode }) => {
                     )}
 
                     {active && (
-                      <div className="absolute left-0 w-1 h-4 bg-[#b3903c] rounded-r-full shadow-[0_0_12px_#b3903c]" />
+                      <div className="absolute left-0 w-1 h-4 bg-[#2FA084] rounded-r-full shadow-[0_0_12px_#2FA084]" />
                     )}
                   </Link>
                 );
@@ -150,10 +150,10 @@ const HrPayrollStaffSidebar = ({ isDarkMode }) => {
 
         {/* FOOTER: DIGITAL CLOCK & LOGOUT (Gaya ng FrontDesktop) */}
         <div className={`p-4 border-t space-y-3 shrink-0 ${isDarkMode ? 'border-white/5' : 'border-gray-200'}`}>
-          <div className={`flex flex-col items-center justify-center py-4 rounded-xl border transition-all ${isDarkMode ? 'bg-[#b3903c]/5 border-[#b3903c]/10' : 'bg-zinc-100 border-zinc-200'}`}>
+          <div className={`flex flex-col items-center justify-center py-4 rounded-xl border transition-all ${isDarkMode ? 'bg-[#2FA084]/5 border-[#2FA084]/10' : 'bg-zinc-100 border-zinc-200'}`}>
             <div className="flex items-center gap-2 mb-1 opacity-60">
-               <Clock size={12} className="text-[#b3903c]" />
-               <span className="text-[9px] font-black uppercase tracking-widest text-[#b3903c]">Current Time</span>
+               <Clock size={12} className="text-[#2FA084]" />
+               <span className="text-[9px] font-black uppercase tracking-widest text-[#2FA084]">Current Time</span>
             </div>
             <span className={`text-2xl font-black tracking-tighter ${isDarkMode ? 'text-zinc-100' : 'text-zinc-900'}`}>
                {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
@@ -183,7 +183,7 @@ const HrPayrollStaffSidebar = ({ isDarkMode }) => {
           background: ${isDarkMode ? '#27272a' : '#e4e4e7'}; 
           border-radius: 10px; 
         }
-        .custom-sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #b3903c; }
+        .custom-sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #2FA084; }
       `}</style>
     </aside>
   );

@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import {
   ArrowUpDown,
   Calendar,
+  Check,
+  Heart,
   Hotel,
   MapPin,
   MessageCircle,
@@ -42,6 +44,41 @@ const getRoomPreviewImage = (value, fallback = null) => {
     "";
 
   return rawImage ? resolveImg(rawImage, fallback) : fallback;
+};
+
+// UPDATED LOGIC: Pinagsasama ang mga room kapag nasa parehong hotel at magkapareho ang pangalan/uri
+const getRoomDisplayName = (room, allRooms = []) => {
+  const baseName = room?.name || room?.roomName || room?.room_name || room?.type || "Room";
+  const normalizedName = String(baseName).trim();
+
+  if (!normalizedName) return "Room";
+
+  // Hanapin ang mga may kaparehong pangalan sa loob ng parehong hotel
+  const duplicates = (allRooms || []).filter((item) => {
+    const candidate = String(item?.name || item?.roomName || item?.room_name || item?.type || "").trim();
+    const sameHotel = (item?.hotelId || item?.hotel_id) === (room?.hotelId || room?.hotel_id);
+    return sameHotel && candidate && candidate.toLowerCase() === normalizedName.toLowerCase();
+  });
+
+  if (duplicates.length > 1) {
+    // Kunin ang lahat ng room numbers at pag-isahin gamit ang slash '/'
+    const roomNumbers = duplicates
+      .map((item) => String(item?.roomNumber || item?.room_number || item?.roomNo || "").trim())
+      .filter(Boolean);
+
+    const uniqueRoomNums = Array.from(new Set(roomNumbers));
+    if (uniqueRoomNums.length > 0) {
+      return `${normalizedName} • Room ${uniqueRoomNums.join(" / ")}`;
+    }
+    return `${normalizedName} • ${duplicates.length} rooms`;
+  }
+
+  const singleRoomNum = room?.roomNumber || room?.room_number || room?.roomNo || "";
+  if (singleRoomNum) {
+    return `${normalizedName} • Room ${singleRoomNum}`;
+  }
+
+  return normalizedName;
 };
 
 function TourModal({ open, onClose, onReserve, roomName, tour, loading, notice }) {
@@ -285,7 +322,6 @@ export default function VisionSuites() {
         fetch(`/api/vision/nearby-hotels${suffix}`),
       ]);
 
-      // Rooms are the primary content: render them as soon as that request finishes.
       const roomsRes = await roomsPromise;
       const roomsPayload = await roomsRes.json().catch(() => ({}));
       if (!roomsRes.ok) throw new Error(roomsPayload?.error || `Rooms load failed (HTTP ${roomsRes.status})`);
@@ -518,15 +554,49 @@ export default function VisionSuites() {
       return matchRoomType && matchSearch && matchRating;
     });
 
-    if (sortMode === "price-asc") {
-      next.sort((a, b) => Number(a.basePricePhp || 0) - Number(b.basePricePhp || 0));
-    } else if (sortMode === "price-desc") {
-      next.sort((a, b) => Number(b.basePricePhp || 0) - Number(a.basePricePhp || 0));
-    } else if (sortMode === "capacity") {
-      next.sort((a, b) => Number(b.capacity || 0) - Number(a.capacity || 0));
+    const grouped = new Map();
+    for (const room of next) {
+      const hotelIdKey = String(room.hotelId || room.hotel_id || "unknown");
+      const roomName = String(room.name || room.roomName || room.room_name || room.type || "Room").trim();
+      const roomType = String(room.type || room.roomType || "Suite").trim();
+      // Grouping key: magkaiba ang hotel, kaya hiwalay sila kahit pareho ang pangalan ng room
+      const key = `${hotelIdKey}|${roomType}|${roomName}`.toLowerCase();
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          ...room,
+          count: 1,
+          variants: [room],
+          roomNumbers: room.roomNumber ? [String(room.roomNumber)] : [],
+          minPrice: Number(room.basePricePhp || room.price || 0),
+          maxPrice: Number(room.basePricePhp || room.price || 0),
+        });
+        continue;
+      }
+
+      const current = grouped.get(key);
+      current.count += 1;
+      current.variants = [...current.variants, room];
+      current.minPrice = Math.min(current.minPrice || Number.MAX_SAFE_INTEGER, Number(room.basePricePhp || room.price || 0));
+      current.maxPrice = Math.max(current.maxPrice || 0, Number(room.basePricePhp || room.price || 0));
+      current.maxAdults = Math.max(Number(current.maxAdults || 0), Number(room.maxAdults || 0));
+      current.maxChildren = Math.max(Number(current.maxChildren || 0), Number(room.maxChildren || 0));
+      if (room.roomNumber || room.room_number || room.roomNo) {
+        current.roomNumbers = Array.from(new Set([...current.roomNumbers, String(room.roomNumber || room.room_number || room.roomNo)]));
+      }
     }
 
-    return next;
+    const groupedList = Array.from(grouped.values());
+
+    if (sortMode === "price-asc") {
+      groupedList.sort((a, b) => Number(a.minPrice || a.basePricePhp || 0) - Number(b.minPrice || b.basePricePhp || 0));
+    } else if (sortMode === "price-desc") {
+      groupedList.sort((a, b) => Number(b.maxPrice || b.basePricePhp || 0) - Number(a.maxPrice || a.basePricePhp || 0));
+    } else if (sortMode === "capacity") {
+      groupedList.sort((a, b) => Number(b.capacity || 0) - Number(a.capacity || 0));
+    }
+
+    return groupedList;
   }, [rooms, hotelSearch, selectedRoomType, selectedRating, sortMode]);
 
   const handleSearchRoomsSubmit = () => {
@@ -636,7 +706,7 @@ export default function VisionSuites() {
         </div>
       ) : null}
 
-      {/* SECTION 1: HERO WITH SINGLE-ROW SEARCH FILTER IN FORMAL BOX */}
+      {/* HERO SECTION */}
       <section className="relative min-h-[65vh] flex flex-col items-center justify-center overflow-hidden pb-20">
         <div className="absolute inset-0 z-0">
           <img 
@@ -663,19 +733,16 @@ export default function VisionSuites() {
           ) : null}
         </div>
 
-        {/* STICKY SEARCH BOX - FORMAL RECTANGULAR CONTAINER */}
+        {/* STICKY SEARCH BOX */}
         <div className="sticky top-20 z-40 w-full max-w-7xl px-4 mx-auto">
           <div className="relative bg-white/95 dark:bg-[#121c16]/95 p-6 md:p-7 shadow-[0_25px_60px_rgba(0,0,0,0.4)] backdrop-blur-xl border border-[#1F6F5F]/30">
-            
-            {/* Top Tag */}
             <div className="absolute -top-4 left-6">
-                <div className="flex items-center gap-2 bg-white dark:bg-[#18261e] px-4 py-1.5 shadow-md border border-[#1F6F5F]/30 text-[#2FA084] font-black text-xs tracking-widest uppercase font-sans">
+              <div className="flex items-center gap-2 bg-white dark:bg-[#18261e] px-4 py-1.5 shadow-md border border-[#1F6F5F]/30 text-[#2FA084] font-black text-xs tracking-widest uppercase font-sans">
                 <Hotel size={14} className="text-[#2FA084]" />
                 <span>{viewMode === "hotel" ? "Hotel Directory" : "Room Collection"}</span>
               </div>
             </div>
 
-            {/* Sub-tabs & Reset Filters */}
             <div className="flex items-center justify-between border-b border-[#1F6F5F]/20 pb-3 mb-5 pt-2 gap-4 flex-wrap">
               <div className="flex items-center gap-6 flex-wrap">
                 <div className="flex items-center gap-2 rounded-full border border-[#1F6F5F]/20 bg-[#1F6F5F]/5 p-1">
@@ -702,7 +769,6 @@ export default function VisionSuites() {
                     Room
                   </button>
                 </div>
-
               </div>
 
               <button
@@ -715,14 +781,9 @@ export default function VisionSuites() {
               </button>
             </div>
 
-            {/* SINGLE ROW FILTER LAYOUT */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 items-center">
-              
-              {/* Check-In Field */}
               <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">
-                  Check-In
-                </label>
+                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Check-In</label>
                 <div className="flex items-center gap-2">
                   <Calendar size={14} className="text-[#2FA084] shrink-0" />
                   <input
@@ -734,11 +795,8 @@ export default function VisionSuites() {
                 </div>
               </div>
 
-              {/* Check-Out Field */}
               <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">
-                  Check-Out
-                </label>
+                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Check-Out</label>
                 <div className="flex items-center gap-2">
                   <Calendar size={14} className="text-[#2FA084] shrink-0" />
                   <input
@@ -750,11 +808,8 @@ export default function VisionSuites() {
                 </div>
               </div>
 
-              {/* Guests Field */}
               <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">
-                  Guests
-                </label>
+                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Guests</label>
                 <div className="flex items-center gap-2">
                   <Users size={14} className="text-[#2FA084] shrink-0" />
                   <input
@@ -769,11 +824,8 @@ export default function VisionSuites() {
                 </div>
               </div>
 
-              {/* Room Type Selector */}
               <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">
-                  Room Type
-                </label>
+                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Room Type</label>
                 <div className="flex items-center gap-2">
                   <Search size={14} className="text-[#2FA084] shrink-0" />
                   <select
@@ -783,19 +835,14 @@ export default function VisionSuites() {
                   >
                     <option value="all" className="dark:bg-[#121c16]">All Types</option>
                     {roomTypeOptions.map((type) => (
-                      <option key={type} value={type} className="dark:bg-[#121c16]">
-                        {type}
-                      </option>
+                      <option key={type} value={type} className="dark:bg-[#121c16]">{type}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* Star Rating */}
               <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">
-                  Rating
-                </label>
+                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Rating</label>
                 <div className="flex items-center gap-2">
                   <Star size={14} className="text-[#2FA084] fill-[#2FA084] shrink-0" />
                   <select
@@ -811,11 +858,8 @@ export default function VisionSuites() {
                 </div>
               </div>
 
-              {/* Sort Order */}
               <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">
-                  Sort
-                </label>
+                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Sort</label>
                 <div className="flex items-center gap-2">
                   <ArrowUpDown size={14} className="text-[#2FA084] shrink-0" />
                   <select
@@ -830,7 +874,6 @@ export default function VisionSuites() {
                 </div>
               </div>
 
-              {/* Search Button Action */}
               <div>
                 <button
                   type="button"
@@ -841,17 +884,14 @@ export default function VisionSuites() {
                   <span>Filter</span>
                 </button>
               </div>
-
             </div>
-
           </div>
         </div>
       </section>
 
-      {/* SECTION 2: COLLECTION RESULTS LIST (GRID FOR HOTELS, LIST FOR ROOMS) */}
+      {/* COLLECTION RESULTS LIST */}
       <section className="py-12 px-4 max-w-7xl mx-auto pt-8">
         <div className="min-w-0">
-
           {viewMode === "hotel" ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {paginatedList.map((entry, index) => (
@@ -863,7 +903,6 @@ export default function VisionSuites() {
                   transition={{ delay: index * 0.05 }}
                   className="group flex flex-col overflow-hidden border border-[#1F6F5F]/30 bg-white shadow-xl transition-all duration-300 hover:border-[#2FA084] dark:border-[#1F6F5F]/30 dark:bg-[#121c16]"
                 >
-                  {/* Tamang sukat na h-44 at object-cover para hindi ma-distort ang larawan ng hotel */}
                   <div className="relative h-44 overflow-hidden bg-zinc-900">
                     <img
                       src={resolveImg(entry.image || entry.hotelLogo || entry.buildingImage || entry.imageUrl || "/images/signup-img.png")}
@@ -879,15 +918,11 @@ export default function VisionSuites() {
 
                   <div className="p-5 flex flex-col justify-between flex-1">
                     <div>
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                        <h4 className="text-xl font-sans font-black text-slate-900 dark:text-white">{entry.name}</h4>
-                      </div>
-
+                      <h4 className="text-xl font-sans font-black text-slate-900 dark:text-white mb-1">{entry.name}</h4>
                       <div className="flex items-center gap-2 text-xs text-[#2FA084] font-semibold mb-2">
                         <MapPin size={14} />
                         <span>{entry.location || entry.locationLabel || entry.address || "Innova Smart Hotel"}</span>
                       </div>
-
                       <div className="flex items-center gap-1 mb-3 text-[#2FA084]">
                         {[...Array(5)].map((_, i) => (
                           <Star key={i} size={13} className="fill-[#2FA084] text-[#2FA084]" />
@@ -896,15 +931,6 @@ export default function VisionSuites() {
                           {Number(entry.avgRating || 0).toFixed(1)} · {entry.reviewCount || 0} reviews
                         </span>
                       </div>
-
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {(entry.amenities || ["Wi‑Fi", "Breakfast", "Pool", "Concierge", "Parking"]).slice(0, 4).map((item, idx) => (
-                          <span key={`${item}-${idx}`} className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 px-2 py-1 text-[10px] font-bold text-[#1F6F5F] dark:text-[#2FA084]">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-
                       <p className="text-sm leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2">
                         "{entry.description || "A premium hotel experience designed for comfort, convenience, and elevated hospitality."}"
                       </p>
@@ -915,7 +941,6 @@ export default function VisionSuites() {
                         <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">From</p>
                         <p className="text-lg font-black text-[#2FA084]">{php(entry.startingPrice || entry.minPrice || 0)}</p>
                       </div>
-
                       <button
                         type="button"
                         onClick={() => navigate(`/hoteldetail/${entry.id}`)}
@@ -930,121 +955,180 @@ export default function VisionSuites() {
             </div>
           ) : (
             <div className="space-y-6">
-              {paginatedList.map((room, index) => (
-                <motion.article
-                  key={room.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.05 }}
-                  className="group flex flex-col lg:flex-row overflow-hidden border border-[#1F6F5F]/30 bg-white shadow-xl transition-all duration-300 hover:border-[#2FA084] dark:border-[#1F6F5F]/30 dark:bg-[#121c16]"
-                >
-                  {/* Left Side: Room Photo View */}
-                  <div className="relative lg:w-[360px] shrink-0 h-56 lg:h-auto overflow-hidden bg-zinc-900">
-                    <img
-                      src={getRoomPreviewImage(room, undefined)}
-                      alt={room.name}
-                      onError={(e) => { e.currentTarget.src = "/images/deluxe-room.jpg"; }}
-                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent lg:hidden" />
-                    <div className="absolute bottom-3 left-3 flex lg:hidden items-center gap-2">
-                      <span className="bg-[#1F6F5F] px-3 py-1 text-[9px] font-black uppercase tracking-wider text-white">
-                        {room.type || "Suite"}
-                      </span>
-                    </div>
-                  </div>
+              {paginatedList.map((room, index) => {
+                const roomDisplayName = getRoomDisplayName(room, filteredRooms);
+                const basePrice = Number(room.minPrice ?? room.basePricePhp ?? room.price ?? 1500);
+                const promoPrice = Math.round(basePrice * 0.9);
+                const bookableRoomId = room.variants?.[0]?.id || room.id;
 
-                  {/* Middle Info & Formal Amenities */}
-                  <div className="flex-1 p-6 lg:p-7 flex flex-col justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <h4 className="text-2xl font-sans font-black text-slate-900 dark:text-white">{room.name}</h4>
-                        <div className="hidden lg:flex items-center gap-1.5 border border-[#1F6F5F]/30 bg-[#1F6F5F]/20 px-3 py-1">
-                          <Star size={13} className="fill-[#2FA084] text-[#2FA084]" />
-                          <span className="text-xs font-black text-[#2FA084]">{Number(room.avgRating || 0).toFixed(1)}</span>
-                          <span className="text-xs text-slate-400 font-semibold">({room.reviewCount || 0} reviews)</span>
+                return (
+                  <motion.article
+                    key={room.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: index * 0.05 }}
+                    className="group grid grid-cols-1 lg:grid-cols-12 overflow-hidden border border-[#1F6F5F]/30 bg-white shadow-xl transition-all duration-300 hover:border-[#2FA084] dark:border-[#1F6F5F]/30 dark:bg-[#121c16]"
+                  >
+                    {/* LEFT COLUMN: Room Visual & Essential Info (Span 4) */}
+                    <div className="lg:col-span-4 p-5 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-[#1F6F5F]/20 bg-slate-50/50 dark:bg-[#0f1913]">
+                      <div>
+                        <div className="relative h-48 overflow-hidden rounded-md bg-zinc-900 mb-4">
+                          <img
+                            src={getRoomPreviewImage(room, undefined)}
+                            alt={roomDisplayName}
+                            onError={(e) => { e.currentTarget.src = "/images/deluxe-room.jpg"; }}
+                            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          />
+                          <div className="absolute top-2 left-2 bg-[#1F6F5F] text-white px-2.5 py-0.5 text-[9px] font-black tracking-wider uppercase">
+                            Our last {room.count > 1 ? room.count : 3}!
+                          </div>
+                          <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 text-[10px] font-semibold">
+                            1/5 Photos
+                          </div>
+                        </div>
+
+                        <h4 className="text-xl font-sans font-black text-slate-900 dark:text-white leading-tight mb-1">
+                          {roomDisplayName}
+                        </h4>
+                        <p className="text-xs font-semibold text-[#2FA084] mb-3">
+                          Up to {room.maxAdults || room.capacity || 2} adults{Number(room.maxChildren || 0) > 0 ? ` + ${room.maxChildren} children` : ""} · {room.count} room units
+                        </p>
+
+                        <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 mb-4 border-t border-[#1F6F5F]/10 pt-3">
+                          <div className="flex items-center gap-2">
+                            <Check size={13} className="text-[#2FA084]" />
+                            <span>Private modern bathroom</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Check size={13} className="text-[#2FA084]" />
+                            <span>Complimentary high-speed Wi-Fi</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Check size={13} className="text-[#2FA084]" />
+                            <span>Air conditioning & bottled water</span>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 text-sm text-[#2FA084] font-semibold mb-3">
-                        <MapPin size={15} />
-                        <span>{room.hotelName || locationLabel}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1 mb-3 text-[#2FA084]">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} size={14} className="fill-[#2FA084] text-[#2FA084]" />
-                        ))}
-                        <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-                          {Number(room.avgRating || 0).toFixed(1)} · {room.reviewCount || 0} reviews
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        <span className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 px-2.5 py-1 text-[11px] font-bold text-[#1F6F5F] dark:text-[#2FA084]">
-                          High-Speed Wi-Fi
-                        </span>
-                        <span className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 px-2.5 py-1 text-[11px] font-bold text-[#1F6F5F] dark:text-[#2FA084]">
-                          Valet Parking
-                        </span>
-                        <span className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 px-2.5 py-1 text-[11px] font-bold text-[#1F6F5F] dark:text-[#2FA084]">
-                          24-Hour Concierge
-                        </span>
-                        <span className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 px-2.5 py-1 text-[11px] font-bold text-[#1F6F5F] dark:text-[#2FA084]">
-                          Max {room.capacity || 2} Guests
-                        </span>
-                      </div>
-
-                      <p className="text-sm italic text-slate-500 dark:text-slate-400">
-                        "{room.description || "Designed to provide supreme comfort and sophisticated elegance during your stay."}"
-                      </p>
-                    </div>
-
-                    <div className="mt-5 pt-4 border-t border-[#1F6F5F]/20 flex flex-wrap items-center justify-between gap-4">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 pt-2">
                         <button
                           type="button"
                           onClick={() => openTour(room)}
-                          className="border border-[#1F6F5F]/40 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#2FA084] transition-all hover:bg-[#1F6F5F]/20"
+                          className="flex-1 border border-[#1F6F5F]/40 py-2 px-3 text-[10px] font-black uppercase tracking-wider text-[#2FA084] transition-all hover:bg-[#1F6F5F]/20 text-center"
                         >
-                          {room.hasVirtualTour ? "Explore in 360°" : "Open Tour"}
+                          {room.hasVirtualTour ? "360° Virtual Tour" : "Preview Room"}
                         </button>
                         <Link
                           to={`/roomdetail/${room.id}`}
-                          className="border border-slate-200 dark:border-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 transition-all hover:bg-[#1F6F5F]/20"
+                          className="border border-slate-300 dark:border-white/10 py-2 px-3 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 transition-all hover:bg-[#1F6F5F]/20 text-center"
                         >
                           Details
                         </Link>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Right Side: Pricing & Reservation Box Action */}
-                  <div className="lg:w-[260px] p-6 bg-[#1F6F5F]/10 dark:bg-[#0f1913] border-t lg:border-t-0 lg:border-l border-[#1F6F5F]/20 flex flex-col justify-between items-end text-right">
-                    <div className="w-full text-right">
-                      <div className="hidden lg:inline-block relative bg-[#1F6F5F] text-white px-3 py-1 text-xs font-black mb-2 shadow-sm">
-                        Prime Selection
+                    {/* RIGHT COLUMN: Stacked Rate Options (Span 8) */}
+                    <div className="lg:col-span-8 flex flex-col divide-y divide-[#1F6F5F]/20">
+                      
+                      {/* RATE OPTION 1: Flexible / Free Cancellation */}
+                      <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-[#1F6F5F]/5 transition-colors">
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-black text-slate-800 dark:text-white flex items-center gap-1">
+                              <Users size={13} className="text-[#2FA084]" /> Up to {room.maxAdults || room.capacity || 2} adults{Number(room.maxChildren || 0) > 0 ? ` + ${room.maxChildren} children` : ""}
+                            </span>
+                            <span className="bg-[#1F6F5F]/10 text-[#2FA084] border border-[#1F6F5F]/30 px-2 py-0.5 text-[10px] font-bold">
+                              VISION FLEX
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <Check size={13} /> Cancel for free anytime before check-in
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            No payment required until check-in day • Free High-Speed Wi-Fi
+                          </p>
+                          <p className="text-[11px] font-bold text-[#2FA084]">
+                            VISIONPROMO - ₱100 off applied!
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                          <div className="text-right">
+                            <p className="text-[10px] text-slate-400 line-through">{php(basePrice + 150)}</p>
+                            <p className="text-2xl font-black text-[#2FA084]">{php(basePrice)}</p>
+                            <p className="text-[10px] text-slate-400">Per night before taxes</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="h-10 w-10 border border-[#1F6F5F]/30 flex items-center justify-center text-[#2FA084] hover:bg-[#1F6F5F]/20 transition-colors"
+                              title="Save to favorites"
+                            >
+                              <Heart size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/booking?roomId=${bookableRoomId}&rate=flex${filterCheckIn ? `&from=${filterCheckIn}` : ""}`)}
+                              className="px-6 py-3 bg-[#1F6F5F] hover:bg-[#288B77] dark:bg-[#2FA084] text-white font-bold text-xs uppercase tracking-wider shadow-md transition-all"
+                            >
+                              Book Now
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nightly Rate</p>
-                      <p className="text-2xl lg:text-3xl font-black text-[#2FA084] mt-0.5">
-                        {php(room.basePricePhp)}
-                      </p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">exclusive of local taxes</p>
-                    </div>
 
-                    <div className="w-full mt-6">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/booking?roomId=${room.id}${filterCheckIn ? `&from=${filterCheckIn}` : ""}${filterCheckOut ? `&to=${filterCheckOut}` : ""}`)}
-                        className="w-full py-3.5 px-5 bg-[#1F6F5F] hover:bg-[#288B77] dark:bg-[#2FA084] dark:hover:bg-[#288B77] text-white font-bold text-xs tracking-wider uppercase shadow-md transition-all hover:scale-[1.005] active:scale-[0.995] flex items-center justify-center gap-2"
-                      >
-                        Reserve
-                      </button>
+                      {/* RATE OPTION 2: Non-refundable / Best Value */}
+                      <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-[#1F6F5F]/5 transition-colors">
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-black text-slate-800 dark:text-white flex items-center gap-1">
+                              <Users size={13} className="text-[#2FA084]" /> Up to {room.maxAdults || room.capacity || 2} adults{Number(room.maxChildren || 0) > 0 ? ` + ${room.maxChildren} children` : ""}
+                            </span>
+                            <span className="bg-amber-500/10 text-amber-600 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold">
+                              BEST VALUE SAVER
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                            Non-refundable (Lowest price guaranteed)
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Book and pay now • Free Wi-Fi • Breakfast included
+                          </p>
+                          <p className="text-[11px] font-bold text-[#2FA084]">
+                            SPECIAL DISCOUNT - 10% OFF
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                          <div className="text-right">
+                            <p className="text-[10px] text-slate-400 line-through">{php(basePrice)}</p>
+                            <p className="text-2xl font-black text-[#2FA084]">{php(promoPrice)}</p>
+                            <p className="text-[10px] text-slate-400">Per night before taxes</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="h-10 w-10 border border-[#1F6F5F]/30 flex items-center justify-center text-[#2FA084] hover:bg-[#1F6F5F]/20 transition-colors"
+                              title="Save to favorites"
+                            >
+                              <Heart size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/booking?roomId=${bookableRoomId}&rate=saver${filterCheckIn ? `&from=${filterCheckIn}` : ""}`)}
+                              className="px-6 py-3 bg-[#1F6F5F]/20 hover:bg-[#1F6F5F] border border-[#1F6F5F]/40 text-[#2FA084] hover:text-white font-bold text-xs uppercase tracking-wider transition-all"
+                            >
+                              Select Saver
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
                     </div>
-                  </div>
-                </motion.article>
-              ))}
+                  </motion.article>
+                );
+              })}
             </div>
           )}
 

@@ -25,7 +25,7 @@ const HrPayrollStaffDashboard = () => {
   const dashboard = data?.dashboard || {};
   const stats = [
     { label: 'Active Employees', value: dashboard.activeEmployees || 0, icon: <Users size={20} />, sub: `${dashboard.totalEmployees || 0} total staff`, subClassName: 'text-emerald-500' },
-    { label: 'Monthly Payroll', value: formatCompactCurrency(dashboard.monthlyPayroll), icon: <Wallet size={20} />, sub: 'Net projected release', subClassName: 'text-[#b3903c]' },
+    { label: 'Monthly Payroll', value: formatCompactCurrency(dashboard.monthlyPayroll), icon: <Wallet size={20} />, sub: 'Net projected release', subClassName: 'text-[#2FA084]' },
     { label: 'Present Today', value: dashboard.presentToday || 0, icon: <UserCheck size={20} />, sub: `${dashboard.absentToday || 0} absent today`, subClassName: 'text-blue-500' },
     { label: 'Pending Leaves', value: dashboard.pendingLeaves || 0, icon: <Clock size={20} />, sub: `${dashboard.onLeaveToday || 0} currently on leave`, subClassName: 'text-amber-500' },
   ];
@@ -58,7 +58,7 @@ const HrPayrollStaffDashboard = () => {
         <HrSection theme={theme} className="lg:col-span-2">
           <div className="mb-6 flex items-center justify-between">
             <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Today's Attendance</h2>
-            <span className="rounded-full border border-[#b3903c]/20 bg-[#b3903c]/10 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-[#b3903c]">
+            <span className="rounded-full border border-[#2FA084]/20 bg-[#2FA084]/10 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-[#2FA084]">
               Live Sync
             </span>
           </div>
@@ -70,7 +70,7 @@ const HrPayrollStaffDashboard = () => {
                   className={`flex items-center justify-between border-b pb-4 ${isDarkMode ? 'border-zinc-900/60' : 'border-zinc-100'} last:border-0 last:pb-0`}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl border text-[10px] font-black ${isDarkMode ? 'border-zinc-800 bg-zinc-900 text-[#b3903c]' : 'border-zinc-200 bg-zinc-50 text-[#b3903c]'}`}>
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl border text-[10px] font-black ${isDarkMode ? 'border-zinc-800 bg-zinc-900 text-[#2FA084]' : 'border-zinc-200 bg-zinc-50 text-[#2FA084]'}`}>
                       {getInitials(log.name)}
                     </div>
                     <div>
@@ -91,7 +91,7 @@ const HrPayrollStaffDashboard = () => {
         </HrSection>
 
         <div className="space-y-6">
-          <HrSection theme={theme} className="bg-gradient-to-br from-[#b3903c]/10 to-transparent">
+          <HrSection theme={theme} className="bg-gradient-to-br from-[#2FA084]/10 to-transparent">
             <h2 className={`mb-4 text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Critical Alerts</h2>
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
               <p className={`text-[11px] font-bold leading-relaxed ${theme.textMain}`}>

@@ -27,7 +27,7 @@ const PayrollProcessing = () => {
   const totals = payroll.totals || {};
   const stats = [
     { label: 'Employees for Payroll', value: totals.employees || 0, icon: <Briefcase size={20} />, sub: payroll.periodLabel || 'Current period' },
-    { label: 'Gross Payroll', value: formatCompactCurrency(totals.gross), icon: <Banknote size={20} />, sub: 'Before deductions', subClassName: 'text-[#b3903c]' },
+    { label: 'Gross Payroll', value: formatCompactCurrency(totals.gross), icon: <Banknote size={20} />, sub: 'Before deductions', subClassName: 'text-[#2FA084]' },
     { label: 'Total Deductions', value: formatCompactCurrency(totals.deductions), icon: <Receipt size={20} />, sub: 'Taxes and lateness penalties', subClassName: 'text-rose-500' },
     { label: 'Net Payroll', value: formatCompactCurrency(totals.net), icon: <Wallet size={20} />, sub: 'Estimated release amount', subClassName: 'text-emerald-500' },
   ];
@@ -36,7 +36,7 @@ const PayrollProcessing = () => {
     <div className={`min-h-screen space-y-8 p-4 ${theme.container}`}>
       <HrPageHeader
         theme={theme}
-        eyebrow={`Generate payroll · ${payroll.periodLabel || 'Current cycle'}`}
+        eyebrow={`Generate payroll Â· ${payroll.periodLabel || 'Current cycle'}`}
         title="Payroll"
         accent="Processing"
         actions={
@@ -54,7 +54,7 @@ const PayrollProcessing = () => {
         <HrSection theme={theme} className="lg:col-span-2">
           <div className="mb-6 flex items-center justify-between">
             <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Payroll Summary</h2>
-            <span className="rounded-full border border-[#b3903c]/20 bg-[#b3903c]/10 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-[#b3903c]">
+            <span className="rounded-full border border-[#2FA084]/20 bg-[#2FA084]/10 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-[#2FA084]">
               DB Sync
             </span>
           </div>
@@ -75,15 +75,15 @@ const PayrollProcessing = () => {
                   <tr key={row.staffId} className={isDarkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-zinc-50'}>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#b3903c]/10 text-[10px] font-black text-[#b3903c]">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2FA084]/10 text-[10px] font-black text-[#2FA084]">
                           {getInitials(row.name)}
                         </div>
                         <span className={`text-[12px] font-black uppercase tracking-tight ${theme.textMain}`}>{row.name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-[11px] font-bold text-[#b3903c]">{row.dept}</td>
+                    <td className="px-4 py-4 text-[11px] font-bold text-[#2FA084]">{row.dept}</td>
                     <td className={`px-4 py-4 text-[11px] font-mono ${theme.textMain}`}>{formatCurrency(row.basic)}</td>
-                    <td className="px-4 py-4 text-[11px] font-mono text-[#b3903c]">{formatCurrency(row.ot)}</td>
+                    <td className="px-4 py-4 text-[11px] font-mono text-[#2FA084]">{formatCurrency(row.ot)}</td>
                     <td className="px-4 py-4 text-[11px] font-mono text-rose-500">{formatCurrency(row.ded)}</td>
                     <td className="px-4 py-4 text-right text-[11px] font-mono font-black text-emerald-500">{formatCurrency(row.net)}</td>
                   </tr>
@@ -104,7 +104,7 @@ const PayrollProcessing = () => {
                   <p className={`text-sm font-black ${theme.textMain}`}>{formatCompactCurrency(item.amount)}</p>
                 </div>
                 <div className={`h-2 overflow-hidden rounded-full ${isDarkMode ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
-                  <div className="h-full bg-[#b3903c]" style={{ width: `${item.width || 0}%` }} />
+                  <div className="h-full bg-[#2FA084]" style={{ width: `${item.width || 0}%` }} />
                 </div>
               </div>
             ))}

@@ -61,10 +61,10 @@ export default function LowStockAlerts() {
           </div>
           <div>
             <h1 className={`text-2xl font-black italic uppercase tracking-tighter leading-none ${text}`}>
-              Low-Stock <span className="text-[#b3903c]">Alerts</span>
+              Low-Stock <span className="text-[#2FA084]">Alerts</span>
             </h1>
             <p className={`text-[9px] font-black uppercase tracking-[0.2em] mt-1 ${sub}`}>
-              {critical} Critical · {low} Low Stock
+              {critical} Critical Â· {low} Low Stock
             </p>
           </div>
         </div>
@@ -72,7 +72,7 @@ export default function LowStockAlerts() {
           <button onClick={fetchAlerts} className={`p-2.5 rounded-xl border ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border-zinc-200 text-zinc-400'} transition-all`}>
             <RefreshCcw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#b3903c] text-black text-[9px] font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-[#b3903c]/20">
+          <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2FA084] text-black text-[9px] font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-[#2FA084]/20">
             <ShoppingCart size={14} strokeWidth={3} /> Bulk Reorder
           </button>
         </div>
@@ -132,13 +132,13 @@ export default function LowStockAlerts() {
                 <tr><td colSpan="5" className={`p-12 text-center text-[10px] font-bold uppercase animate-pulse ${sub}`}>Loading alerts...</td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan="5" className={`p-12 text-center text-[10px] font-bold uppercase italic ${sub}`}>
-                  {alerts.length === 0 ? '✓ All items are well-stocked.' : 'No items match filter.'}
+                  {alerts.length === 0 ? 'âœ“ All items are well-stocked.' : 'No items match filter.'}
                 </td></tr>
               ) : filtered.map(item => (
                 <tr key={item.id} className={`group transition-colors ${isDarkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-zinc-50'}`}>
                   <td className="px-6 py-4">
                     <p className={`text-[11px] font-black uppercase tracking-tight ${text}`}>{item.name}</p>
-                    <p className="text-[8px] font-bold text-[#b3903c] tracking-widest uppercase mt-0.5">{item.category} · {item.skuId}</p>
+                    <p className="text-[8px] font-bold text-[#2FA084] tracking-widest uppercase mt-0.5">{item.category} Â· {item.skuId}</p>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="inline-flex flex-col items-center w-24">
@@ -156,11 +156,11 @@ export default function LowStockAlerts() {
                       {item.severity}
                     </span>
                   </td>
-                  <td className={`px-6 py-4 text-center text-[9px] font-bold uppercase ${sub}`}>{item.supplier || '—'}</td>
+                  <td className={`px-6 py-4 text-center text-[9px] font-bold uppercase ${sub}`}>{item.supplier || 'â€”'}</td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex flex-col items-end gap-1">
                       <button onClick={() => handleReorder(item)} disabled={reordering === item.id}
-                        className={`px-4 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all flex items-center gap-1.5 border ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-[#b3903c] hover:border-[#b3903c]/40' : 'bg-white border-zinc-300 text-zinc-600 hover:border-[#b3903c]'} disabled:opacity-50`}>
+                        className={`px-4 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all flex items-center gap-1.5 border ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-[#2FA084] hover:border-[#2FA084]/40' : 'bg-white border-zinc-300 text-zinc-600 hover:border-[#2FA084]'} disabled:opacity-50`}>
                         {reordering === item.id ? <Loader2 size={10} className="animate-spin" /> : <RefreshCcw size={10} />}
                         Restock
                       </button>

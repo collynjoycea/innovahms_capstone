@@ -168,7 +168,7 @@ export default function OwnerSignUp() {
 
     // Strict Real-time Formatting & Masking
     if (key === "firstName" || key === "lastName") {
-      sanitizedValue = value.replace(/[^a-zA-Z\sñÑ-]/g, "");
+      sanitizedValue = value.replace(/[^a-zA-Z\sÃ±Ã‘-]/g, "");
     } else if (key === "contactNumber") {
       sanitizedValue = value.replace(/[^0-9]/g, "").slice(0, 11);
     } else if (key === "otpCode") {
@@ -271,7 +271,7 @@ export default function OwnerSignUp() {
       const response = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizeEmail(formData.email) }),
+        body: JSON.stringify({ userType: "owner", email: normalizeEmail(formData.email) }),
       });
 
       if (!response.ok) {
@@ -281,12 +281,11 @@ export default function OwnerSignUp() {
       }
 
       setOtpSent(true);
-      setResendTimer(60);
+      setResendTimer(30);
       return true;
     } catch {
-      setOtpSent(true);
-      setResendTimer(60);
-      return true;
+      setErrorMessage("Unable to send verification code to Gmail. Please try again.");
+      return false;
     } finally {
       setIsSendingOtp(false);
     }

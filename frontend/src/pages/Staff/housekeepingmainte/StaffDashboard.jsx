@@ -29,9 +29,9 @@ const HousekeepingMainteDashboard = () => {
           completedToday: 3,
           roomsNeedingClean: 7,
           priorityTasks: [
-            { id: 103, type: 'Full Clean', staff: 'Maria V.', time: '2:00 PM', status: 'URGENT', note: 'Check-in at 2PM — VIP Guest' },
+            { id: 103, type: 'Full Clean', staff: 'Maria V.', time: '2:00 PM', status: 'URGENT', note: 'Check-in at 2PM â€” VIP Guest' },
             { id: 203, type: 'Linen Change', staff: 'Rosa R.', time: '1:30 PM', status: 'HIGH', note: 'Requested by guest via concierge' },
-            { id: 304, type: 'Full Clean', staff: 'Amy C.', time: '3:00 PM', status: 'NORMAL', note: 'Post checkout — standard clean' }
+            { id: 304, type: 'Full Clean', staff: 'Amy C.', time: '3:00 PM', status: 'NORMAL', note: 'Post checkout â€” standard clean' }
           ],
           roomGrid: [
             { id: 101, type: 'Standard', status: 'Avail' },
@@ -63,17 +63,17 @@ const HousekeepingMainteDashboard = () => {
     
     // Button Styles
     btnSecondary: isDarkMode 
-      ? "bg-zinc-900/50 border-zinc-800 text-zinc-100 hover:border-[#b3903c]/50" 
+      ? "bg-zinc-900/50 border-zinc-800 text-zinc-100 hover:border-[#2FA084]/50" 
       : "bg-zinc-100 border-zinc-300 text-zinc-800 hover:bg-zinc-200",
     
     btnOutline: isDarkMode
-      ? "border-[#b3903c]/20 bg-[#b3903c]/5 text-[#b3903c] hover:bg-[#b3903c] hover:text-black"
-      : "border-[#b3903c]/40 bg-[#b3903c]/10 text-[#b3903c] hover:bg-[#b3903c] hover:text-white",
+      ? "border-[#2FA084]/20 bg-[#2FA084]/5 text-[#2FA084] hover:bg-[#2FA084] hover:text-black"
+      : "border-[#2FA084]/40 bg-[#2FA084]/10 text-[#2FA084] hover:bg-[#2FA084] hover:text-white",
 
     // Progress bar track
     track: isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-zinc-200 border-zinc-300",
     
-    accent: "#b3903c",
+    accent: "#2FA084",
     roomColors: {
       'Avail': isDarkMode ? 'text-emerald-500 border-emerald-500/20 bg-emerald-500/5' : 'text-emerald-600 border-emerald-600/30 bg-emerald-50',
       'Occupied': isDarkMode ? 'text-red-500 border-red-500/20 bg-red-500/5' : 'text-red-600 border-red-600/30 bg-red-50',
@@ -86,7 +86,7 @@ const HousekeepingMainteDashboard = () => {
 
   if (loading) return (
     <div className={`h-screen flex items-center justify-center ${theme.container}`}>
-      <Loader2 className="animate-spin text-[#b3903c]" size={40} />
+      <Loader2 className="animate-spin text-[#2FA084]" size={40} />
     </div>
   );
 
@@ -97,17 +97,17 @@ const HousekeepingMainteDashboard = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className={`text-4xl font-black uppercase tracking-tighter ${theme.textMain}`}>
-            Good shift, <span className="text-[#b3903c]">{firstName || 'Staff'}</span>
+            Good shift, <span className="text-[#2FA084]">{firstName || 'Staff'}</span>
           </h1>
-          <p className={`text-[10px] font-black uppercase tracking-[0.4em] text-[#b3903c] mt-2 opacity-90`}>
-            Operations Control • INNOVA-HMS
+          <p className={`text-[10px] font-black uppercase tracking-[0.4em] text-[#2FA084] mt-2 opacity-90`}>
+            Operations Control â€¢ INNOVA-HMS
           </p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
           <button onClick={() => navigate('/housekeeping/maintenance')} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl border text-[10px] font-black uppercase tracking-wider transition-all ${theme.btnSecondary}`}>
-            <AlertTriangle size={14} className="text-[#b3903c]" /> Report Issue
+            <AlertTriangle size={14} className="text-[#2FA084]" /> Report Issue
           </button>
-          <button onClick={() => navigate('/housekeeping/tasks')} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#b3903c] text-black text-[10px] font-black uppercase tracking-wider hover:brightness-110 transition-all shadow-lg shadow-[#b3903c]/20">
+          <button onClick={() => navigate('/housekeeping/tasks')} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#2FA084] text-black text-[10px] font-black uppercase tracking-wider hover:brightness-110 transition-all shadow-lg shadow-[#2FA084]/20">
             <ClipboardList size={14} /> My Tasks
           </button>
         </div>
@@ -123,7 +123,7 @@ const HousekeepingMainteDashboard = () => {
         ].map((s, i) => (
           <div key={i} onClick={() => navigate(s.path)} className={`p-6 rounded-[2rem] border transition-all duration-300 cursor-pointer hover:scale-[1.02] ${theme.card}`}>
             <div className="flex justify-between items-center mb-4">
-              <span className={`p-2.5 rounded-xl bg-[#b3903c]/10 text-[#b3903c] border border-[#b3903c]/10`}>{s.icon}</span>
+              <span className={`p-2.5 rounded-xl bg-[#2FA084]/10 text-[#2FA084] border border-[#2FA084]/10`}>{s.icon}</span>
               <TrendingUp size={16} className={theme.textSub} />
             </div>
             <h3 className={`text-4xl font-black tracking-tighter ${theme.textMain}`}>{s.val}</h3>
@@ -138,7 +138,7 @@ const HousekeepingMainteDashboard = () => {
         <div className="lg:col-span-7 space-y-4">
           <div className="flex items-center justify-between mb-4 px-2">
             <h2 className={`text-[11px] font-black uppercase tracking-[0.2em] ${theme.textMain} flex items-center gap-2`}>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#b3903c] animate-pulse"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#2FA084] animate-pulse"></span>
               Live Priority Queue
             </h2>
             <button onClick={() => navigate('/housekeeping/schedule')} className={`px-4 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all ${theme.btnOutline}`}>
@@ -148,22 +148,22 @@ const HousekeepingMainteDashboard = () => {
           
           {data.priorityTasks.map((task, i) => (
             <div key={i} onClick={() => navigate('/housekeeping/tasks')} className={`p-5 rounded-[1.8rem] border-l-[6px] group hover:translate-x-1 cursor-pointer transition-all border ${theme.card} ${
-              task.status === 'URGENT' ? 'border-l-red-500' : 'border-l-[#b3903c]'
+              task.status === 'URGENT' ? 'border-l-red-500' : 'border-l-[#2FA084]'
             }`}>
               <div className="flex justify-between items-center">
                 <div className="text-left">
                   <h3 className={`text-xl font-black uppercase tracking-tighter ${theme.textMain}`}>Unit {task.id}</h3>
                   <div className={`flex items-center gap-2 text-[10px] font-bold mt-1 ${theme.textSub}`}>
-                    <Clock size={12} /> {task.time} • {task.type}
+                    <Clock size={12} /> {task.time} â€¢ {task.type}
                   </div>
                 </div>
                 <div className="text-right flex flex-col items-end gap-2">
                   <span className={`text-[8px] font-black px-3 py-1 rounded-full border ${
                     task.status === 'URGENT' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                  }`}>● {task.status}</span>
+                  }`}>â— {task.status}</span>
                 </div>
               </div>
-              <div className={`mt-4 p-3 rounded-xl border italic text-[11px] font-medium flex items-start gap-2 ${isDarkMode ? 'bg-[#b3903c]/5 border-[#b3903c]/10 text-[#b3903c]' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
+              <div className={`mt-4 p-3 rounded-xl border italic text-[11px] font-medium flex items-start gap-2 ${isDarkMode ? 'bg-[#2FA084]/5 border-[#2FA084]/10 text-[#2FA084]' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
                 <Activity size={14} className="mt-0.5 flex-shrink-0" />
                 {task.note}
               </div>
@@ -198,13 +198,13 @@ const HousekeepingMainteDashboard = () => {
                 <div key={i} onClick={() => navigate('/housekeeping/inventory')} className="cursor-pointer">
                   <div className="flex justify-between items-center mb-2">
                     <p className={`text-[10px] font-black uppercase tracking-wide ${theme.textMain}`}>{item.name}</p>
-                    <p className={`text-[10px] font-black ${item.alert ? 'text-red-500' : 'text-[#b3903c]'}`}>
+                    <p className={`text-[10px] font-black ${item.alert ? 'text-red-500' : 'text-[#2FA084]'}`}>
                       {item.current} / {item.max}
                     </p>
                   </div>
                   <div className={`h-2 w-full rounded-full overflow-hidden border ${theme.track}`}>
                     <div 
-                      className={`h-full rounded-full transition-all duration-1000 ${item.alert ? 'bg-red-500' : 'bg-[#b3903c]'}`} 
+                      className={`h-full rounded-full transition-all duration-1000 ${item.alert ? 'bg-red-500' : 'bg-[#2FA084]'}`} 
                       style={{ width: `${(item.current / item.max) * 100}%` }}
                     />
                   </div>

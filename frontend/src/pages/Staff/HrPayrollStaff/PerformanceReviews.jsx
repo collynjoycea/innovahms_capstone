@@ -32,7 +32,7 @@ const PerformanceReviews = () => {
   }
 
   const stats = [
-    { label: 'Avg Performance Score', value: `${performance.averageScore || 0}%`, icon: <Star size={20} />, sub: 'Weighted from attendance and task completion', subClassName: 'text-[#b3903c]' },
+    { label: 'Avg Performance Score', value: `${performance.averageScore || 0}%`, icon: <Star size={20} />, sub: 'Weighted from attendance and task completion', subClassName: 'text-[#2FA084]' },
     { label: 'Excellent', value: performance.excellent || 0, icon: <Trophy size={20} />, sub: '90% and above', subClassName: 'text-emerald-500' },
     { label: 'Good', value: performance.good || 0, icon: <ThumbsUp size={20} />, sub: '75% to 89%', subClassName: 'text-blue-500' },
     { label: 'Needs Improvement', value: performance.needsImprovement || 0, icon: <AlertTriangle size={20} />, sub: 'Below 75%', subClassName: 'text-rose-500' },
@@ -49,7 +49,7 @@ const PerformanceReviews = () => {
       <HrSection theme={theme}>
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <Activity size={18} className="text-[#b3903c]" />
+            <Activity size={18} className="text-[#2FA084]" />
             <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Performance Registry</h2>
           </div>
           <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${theme.input}`}>
@@ -80,12 +80,12 @@ const PerformanceReviews = () => {
                 <tr key={item.staffId} className={isDarkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-zinc-50'}>
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#b3903c]/10 text-[10px] font-black text-[#b3903c]">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2FA084]/10 text-[10px] font-black text-[#2FA084]">
                         {getInitials(item.name)}
                       </div>
                       <div>
                         <p className={`text-[12px] font-black uppercase tracking-tight ${theme.textMain}`}>{item.name}</p>
-                        <p className="text-[9px] font-bold uppercase text-[#b3903c]">{item.dept}</p>
+                        <p className="text-[9px] font-bold uppercase text-[#2FA084]">{item.dept}</p>
                       </div>
                     </div>
                   </td>

@@ -137,14 +137,30 @@ export default function LandingPage() {
               ? roomsPayload
               : [];
 
-          const mappedHotels = rooms.slice(0, 4).map((room) => {
+          const roomGroups = new Map();
+          for (const room of rooms) {
+            const roomType = room.roomType || room.type || room.room_type || "Suite";
+            const roomName = room.roomName || room.room_name || room.name || roomType || "Innova Suite";
+            const key = String(roomName).trim().toLowerCase();
+
+            if (!roomGroups.has(key)) {
+              roomGroups.set(key, {
+                ...room,
+                roomName,
+                roomType,
+              });
+            }
+          }
+
+          const mappedHotels = Array.from(roomGroups.values()).slice(0, 4).map((room) => {
             const capacity = Number(room.maxAdults || 0) + Number(room.maxChildren || 0);
             const roomType = room.roomType || room.type || room.room_type || "Suite";
             const rawImg = (Array.isArray(room.images) && room.images[0]) || "";
             const image = resolveImg(rawImg);
+            const roomName = room.roomName || room.room_name || room.name || roomType || "Innova Suite";
             return {
               id: room.id,
-              name: room.roomName || room.name || roomType || "Innova Suite",
+              name: roomName,
               location: room.location_description || "Innova Smart Hotel",
               image,
               forecast: `${Math.max(capacity, 2)} Pax`,
