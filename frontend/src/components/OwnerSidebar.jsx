@@ -29,7 +29,6 @@ const OwnerSidebar = () => {
   }, []);
   
   const navItems = [
-    
     { name: 'Dashboard', path: '/owner', feature: 'dashboard', requiredPlan: 'Starter', icon: <><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22" /></> },
     { name: 'Subscription', path: '/owner/subscription', feature: 'subscription', requiredPlan: null, icon: <><rect x="3" y="5" width="18" height="14" rx="2" ry="2"/><path d="M7 9h10"/><path d="M7 13h6"/></> },
     { name: 'Rooms', path: '/owner/rooms', feature: 'rooms', requiredPlan: 'Starter', icon: <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></> },
@@ -48,16 +47,16 @@ const OwnerSidebar = () => {
   );
 
   return (
-    <aside className="w-72 bg-[#faf9f6] border-r border-black/5 flex flex-col h-screen sticky top-0 overflow-hidden">
+    <aside className="w-72 bg-[#faf9f6] border-r border-slate-200/60 flex flex-col h-screen sticky top-0 overflow-hidden dark:bg-[#11151d] dark:border-white/10">
       {/* Brand Header */}
       <div className="px-8 pt-8 pb-4">
         <img src="/images/logo.png" alt="Innova Logo" className="w-full max-w-[160px] drop-shadow-sm" />
-        <div className="mt-4 h-px bg-gradient-to-r from-[#bf9b30]/40 to-transparent w-full" />
+        <div className="mt-4 h-px bg-gradient-to-r from-emerald-600/40 to-transparent w-full dark:from-emerald-500/30" />
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 px-6 space-y-1.5 overflow-hidden">
-        <p className="text-[10px] font-bold tracking-[0.2em] text-black/60 uppercase mb-2 px-2">Owner Portal</p>
+      <nav className="flex-1 px-6 space-y-1.5 overflow-y-auto">
+        <p className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase mb-2 px-2 dark:text-slate-500">Owner Portal</p>
         
         {navItems.map((item) => {
           const active = location.pathname === item.path;
@@ -68,16 +67,16 @@ const OwnerSidebar = () => {
           );
           const classes = `group flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 relative ${
             active 
-              ? "bg-white text-[#9a7a20] shadow-[0_10px_20px_rgba(191,155,48,0.08)] ring-1 ring-[#bf9b30]/15" 
+              ? "bg-white text-emerald-800 shadow-[0_10px_20px_rgba(16,185,129,0.08)] ring-1 ring-emerald-600/15 dark:bg-[#0d1118] dark:text-emerald-300 dark:ring-emerald-500/25" 
               : lockedByPlan
-                ? "text-black/45 hover:bg-amber-50/80 hover:text-amber-700"
-                : "text-black/70 hover:text-[#bf9b30] hover:bg-white/60"
+                ? "text-slate-400 hover:bg-emerald-50/80 hover:text-emerald-700 dark:text-slate-500 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                : "text-slate-600 hover:text-emerald-700 hover:bg-white/60 dark:text-slate-300 dark:hover:text-emerald-300 dark:hover:bg-white/5"
           }`;
 
           const content = (
             <>
               <svg 
-                className={`w-5 h-5 transition-colors ${active ? "text-[#bf9b30]" : "text-black/80 group-hover:text-[#bf9b30]"}`} 
+                className={`w-5 h-5 transition-colors ${active ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 group-hover:text-emerald-600 dark:text-slate-400 dark:group-hover:text-emerald-400"}`} 
                 viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
               >
                 {item.icon}
@@ -86,12 +85,12 @@ const OwnerSidebar = () => {
                 {item.name}
               </span>
               {lockedByPlan && (
-                <span className="ml-auto rounded-full bg-amber-100 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-amber-700">
+                <span className="ml-auto rounded-full bg-emerald-100 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">
                   {item.requiredPlan}
                 </span>
               )}
               {active && (
-                <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-[#bf9b30] shadow-[0_0_8px_rgba(191,155,48,0.6)]" />
+                <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-emerald-600 shadow-[0_0_8px_rgba(16,185,129,0.6)] dark:bg-emerald-400" />
               )}
             </>
           );

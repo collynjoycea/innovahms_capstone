@@ -326,6 +326,9 @@ def _password_strength_message(password):
 def _ensure_password_reset_tables(cur):
     return db_bootstrap.ensure_password_reset_tables(cur)
 
+def _ensure_admin_feature_tables(cur):
+    return db_bootstrap.ensure_admin_feature_tables(cur)
+
 
 AUTH_USER_MAP = {
     "customer": {
@@ -3129,14 +3132,15 @@ def admin_login():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT id, name, email, password_hash FROM admins WHERE LOWER(email) = %s", (email,))
+        _ensure_admin_feature_tables(cur)
+        cur.execute("SELECT id, name, first_name, last_name, email, password_hash, profile_image FROM admins WHERE LOWER(email) = %s", (email,))
         admin = cur.fetchone()
         cur.close()
         conn.close()
         if admin and check_password_hash(admin['password_hash'], password):
             return jsonify({
                 "message": "Admin login successful!",
-                "admin": {"id": admin['id'], "name": admin['name'], "email": admin['email'], "role": "Admin"}
+                "admin": {"id": admin['id'], "name": admin['name'], "firstName": admin.get('first_name') or '', "lastName": admin.get('last_name') or '', "email": admin['email'], "profileImage": admin.get('profile_image') or '', "role": "Admin"}
             }), 200
         return jsonify({"error": "Access Denied: Invalid Credentials"}), 401
     except Exception as e:
@@ -3791,6 +3795,84 @@ def admin_delete_staff(staff_id):
         return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)
+
+
+@app.route('/api/admin/profile/<int:admin_id>', methods=['GET'])
+def admin_get_profile(admin_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_admin_feature_tables(cur)
+        cur.execute("SELECT id, name, first_name, last_name, email, profile_image, created_at FROM admins WHERE id = %s", (admin_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'error': 'Admin not found.'}), 404
+        return jsonify({'id': row['id'], 'name': row['name'], 'firstName': row.get('first_name') or '', 'lastName': row.get('last_name') or '', 'email': row['email'], 'profileImage': row.get('profile_image') or '', 'createdAt': row['created_at'].isoformat() if row.get('created_at') else None}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, locals().get('cur'))
+
+
+@app.route('/api/admin/profile/<int:admin_id>', methods=['PATCH'])
+def admin_update_profile(admin_id):
+    conn = None
+    try:
+        data = request.get_json(force=True) or {}
+        first_name = (data.get('firstName') or '').strip()
+        last_name = (data.get('lastName') or '').strip()
+        email = (data.get('email') or '').strip().lower()
+        if not first_name or not email or '@' not in email:
+            return jsonify({'error': 'First name and a valid email are required.'}), 400
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_admin_feature_tables(cur)
+        cur.execute("SELECT id FROM admins WHERE LOWER(email) = %s AND id != %s", (email, admin_id))
+        if cur.fetchone(): return jsonify({'error': 'That email is already in use by another admin.'}), 409
+        cur.execute("""UPDATE admins SET first_name=%s, last_name=%s, name=%s, email=%s, profile_image=COALESCE(%s, profile_image) WHERE id=%s RETURNING id,name,first_name,last_name,email,profile_image,created_at""", (first_name, last_name, f'{first_name} {last_name}'.strip(), email, data.get('profileImage'), admin_id))
+        row = cur.fetchone()
+        if not row: return jsonify({'error': 'Admin not found.'}), 404
+        conn.commit()
+        return jsonify({'message': 'Profile updated.', 'id': row['id'], 'name': row['name'], 'firstName': row.get('first_name') or '', 'lastName': row.get('last_name') or '', 'email': row['email'], 'profileImage': row.get('profile_image') or ''}), 200
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, locals().get('cur'))
+
+
+STAFF_ROLES = ['Hotel Manager', 'Front Desk Operations', 'Housekeeping & Maintenance', 'Inventory & Supplies', 'HR/Payroll Staff Management']
+PERMISSION_MODULES = ['dashboard', 'reservations', 'checkin_checkout', 'room_management', 'housekeeping', 'maintenance', 'inventory', 'staff_attendance', 'payroll', 'reports']
+
+
+@app.route('/api/admin/roles', methods=['GET'])
+def admin_list_roles():
+    conn = None
+    try:
+        conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor); _ensure_admin_feature_tables(cur)
+        cur.execute("SELECT role, permissions, updated_at, updated_by FROM role_permissions"); rows = {r['role']: r for r in (cur.fetchall() or [])}
+        cur.execute("SELECT role, COUNT(*) AS cnt FROM staff GROUP BY role"); counts = {r['role']: r['cnt'] for r in (cur.fetchall() or [])}
+        roles = [{'role': role, 'permissions': {mod: bool((rows.get(role) or {}).get('permissions', {}).get(mod, False)) for mod in PERMISSION_MODULES}, 'staffCount': counts.get(role, 0), 'updatedAt': rows.get(role, {}).get('updated_at').isoformat() if rows.get(role, {}).get('updated_at') else None, 'updatedBy': rows.get(role, {}).get('updated_by') if rows.get(role) else None} for role in STAFF_ROLES]
+        return jsonify({'roles': roles, 'modules': PERMISSION_MODULES}), 200
+    except Exception as e: return jsonify({'error': str(e)}), 500
+    finally: _safe_close(conn, locals().get('cur'))
+
+
+@app.route('/api/admin/roles/<path:role_name>', methods=['PATCH'])
+def admin_update_role_permissions(role_name):
+    conn = None
+    try:
+        if role_name not in STAFF_ROLES: return jsonify({'error': 'Unknown role.'}), 400
+        data = request.get_json(force=True) or {}; permissions = {mod: bool((data.get('permissions') or {}).get(mod, False)) for mod in PERMISSION_MODULES}
+        conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor); _ensure_admin_feature_tables(cur)
+        cur.execute("""INSERT INTO role_permissions (role, permissions, updated_at, updated_by) VALUES (%s,%s,NOW(),%s) ON CONFLICT (role) DO UPDATE SET permissions=EXCLUDED.permissions,updated_at=NOW(),updated_by=EXCLUDED.updated_by RETURNING role,permissions,updated_at,updated_by""", (role_name, json.dumps(permissions), data.get('updatedBy') or 'Admin'))
+        row = cur.fetchone(); conn.commit()
+        return jsonify({'message': f'Permissions updated for {role_name}.', 'role': {'role': row['role'], 'permissions': row['permissions'], 'updatedAt': row['updated_at'].isoformat() if row.get('updated_at') else None, 'updatedBy': row.get('updated_by')}}), 200
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally: _safe_close(conn, locals().get('cur'))
 
 
 @app.route('/api/admin/reports', methods=['GET'])

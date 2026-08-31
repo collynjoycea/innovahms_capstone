@@ -1,58 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { User, Lock, Eye, EyeOff, ArrowRight, Globe, AlertCircle, Building2, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Globe, AlertCircle, Building2 } from 'lucide-react';
 import ForgotPasswordModal from '../../components/ForgotPasswordModal';
 import { isValidEmail, normalizeEmail } from '../../utils/authValidation';
 import { persistOwnerSession, readOwnerSession } from '../../utils/ownerSession';
 
-const InputField = ({ label, type, icon, placeholder, value, onChange, isFocused, onFocus, onBlur, error, children }) => (
-  <div className="group relative">
-    <div className="flex justify-between items-center mb-1.5 px-0.5">
-      <label className={`text-[11px] font-semibold tracking-wider uppercase transition-colors duration-200 ${
-        error ? 'text-rose-600' : isFocused ? 'text-emerald-700' : 'text-slate-600'
-      }`}>
-        {label}
-      </label>
-    </div>
-    
-    <div className={`relative rounded-xl border transition-all duration-200 ${
-      error
-        ? 'border-rose-300 bg-rose-50/40 focus-within:ring-2 focus-within:ring-rose-500/20'
-        : isFocused 
-        ? 'border-emerald-600 bg-white shadow-sm ring-2 ring-emerald-600/20' 
-        : 'border-slate-200 bg-slate-50/80 hover:border-slate-300'
-    }`}>
-      <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200 ${
-        error ? 'text-rose-500' : isFocused ? 'text-emerald-600' : 'text-slate-400'
-      }`}>
-        {icon}
-      </span>
-      <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        className="w-full py-3 pl-10 pr-10 bg-transparent text-slate-800 text-xs font-medium placeholder:text-slate-400 outline-none"
-      />
-      {children}
-    </div>
-    {error && (
-      <p className="mt-1 text-[11px] font-medium text-rose-600 flex items-center gap-1">
-        <span>{error}</span>
-      </p>
-    )}
-  </div>
-);
-
-const OwnerLogin = () => {
+export default function OwnerLogin() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [focused, setFocused] = useState(null);
+  
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [formData, setFormData] = useState({ email: '', password: '' });
   
   // Validation & Submission States
   const [fieldErrors, setFieldErrors] = useState({});
@@ -102,25 +62,34 @@ const OwnerLogin = () => {
 
   const validateForm = () => {
     const errors = {
-      email: validateField('email', formData.email),
-      password: validateField('password', formData.password),
+      email: validateField('email', email),
+      password: validateField('password', password),
     };
     setFieldErrors(errors);
     return !errors.email && !errors.password;
   };
 
   const handleBlur = (field) => {
-    setFocused(null);
     setTouched((prev) => ({ ...prev, [field]: true }));
-    const val = formData[field];
+    const val = field === 'email' ? email : password;
     setFieldErrors((prev) => ({ ...prev, [field]: validateField(field, val) }));
   };
 
-  const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const handleEmailChange = (e) => {
+    const val = e.target.value;
+    setEmail(val);
     setFeedback('');
-    if (touched[field]) {
-      setFieldErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
+    if (touched.email) {
+      setFieldErrors((prev) => ({ ...prev, email: validateField('email', val) }));
+    }
+  };
+
+  const handlePasswordChange = (e) => {
+    const val = e.target.value;
+    setPassword(val);
+    setFeedback('');
+    if (touched.password) {
+      setFieldErrors((prev) => ({ ...prev, password: validateField('password', val) }));
     }
   };
 
@@ -135,13 +104,13 @@ const OwnerLogin = () => {
     }
 
     setIsSubmitting(true);
-    const normalizedEmail = normalizeEmail(formData.email);
+    const normalizedEmail = normalizeEmail(email);
 
     try {
       const response = await fetch('/api/owner/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, email: normalizedEmail }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
       });
       const data = await response.json().catch(() => null);
 
@@ -181,152 +150,124 @@ const OwnerLogin = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex font-sans overflow-hidden bg-slate-50 fixed inset-0">
-      
-      {/* LEFT PANEL - ELEGANT DEEP FOREST GREEN BRANDING */}
-      <div className="hidden lg:flex flex-col justify-between w-[46%] p-14 bg-gradient-to-br from-emerald-950 via-teal-950 to-slate-950 text-white relative overflow-hidden">
+    <div className="min-h-[calc(100vh-80px)] w-full flex items-center justify-center bg-slate-100/70 p-4 sm:p-6 lg:p-8 font-sans fixed inset-0">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-lg border border-slate-200/80 p-8 sm:p-10">
         
-        {/* Glow ambient background elements */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        {/* Brand Header */}
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 text-emerald-400 mb-10">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md shadow-inner">
-              <Building2 size={24} />
-            </div>
-            <span className="font-extrabold tracking-widest text-xs uppercase text-emerald-300">INNOVA HMS</span>
+        {/* HEADER */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 text-teal-700 mb-2">
           </div>
-
-          <h1 className="text-3xl lg:text-4xl font-bold leading-tight text-white mb-4 tracking-tight">
-            Property Owner & Management Access
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900">
+           Owner Sign In
           </h1>
-          <p className="text-xs text-slate-300/80 leading-relaxed max-w-md font-normal">
-            Streamlined revenue performance tracking, guest occupancy analytics, and enterprise hotel management tools.
+          <p className="text-xs text-slate-500 mt-1">
+            Enter your registered corporate credentials to access management tools.
           </p>
         </div>
 
-        {/* Feature Highlights Card Container */}
-        <div className="relative z-10 space-y-3.5 bg-slate-900/40 border border-emerald-500/10 backdrop-blur-md p-6 rounded-2xl shadow-xl">
-          <div className="flex items-center gap-3 text-xs text-slate-200">
-            <div className="p-1 rounded-full bg-emerald-500/20 text-emerald-400">
-              <CheckCircle2 size={14} />
+        {/* FEEDBACK / ERROR ALERT */}
+        {feedback && (
+          <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+            <AlertCircle size={16} className="shrink-0 text-rose-500 mt-0.5" />
+            <span>{feedback}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {/* EMAIL FIELD */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Corporate Email
+            </label>
+            <div className="relative">
+              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="email"
+                value={email}
+                onChange={handleEmailChange}
+                onBlur={() => handleBlur('email')}
+                placeholder="owner@hotel-legacy.com"
+                className={`w-full rounded-lg border bg-slate-50/50 py-2.5 pl-10 pr-3 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition-all ${
+                  touched.email && fieldErrors.email
+                    ? "border-rose-400 bg-rose-50/50 focus:border-rose-500"
+                    : "border-slate-300 focus:border-teal-600 focus:bg-white focus:ring-1 focus:ring-teal-600"
+                }`}
+              />
             </div>
-            <span>Real-time financial & revenue analytics</span>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-slate-200">
-            <div className="p-1 rounded-full bg-emerald-500/20 text-emerald-400">
-              <CheckCircle2 size={14} />
-            </div>
-            <span>Encrypted owner session authentication</span>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-slate-200">
-            <div className="p-1 rounded-full bg-emerald-500/20 text-emerald-400">
-              <CheckCircle2 size={14} />
-            </div>
-            <span>Full operational oversight & room inventory control</span>
-          </div>
-        </div>
-
-        {/* Security Footer */}
-        <div className="relative z-10 flex items-center gap-2 text-[11px] text-emerald-400/70 pt-4">
-          <ShieldCheck size={15} className="text-emerald-400" />
-          <span>INNOVA Enterprise Security System</span>
-        </div>
-      </div>
-
-      {/* RIGHT PANEL - CLEAN FORM */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 bg-white">
-        <div className="w-full max-w-[400px]">
-          
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Sign In as Owner</h2>
-            <p className="text-xs text-slate-500 mt-1.5">
-              Enter your registered corporate credentials.
-            </p>
+            {touched.email && fieldErrors.email && (
+              <p className="mt-1 text-[11px] font-medium text-rose-500">{fieldErrors.email}</p>
+            )}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            <InputField 
-              label="Corporate Email" 
-              type="email" 
-              placeholder="owner@hotel-legacy.com"
-              icon={<User size={16} />}
-              value={formData.email}
-              isFocused={focused === 'email'}
-              onFocus={() => setFocused('email')}
-              onBlur={() => handleBlur('email')}
-              onChange={(e) => handleChange('email', e.target.value)}
-              error={touched.email ? fieldErrors.email : ''}
-            />
-
-            <InputField 
-              label="Security Key" 
-              type={showPassword ? 'text' : 'password'} 
-              placeholder="••••••••••••"
-              icon={<Lock size={16} />}
-              value={formData.password}
-              isFocused={focused === 'pass'}
-              onFocus={() => setFocused('pass')}
-              onBlur={() => handleBlur('password')}
-              onChange={(e) => handleChange('password', e.target.value)}
-              error={touched.password ? fieldErrors.password : ''}
-            >
-              <button 
-                type="button" 
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </InputField>
-
-            <div className="flex justify-end pt-0.5">
+          {/* PASSWORD FIELD */}
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                Security Key / Password
+              </label>
               <button
                 type="button"
                 onClick={() => setShowForgotPassword(true)}
-                className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
+                className="text-xs font-medium text-teal-700 hover:text-teal-800 hover:underline"
               >
                 Forgot password?
               </button>
             </div>
-
-            {feedback && (
-              <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50/80 p-3.5 text-xs text-rose-700">
-                <AlertCircle size={16} className="shrink-0 text-rose-500 mt-0.5" />
-                <span>{feedback}</span>
-              </div>
-            )}
-
-            <div className="pt-2">
+            <div className="relative">
+              <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={handlePasswordChange}
+                onBlur={() => handleBlur('password')}
+                placeholder="••••••••"
+                className={`w-full rounded-lg border bg-slate-50/50 py-2.5 pl-10 pr-10 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition-all ${
+                  touched.password && fieldErrors.password
+                    ? "border-rose-400 bg-rose-50/50 focus:border-rose-500"
+                    : "border-slate-300 focus:border-teal-600 focus:bg-white focus:ring-1 focus:ring-teal-600"
+                }`}
+              />
               <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 py-3 text-xs font-semibold text-white shadow-md shadow-emerald-900/10 transition-all disabled:opacity-50"
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                {isSubmitting ? (
-                  <span>Authenticating...</span>
-                ) : (
-                  <>
-                    <span>Authenticate & Access Portal</span>
-                    <ArrowRight size={15} />
-                  </>
-                )}
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-          </form>
-
-          <div className="mt-10 text-center border-t border-slate-100 pt-6">
-            <button 
-              onClick={() => navigate('/')}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-emerald-700 transition-colors"
-            >
-              <Globe size={14} /> 
-              Return to Public Portal
-            </button>
+            {touched.password && fieldErrors.password && (
+              <p className="mt-1 text-[11px] font-medium text-rose-500">{fieldErrors.password}</p>
+            )}
           </div>
+
+          {/* SUBMIT BUTTON */}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full flex items-center justify-center gap-2 rounded-lg bg-teal-700 hover:bg-teal-800 active:bg-teal-900 py-2.5 text-xs font-semibold text-white shadow-sm transition-all disabled:opacity-50 mt-2"
+          >
+            {isSubmitting ? (
+              <span>Authenticating...</span>
+            ) : (
+              <>
+                <span>Sign In</span>
+                <ArrowRight size={15} />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* FOOTER LINK */}
+        <div className="mt-8 text-center border-t border-slate-100 pt-6">
+          <button
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-teal-700 transition-colors"
+          >
+            <Globe size={14} />
+            Return to Public Portal
+          </button>
         </div>
+
       </div>
 
       <ForgotPasswordModal
@@ -334,10 +275,8 @@ const OwnerLogin = () => {
         onClose={() => setShowForgotPassword(false)}
         userType="owner"
         title="Owner Password Reset"
-        initialEmail={formData.email}
+        initialEmail={email}
       />
     </div>
   );
-};
-
-export default OwnerLogin;
+}

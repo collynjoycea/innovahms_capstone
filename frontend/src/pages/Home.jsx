@@ -371,7 +371,6 @@ export default function LandingPage() {
               transition={{ delay: 0.3, duration: 0.8 }}
               className="mx-auto mt-1 text-xs sm:text-xs leading-relaxed tracking-[0.01em] text-white/90 font-light drop-shadow-md"
             >
-              INNOVA-HMS is designed to provide guests with a smarter, faster, and more convenient hotel experience.
             </motion.p>
           </div>
 
