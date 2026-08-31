@@ -1678,7 +1678,6 @@ def _customer_booking_discount_percent(subscription):
 def _customer_redeemable_points(cur, customer_id):
     if not customer_id:
         return 0
-    loyalty = _get_customer_loyalty(cur, customer_id)
     stay_points = 0
     redeemed_points = 0
     if _table_exists(cur, "reservations"):
@@ -1694,14 +1693,14 @@ def _customer_redeemable_points(cur, customer_id):
                 stay_points += int(_to_float(row.get("total_amount"), 0) // 100)
             if str(row.get("status") or "").upper() not in {"CANCELLED", "FAILED"}:
                 redeemed_points += _to_int(row.get("points_redeemed"), 0)
-    return max(0, _to_int(loyalty.get("points"), 0) + stay_points - redeemed_points)
+    return max(0, stay_points - redeemed_points)
 
 
 def _build_customer_booking_pricing(cur, customer_id, base_amount, requested_points=0, use_all_points=False):
     normalized_base = round(max(_to_float(base_amount, 0), 0), 2)
-    subscription = _serialize_customer_privilege_subscription(_get_customer_privilege_subscription(cur, customer_id)) if customer_id else {}
-    discount_percent = _customer_booking_discount_percent(subscription)
-    discount_amount = round(normalized_base * (discount_percent / 100), 2) if discount_percent > 0 else 0.0
+    subscription = {}
+    discount_percent = 0
+    discount_amount = 0.0
     subtotal_amount = round(max(normalized_base - discount_amount, 0), 2)
     vat_amount = round(subtotal_amount * (CUSTOMER_BOOKING_VAT_PERCENT / 100), 2)
     tax_amount = round(subtotal_amount * (CUSTOMER_BOOKING_TAX_PERCENT / 100), 2)
@@ -1913,10 +1912,9 @@ def _build_customer_membership_summary(cur, customer_id):
 
     stay_points_total = int(total_spend // 100)
     stay_points_this_month = int(monthly_spend // 100)
-    loyalty = _get_customer_loyalty(cur, customer_id)
-    subscription = _serialize_customer_privilege_subscription(_get_customer_privilege_subscription(cur, customer_id))
-    privilege_bonus_points = _to_int(loyalty.get("points"), 0)
-    privilege_bonus_this_month = _to_int(loyalty.get("points_this_month"), 0)
+    subscription = {}
+    privilege_bonus_points = 0
+    privilege_bonus_this_month = 0
     redeemed_points = 0
     if _table_exists(cur, "reservations"):
         _ensure_reservation_pricing_columns(cur)
@@ -1928,10 +1926,10 @@ def _build_customer_membership_summary(cur, customer_id):
             (customer_id,),
         )
         redeemed_points = _to_int((cur.fetchone() or {}).get("points_redeemed"), 0)
-    points = max(0, stay_points_total + privilege_bonus_points - redeemed_points)
+    points = max(0, stay_points_total - redeemed_points)
     raw_tier = _normalize_tier(points)
     points_this_month = stay_points_this_month + privilege_bonus_this_month
-    effective_tier = _higher_customer_tier(raw_tier, str(subscription.get("packageSlug") or "").upper() if subscription.get("isActive") else raw_tier)
+    effective_tier = raw_tier
     progress = _progress_percent(points, effective_tier)
     booking_discount_percent = _customer_booking_discount_percent(subscription)
 
@@ -1955,11 +1953,7 @@ def _build_customer_membership_summary(cur, customer_id):
                 "label": "Privilege Bonus Points",
                 "points": privilege_bonus_points,
                 "pointsThisMonth": privilege_bonus_this_month,
-                "description": (
-                    f"{subscription.get('packageName')} adds {subscription.get('bonusPoints')} bonus points on successful payment."
-                    if subscription.get("packageName") and _to_int(subscription.get("bonusPoints"), 0) > 0
-                    else "Privilege activations and renewals add bonus points to your balance."
-                ),
+                "description": "Points are earned from eligible booking and reservation spend only.",
             },
         ],
         "pointsBalance": {
@@ -1969,10 +1963,10 @@ def _build_customer_membership_summary(cur, customer_id):
             "staySpendPointsThisMonth": stay_points_this_month,
             "privilegeBonusPoints": privilege_bonus_points,
             "privilegeBonusPointsThisMonth": privilege_bonus_this_month,
-            "activePlanBonusPoints": _to_int(subscription.get("bonusPoints"), 0),
+            "activePlanBonusPoints": 0,
             "earnRatePhp": 100,
             "earnRatePoints": 1,
-            "explanation": "Current balance = stay spend points + privilege bonus points.",
+            "explanation": "Current balance is based on eligible booking and reservation spend.",
         },
         "privilege": subscription,
         "bookingPrivilege": {
@@ -9952,8 +9946,8 @@ def get_customer_dashboard(customer_id):
             except Exception:
                 bookings = []
 
-        points = _to_int(customer.get("loyalty_points"), int(total_spend // 100))
-        tier = (customer.get("membership_level") or _normalize_tier(points)).upper()
+        points = int(total_spend // 100)
+        tier = _normalize_tier(points)
         progress = _progress_percent(points, tier)
         points_this_month = int(monthly_spend // 100)
 

@@ -5,7 +5,6 @@ import {
   Briefcase,
   Building2,
   ChevronDown,
-  Crown,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -23,14 +22,11 @@ const NAV_LINKS = [
   { label: "Home", path: "/" },
   { label: "Features", path: "/features" },
   { label: "About Us", path: "/about" },
-  { label: "Privileges", path: "/privileges" },
   { label: "Vision Suites", path: "/vision-suites" },
 ];
 
 export default function Header() {
   const [user, setUser] = useState(null);
-  const [membershipSummary, setMembershipSummary] = useState(null);
-  const [membershipLoading, setMembershipLoading] = useState(false);
   const [openDrop, setOpenDrop] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   
@@ -138,41 +134,6 @@ export default function Header() {
     };
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const loadMembership = async () => {
-      if (!user || user.isStaff) {
-        setMembershipSummary(null);
-        return;
-      }
-
-      const rawId = user.id || user.customer_id || user.user_id;
-      if (!rawId) {
-        setMembershipSummary(null);
-        return;
-      }
-
-      try {
-        setMembershipLoading(true);
-        const response = await fetch(`/api/innova/summary/${String(rawId).split(":")[0]}`);
-        const payload = await response.json().catch(() => ({}));
-        if (mounted && response.ok) {
-          setMembershipSummary(payload);
-        }
-      } catch {
-        if (mounted) setMembershipSummary(null);
-      } finally {
-        if (mounted) setMembershipLoading(false);
-      }
-    };
-
-    loadMembership();
-    return () => {
-      mounted = false;
-    };
-  }, [user]);
-
   const go = (path) => {
     closeAll();
     navigate(path);
@@ -220,9 +181,6 @@ export default function Header() {
   };
 
   const isActiveRoute = (path) => (path === "/" ? location.pathname === "/" : location.pathname.startsWith(path));
-  const tier = membershipSummary?.tier || "STANDARD";
-  const points = Number(membershipSummary?.points || 0);
-
   const surfaceClass = isDarkMode
     ? "border-white/10 bg-[#0d1412] text-[#EEEEEE] shadow-[0_18px_50px_rgba(0,0,0,0.45)]"
     : "border-[#e2e8f0] bg-white text-[#14231e] shadow-sm";
@@ -341,27 +299,6 @@ export default function Header() {
 
                 {openDrop === "user" ? (
                   <div className={`absolute right-0 mt-3 w-72 overflow-hidden rounded-[1.4rem] border shadow-2xl ${menuPanelClass}`}>
-                    {!user.isStaff ? (
-                      <button
-                        type="button"
-                        onClick={() => go("/privileges")}
-                        className="flex w-full items-center gap-3 border-b border-[#2FA084]/20 bg-gradient-to-r from-[#eef7f4] via-[#f5fbf9] to-white px-4 py-4 text-left transition-all hover:from-[#e1f2ec] hover:to-[#f0f8f5] dark:from-[#11241f] dark:via-[#0c1815] dark:to-[#091210]"
-                      >
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1F6F5F]/15 text-[#1F6F5F] dark:bg-[#6FCF97]/15 dark:text-[#6FCF97]">
-                          <Crown size={18} />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[10px] font-black uppercase tracking-[0.24em] text-[#1F6F5F] dark:text-[#6FCF97]">
-                            {membershipLoading ? "Syncing..." : `${tier} Member`}
-                          </span>
-                          <span className={`block truncate pt-1 text-xs ${isDarkMode ? "text-[#a0c2b7]" : "text-[#477366]"}`}>
-                            {membershipLoading ? "Checking your perks..." : `${points.toLocaleString()} pts available`}
-                          </span>
-                        </span>
-                        <ChevronDown size={14} className="-rotate-90 text-[#2FA084]" />
-                      </button>
-                    ) : null}
-
                     <div className="p-2">
                       <p className={`px-3 py-2 text-[9px] font-black uppercase tracking-[0.24em] ${isDarkMode ? "text-[#80a397]" : "text-[#588577]"}`}>
                         {user.isStaff ? "Staff Portal" : "My Account"}
@@ -401,14 +338,6 @@ export default function Header() {
                           >
                             <Settings size={16} className="text-[#2FA084]" />
                             Profile Settings
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => go("/rewards")}
-                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#14231e] hover:bg-[#eef7f4]"}`}
-                          >
-                            <Crown size={16} className="text-[#2FA084]" />
-                            Membership & Rewards
                           </button>
                         </>
                       )}

@@ -100,7 +100,6 @@ import Home from "./pages/Home";
 import AboutUs from "./pages/AboutUs";
 import Facilities from "./pages/Facilities";
 import Features from "./pages/Features";
-import Privileges from "./pages/Privileges";
 import HotelDetail from "./pages/HotelDetail";
 import RoomDetail from "./pages/RoomDetail";
 import Login from "./pages/Login";
@@ -114,7 +113,6 @@ import CustomerDashboard from "./customer/CustomerDashboard";
 import CustomerBookings from "./customer/CustomerBookings";
 import CustomerReviews from "./customer/CustomerReviews";
 import InnovaSuites from "./customer/InnovaSuites";
-import Rewards from "./pages/customer/Rewards";
 import VisionSuites from "./pages/customer/VisionSuites";
 
 // --- PROTECTED ROUTE COMPONENTS ---
@@ -145,7 +143,6 @@ const ProtectedCustomer = ({ children }) => {
 function App() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const isCustomerLoggedIn = Boolean(localStorage.getItem("user") || localStorage.getItem("customerSession"));
-  const customerUserType = isCustomerLoggedIn ? "member" : "guest";
 
   return (
     <Router>
@@ -157,13 +154,12 @@ function App() {
           <Route path="/about" element={<AboutUs />} />
           <Route path="/about-us" element={<Navigate to="/about" replace />} />
           <Route path="/features" element={<Features />} />
-          <Route path="/privileges" element={<Privileges />} />
           <Route path="/terms-of-service" element={<Navigate to="/features" replace />} />
           <Route path="/facilities" element={<Facilities />} />
           <Route path="/hoteldetail/:id" element={<HotelDetail />} />
           <Route path="/roomdetail/:id" element={<RoomDetail />} />
 
-          <Route path="/recommendations" element={<ViewRecommendations isLoggedIn={isCustomerLoggedIn} userType={customerUserType} />} />
+          <Route path="/recommendations" element={<ViewRecommendations isLoggedIn={isCustomerLoggedIn} />} />
           <Route path="/offers" element={<GuestsOffer isLoggedIn={isCustomerLoggedIn} />} />
 
           <Route path="/customer" element={<Navigate to="/customer/dashboard" replace />} />
@@ -193,14 +189,6 @@ function App() {
           />
           <Route path="/innova-suites" element={<InnovaSuites />} />
           <Route path="/vision-suites" element={<VisionSuites />} />
-          <Route
-            path="/rewards"
-            element={
-              <ProtectedCustomer>
-                <Rewards />
-              </ProtectedCustomer>
-            }
-          />
 
           <Route path="/booking" element={<Booking />} />
           <Route path="/booking/success" element={<BookingSuccess />} />

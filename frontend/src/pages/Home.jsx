@@ -25,16 +25,6 @@ const fallbackPromotions = [
     icon: "SUN",
   },
   {
-    id: "promo-vip-weekend",
-    badge: "VIP Exclusive",
-    title: "Suki Member Weekend",
-    desc: "Exclusive weekend rate for loyalty members with room upgrades and spa access.",
-    promo: "40%",
-    sub: "off weekends",
-    expiry: "Limited-time offer",
-    icon: "VIP",
-  },
-  {
     id: "promo-long-stay",
     badge: "Long Stay",
     title: "Extended Sanctuary",

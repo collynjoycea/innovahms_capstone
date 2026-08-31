@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Crown, Lock, Pencil, Save, ShieldCheck, X } from 'lucide-react';
+import { Camera, Lock, Pencil, Save, ShieldCheck, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const parseStoredSession = () => {
@@ -250,9 +250,6 @@ export default function Profile() {
                 <h2 className="text-2xl font-bold">{profile.user.firstName} {profile.user.lastName}</h2>
                 <p className={`text-sm mt-1 ${mutedText}`}>{profile.user.email}</p>
                 <div className="mt-3 flex flex-wrap gap-2.5">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold text-emerald-400">
-                    <Crown size={13} /> {profile.tier || 'STANDARD'}
-                  </span>
                   <span className={lockBadgeCls}>
                     <Lock size={13} /> {editing ? 'Editing' : 'Locked'}
                   </span>
@@ -262,9 +259,8 @@ export default function Profile() {
 
             <div className="flex flex-wrap gap-3">
               {[
-                { label: 'Points', value: Number(profile.points || 0).toLocaleString() },
+                { label: 'Booking Points', value: Number(profile.points || 0).toLocaleString() },
                 { label: 'This Month', value: Number(profile.pointsThisMonth || 0).toLocaleString() },
-                { label: 'Plan', value: profile.privilege?.packageName || 'No plan' },
               ].map(({ label, value }) => (
                 <div key={label} className={`rounded-xl border px-5 py-3 text-center min-w-[100px] ${isDark ? 'border-zinc-800 bg-zinc-950/60' : 'border-slate-200 bg-slate-50'}`}>
                   <p className={`text-xs font-medium uppercase tracking-wider ${subtext}`}>{label}</p>

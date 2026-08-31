@@ -451,8 +451,7 @@ export default function Booking() {
 
   const [room, setRoom] = useState(null);
   const [sessionUser, setSessionUser] = useState(getSession());
-  const [membership, setMembership] = useState(null);
-  const [membershipLoading, setMembershipLoading] = useState(false);
+  const [pointsBalance, setPointsBalance] = useState(null);
   const [loadingRoom, setLoadingRoom] = useState(false);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [blockedRanges, setBlockedRanges] = useState([]);
@@ -549,14 +548,12 @@ export default function Booking() {
   }, [durationHours, checkIn, checkInTime]);
 
   useEffect(() => {
-    if (!sessionUser?.id) { setMembership(null); return undefined; }
+    if (!sessionUser?.id) { setPointsBalance(null); return undefined; }
     let dead = false;
-    setMembershipLoading(true);
     fetch(`/api/innova/summary/${sessionUser.id}`)
       .then((r) => r.json().catch(() => ({})).then((body) => ({ ok: r.ok, body })))
-      .then(({ ok, body }) => { if (!dead) setMembership(ok ? body : null); })
-      .catch(() => { if (!dead) setMembership(null); })
-      .finally(() => { if (!dead) setMembershipLoading(false); });
+      .then(({ ok, body }) => { if (!dead) setPointsBalance(ok ? body : null); })
+      .catch(() => { if (!dead) setPointsBalance(null); });
     return () => { dead = true; };
   }, [sessionUser?.id]);
 
@@ -635,14 +632,11 @@ export default function Booking() {
   const nights = durationHours ? 1 : Math.max(0, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000));
   const selectedHourlyRate = durationHours ? Number(room?.[`rate${durationHours}Hours`] || 0) : Number(room?.price || 0);
   const baseTotal = room ? (durationHours ? selectedHourlyRate : nights * selectedHourlyRate) : 0;
-  const activePrivilege = membership?.privilege?.isActive ? membership.privilege : null;
-  const discountPercent = Number(membership?.bookingPrivilege?.discountPercent || 0);
-  const discountAmount = discountPercent ? Number((baseTotal * discountPercent / 100).toFixed(2)) : 0;
-  const subtotalAfterDiscount = Number(Math.max(0, baseTotal - discountAmount).toFixed(2));
+  const availablePoints = Math.max(0, Number(pointsBalance?.points ?? pointsBalance?.pointsBalance?.total ?? 0));
+  const subtotalAfterDiscount = Number(baseTotal.toFixed(2));
   const vatAmount = Number((subtotalAfterDiscount * (VAT_PERCENT / 100)).toFixed(2));
   const taxAmount = Number((subtotalAfterDiscount * (TAX_PERCENT / 100)).toFixed(2));
   const totalBeforePoints = Number((subtotalAfterDiscount + vatAmount + taxAmount).toFixed(2));
-  const availablePoints = Math.max(0, Number(membership?.points ?? membership?.pointsBalance?.total ?? 0));
   const requestedPoints = useAllPoints ? availablePoints : Math.max(0, Math.floor(Number(pointsToUse) || 0));
   const pointsRedeemed = Math.min(availablePoints, requestedPoints, Math.floor(totalBeforePoints));
   const pointsDiscountAmount = Number(pointsRedeemed.toFixed(2));
@@ -777,11 +771,6 @@ export default function Booking() {
                         <MapPin size={12} className="text-emerald-600 dark:text-emerald-400" />
                         {room.location_description || 'Innova HMS'}
                       </p>
-                      {discountPercent > 0 && (
-                        <span className="mt-2 inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-                          {activePrivilege?.packageName || 'Privilege'} saved {discountPercent}%
-                        </span>
-                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{peso(durationHours ? selectedHourlyRate : room.price || 0)}</p>
@@ -848,36 +837,21 @@ export default function Booking() {
                   <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">Use collected points</p>
-                        <p className="mt-0.5 text-[11px] text-emerald-700 dark:text-emerald-400">1 point = PHP 1 discount</p>
+                        <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">Use booking points</p>
+                        <p className="mt-0.5 text-[11px] text-emerald-700 dark:text-emerald-400">Points are earned from reservations.</p>
                       </div>
                       <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Available: {availablePoints.toLocaleString()} pts</span>
                     </div>
                     <label className="mt-3 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={useAllPoints}
-                        onChange={(e) => setUseAllPoints(e.target.checked)}
-                        disabled={availablePoints <= 0}
-                        className="h-4 w-4 accent-emerald-600"
-                      />
+                      <input type="checkbox" checked={useAllPoints} onChange={(e) => setUseAllPoints(e.target.checked)} disabled={availablePoints <= 0} className="h-4 w-4 accent-emerald-600" />
                       Use all points
                     </label>
                     {!useAllPoints ? (
-                      <input
-                        type="number"
-                        min="0"
-                        max={Math.min(availablePoints, Math.floor(totalBeforePoints))}
-                        step="1"
-                        value={pointsToUse}
-                        onChange={(e) => setPointsToUse(e.target.value)}
-                        placeholder="Enter points to use"
-                        disabled={availablePoints <= 0}
-                        className={`${inputCls} mt-3`}
-                      />
+                      <input type="number" min="0" max={Math.min(availablePoints, Math.floor(totalBeforePoints))} step="1" value={pointsToUse} onChange={(e) => setPointsToUse(e.target.value)} placeholder="Enter points to use" disabled={availablePoints <= 0} className={`${inputCls} mt-3`} />
                     ) : null}
                     {pointsRedeemed > 0 ? <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">Discount applied: -{peso(pointsDiscountAmount)}</p> : null}
                   </div>
+
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -965,17 +939,6 @@ export default function Booking() {
               <div className="sticky top-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <h3 className="mb-4 text-base font-semibold text-slate-900 dark:text-slate-100">Booking Summary</h3>
 
-                {sessionUser?.id && (
-                  <div className="mb-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
-                    <p className="font-semibold text-slate-800 dark:text-slate-100">
-                      {membershipLoading ? 'Checking status...' : (activePrivilege?.packageName ? `${activePrivilege.packageName} Member` : 'Standard Guest')}
-                    </p>
-                    <p className="mt-0.5 text-slate-500 dark:text-slate-400">
-                      {discountPercent > 0 ? `${discountPercent}% discount active.` : 'No active booking discounts.'}
-                    </p>
-                  </div>
-                )}
-
                 <div className="mb-4 space-y-2.5 text-xs">
                   {[
                     { label: 'Room', value: room?.roomName || '--' },
@@ -1001,12 +964,6 @@ export default function Booking() {
                     <div className="mb-2 flex justify-between text-emerald-600 dark:text-emerald-400">
                       <span>Points discount ({pointsRedeemed.toLocaleString()} pts)</span>
                       <span>-{peso(pointsDiscountAmount)}</span>
-                    </div>
-                  )}
-                  {discountPercent > 0 && (
-                    <div className="mb-2 flex justify-between text-emerald-600 dark:text-emerald-400">
-                      <span>{activePrivilege?.packageName || 'Privilege'} discount</span>
-                      <span>-{peso(discountAmount)} ({discountPercent}%)</span>
                     </div>
                   )}
                   <div className="mb-2 flex justify-between">

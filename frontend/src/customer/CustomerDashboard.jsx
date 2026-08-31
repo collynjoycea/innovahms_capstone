@@ -4,7 +4,7 @@ import {
   ArrowRight,
   BedDouble,
   CalendarDays,
-  Crown,
+  Gift,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -241,17 +241,15 @@ export default function CustomerDashboard() {
           <div className="space-y-6">
             <div className="rounded-2xl border border-emerald-900/10 bg-white p-6 shadow-sm">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-100">
-                  <Crown size={18} />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-800">
+                  <Gift size={18} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Membership Tier</p>
-                  <h3 className="mt-0.5 text-xl font-bold text-zinc-900">{user.membershipLevel || "STANDARD"}</h3>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Booking Points</p>
+                  <h3 className="mt-0.5 text-xl font-bold text-zinc-900">{Number(user.loyaltyPoints || 0).toLocaleString()}</h3>
                 </div>
               </div>
-              <p className="mt-4 text-xs text-zinc-500">
-                Reward points balance: <span className="font-bold text-emerald-800">{Number(user.loyaltyPoints || 0).toLocaleString()}</span>
-              </p>
+              <p className="mt-4 text-xs text-zinc-500">Earned from your reservations and completed stays.</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-900/10 bg-white p-6 shadow-sm">
@@ -276,17 +274,6 @@ export default function CustomerDashboard() {
                   <span className="flex items-center gap-2.5 text-xs font-medium text-zinc-800">
                     <BedDouble size={15} className="text-emerald-700" />
                     Browse Available Rooms
-                  </span>
-                  <ArrowRight size={13} className="text-zinc-400" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/rewards")}
-                  className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50/60 px-4 py-3 text-left transition-colors hover:bg-emerald-50 hover:border-emerald-100"
-                >
-                  <span className="flex items-center gap-2.5 text-xs font-medium text-zinc-800">
-                    <Crown size={15} className="text-emerald-700" />
-                    Rewards Program
                   </span>
                   <ArrowRight size={13} className="text-zinc-400" />
                 </button>

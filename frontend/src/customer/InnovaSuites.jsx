@@ -480,13 +480,6 @@ export default function InnovaSuites() {
             >
               View Gallery
             </button>
-            <button
-              type="button"
-              onClick={() => navigate("/rewards")}
-              className="px-6 py-3 rounded-xl border border-zinc-700 bg-zinc-900/60 text-zinc-200 text-xs font-semibold hover:bg-zinc-800 transition backdrop-blur-md"
-            >
-              View Rewards
-            </button>
           </div>
         </div>
       </header>
