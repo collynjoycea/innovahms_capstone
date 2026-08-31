@@ -61,13 +61,19 @@ def ensure_password_reset_tables(cur):
         )
         """
     )
-    cur.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_password_reset_otps_lookup
-        ON password_reset_otps (user_type, user_id, created_at DESC)
-        """
-    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_otps_lookup ON password_reset_otps (user_type, user_id, created_at DESC)")
 
+
+def ensure_admin_feature_tables(cur):
+    """Admin profile fields and staff role permissions used by the admin UI."""
+    for statement in [
+        "ALTER TABLE admins ADD COLUMN IF NOT EXISTS first_name VARCHAR(50)",
+        "ALTER TABLE admins ADD COLUMN IF NOT EXISTS last_name VARCHAR(50)",
+        "ALTER TABLE admins ADD COLUMN IF NOT EXISTS profile_image TEXT",
+        "CREATE TABLE IF NOT EXISTS role_permissions (role VARCHAR(50) PRIMARY KEY, permissions JSONB NOT NULL DEFAULT '{}', updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_by VARCHAR(150))",
+    ]:
+        _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="admin_feature_alter")
+    cur.execute("UPDATE admins SET first_name = COALESCE(first_name, split_part(name, ' ', 1)), last_name = COALESCE(last_name, NULLIF(trim(substring(name from position(' ' in name) + 1)), '')) WHERE first_name IS NULL OR last_name IS NULL")
 
 def ensure_api_integrations_table(cur):
     cur.execute(
@@ -302,9 +308,23 @@ def ensure_reservation_pricing_columns(cur):
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS applied_privilege_slug VARCHAR(80)",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS applied_privilege_name VARCHAR(80)",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS points_redeemed INTEGER DEFAULT 0",
     ]
     for statement in statements:
         _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="reservation_pricing_alter")
+
+
+def ensure_hourly_room_rate_columns(cur):
+    """Add optional short-stay rates without changing existing overnight pricing."""
+    statements = [
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_3_hours NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_6_hours NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_12_hours NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS stay_duration_hours INTEGER",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS rate_type VARCHAR(20) DEFAULT 'overnight'",
+    ]
+    for statement in statements:
+        _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="hourly_rates_alter")
 
 
 def ensure_reservation_time_columns(cur):

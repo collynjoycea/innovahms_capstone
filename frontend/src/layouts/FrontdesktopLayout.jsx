@@ -41,7 +41,7 @@ const FrontDesktopLayout = () => {
         
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-6 custom-main-scroll">
-          <div className="max-w-[1600px] mx-auto w-full">
+          <div className="w-full">
              <Outlet context={{ isDarkMode }} />
           </div>
         </main>
@@ -60,7 +60,7 @@ const FrontDesktopLayout = () => {
           border-radius: 10px;
         }
         .custom-main-scroll::-webkit-scrollbar-thumb:hover {
-          background: #b3903c;
+          background: #2FA084;
         }
       `}} />
     </div>

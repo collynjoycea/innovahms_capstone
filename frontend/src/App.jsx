@@ -18,9 +18,7 @@ import StaffDashboard from "./pages/Staff/frontdesktop/StaffDashboard";
 import AllReservation from "./pages/Staff/frontdesktop/AllReservation";
 import CheckIn from "./pages/Staff/frontdesktop/CheckIn";
 import CheckOut from "./pages/Staff/frontdesktop/CheckOut";
-import Extend from "./pages/Staff/frontdesktop/Extend"; 
 import GuestProfile from "./pages/Staff/frontdesktop/GuestProfile";
-import LoyaltyPoints from "./pages/Staff/frontdesktop/LoyaltyPoints";
 import MyShiftProfile from "./pages/Staff/frontdesktop/MyShiftProfile";
 import NewReservation from "./pages/Staff/frontdesktop/NewReservation";
 import RoomMaspAssign from "./pages/Staff/frontdesktop/RoomMaspAssign";
@@ -102,6 +100,7 @@ import Facilities from "./pages/Facilities";
 import Features from "./pages/Features";
 import Privileges from "./pages/Privileges";
 import HotelDetail from "./pages/HotelDetail";
+import RoomDetail from "./pages/RoomDetail";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Booking from "./pages/Booking";
@@ -160,6 +159,7 @@ function App() {
           <Route path="/terms-of-service" element={<Navigate to="/features" replace />} />
           <Route path="/facilities" element={<Facilities />} />
           <Route path="/hoteldetail/:id" element={<HotelDetail />} />
+          <Route path="/roomdetail/:id" element={<RoomDetail />} />
 
           <Route path="/recommendations" element={<ViewRecommendations isLoggedIn={isCustomerLoggedIn} userType={customerUserType} />} />
           <Route path="/offers" element={<GuestsOffer isLoggedIn={isCustomerLoggedIn} />} />
@@ -244,9 +244,7 @@ function App() {
           <Route path="reservations" element={<AllReservation />} />
           <Route path="check-in" element={<CheckIn />} />
           <Route path="check-out" element={<CheckOut />} />
-          <Route path="extend-stay" element={<Extend />} />
           <Route path="guest-profiles" element={<GuestProfile />} />
-          <Route path="loyalty" element={<LoyaltyPoints />} />
           <Route path="room-map" element={<RoomMaspAssign />} />
           <Route path="my-shift" element={<MyShiftProfile />} />
           <Route path="new-reservation" element={<NewReservation />} />

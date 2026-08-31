@@ -25,7 +25,7 @@ export default function VirtualTour() {
   const panoRef = useRef(null);
   const viewerRef = useRef(null);
   const isNumericRoomId = /^\d+$/.test(String(roomId || ""));
-  const backToPath = location.state?.backToPath || (isNumericRoomId ? `/hoteldetail/${roomId}` : "/facilities");
+  const backToPath = location.state?.backToPath || (isNumericRoomId ? `/roomdetail/${roomId}` : "/facilities");
   const backToLabel = location.state?.backToLabel || (isNumericRoomId ? "Back to Room" : "Back to Facilities");
   const bookingPath = location.state?.bookingPath || (isNumericRoomId ? `/booking?roomId=${roomId}` : "");
   const canReserve = Boolean(bookingPath);

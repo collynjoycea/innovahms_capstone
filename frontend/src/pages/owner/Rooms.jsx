@@ -18,6 +18,9 @@ const Rooms = () => {
     roomName: '',
     roomType: 'Single', 
     price: '',
+    rate3Hours: '',
+    rate6Hours: '',
+    rate12Hours: '',
     description: '',
     maxAdults: 2,
     maxChildren: 0,
@@ -69,6 +72,9 @@ const Rooms = () => {
       roomName: room.roomName || '',
       roomType: room.roomType,
       price: room.price,
+      rate3Hours: room.rate3Hours || '',
+      rate6Hours: room.rate6Hours || '',
+      rate12Hours: room.rate12Hours || '',
       description: room.description || '',
       maxAdults: room.maxAdults || 2,
       maxChildren: room.maxChildren || 0,
@@ -127,6 +133,9 @@ const handleSubmit = async (e) => {
     
     // Siguraduhing valid numbers ang ipapadala
     formData.append('price', parseFloat(roomData.price) || 0);
+    formData.append('rate3Hours', parseFloat(roomData.rate3Hours) || 0);
+    formData.append('rate6Hours', parseFloat(roomData.rate6Hours) || 0);
+    formData.append('rate12Hours', parseFloat(roomData.rate12Hours) || 0);
     formData.append('description', roomData.description || '');
     formData.append('maxAdults', parseInt(roomData.maxAdults) || 2);
     formData.append('maxChildren', parseInt(roomData.maxChildren) || 0);
@@ -317,6 +326,19 @@ alt=""
                         <label className="mb-1 block text-xs font-bold uppercase text-slate-400 dark:text-slate-500">Price / Night</label>
                         <input type="number" value={roomData.price} required className="w-full rounded-xl border border-slate-200 p-3 outline-none dark:border-white/10 dark:bg-[#0d1118] dark:text-slate-200" onChange={e => setRoomData({...roomData, price: e.target.value})} />
                     </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase text-slate-400 dark:text-slate-500">Short-Stay Rates (PHP)</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[['rate3Hours', '3 Hours'], ['rate6Hours', '6 Hours'], ['rate12Hours', '12 Hours']].map(([key, label]) => (
+                      <div key={key}>
+                        <span className="mb-1 block text-[10px] font-semibold text-slate-400">{label}</span>
+                        <input type="number" min="0" step="0.01" placeholder="0" value={roomData[key]} className="w-full rounded-xl border border-slate-200 p-3 outline-none dark:border-white/10 dark:bg-[#0d1118] dark:text-slate-200" onChange={e => setRoomData({...roomData, [key]: e.target.value})} />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-[10px] text-slate-400">Leave as 0 to disable that short-stay option.</p>
                 </div>
 
                 <div>

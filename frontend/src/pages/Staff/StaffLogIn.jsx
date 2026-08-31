@@ -114,7 +114,7 @@ const StaffLogin = () => {
       
       {/* BACKGROUND DECOR */}
       <div className="absolute inset-0 z-0">
-        <div className="absolute top-0 left-0 w-[30%] h-[30%] bg-[#bf9b30]/5 rounded-full blur-[100px]" />
+        <div className="absolute top-0 left-0 w-[30%] h-[30%] bg-[#2FA084]/5 rounded-full blur-[100px]" />
         <div className="absolute bottom-0 right-0 w-[30%] h-[30%] bg-slate-200 rounded-full blur-[100px]" />
         <div className="absolute inset-0 opacity-[0.3] bg-[url('https://www.transparenttextures.com/patterns/graphy.png')]" />
       </div>
@@ -131,7 +131,7 @@ const StaffLogin = () => {
         <div className="hidden lg:flex flex-col justify-between w-[40%] p-10 bg-[#1e293b] relative">
           <div className="z-10">
             <div className="flex items-center gap-3 mb-10">
-              <div className="p-2 bg-[#bf9b30] rounded-lg">
+              <div className="p-2 bg-[#2FA084] rounded-lg">
                 <Briefcase className="text-white" size={16} />
               </div>
               <span className="text-white font-black tracking-[0.4em] text-[8px] uppercase opacity-50">Staff Node</span>
@@ -148,7 +148,7 @@ const StaffLogin = () => {
                 <h1 className="text-2xl font-medium text-white leading-snug italic font-serif">
                   "{staffQuotes[quoteIndex].text}"
                 </h1>
-                <p className="mt-4 text-[#bf9b30] font-bold text-[9px] uppercase tracking-[0.5em]">
+                <p className="mt-4 text-[#2FA084] font-bold text-[9px] uppercase tracking-[0.5em]">
                   — {staffQuotes[quoteIndex].author}
                 </p>
               </motion.div>
@@ -164,7 +164,7 @@ const StaffLogin = () => {
         <div className="flex-1 bg-white/40 flex flex-col items-center justify-center p-8 lg:p-12">
           <div className="w-full max-w-[320px]">
             <div className="mb-6 text-center lg:text-left">
-              <h2 className="text-2xl font-black text-[#1e293b] tracking-tighter uppercase">Internal <span className="text-[#bf9b30]">Access</span></h2>
+              <h2 className="text-2xl font-black text-[#1e293b] tracking-tighter uppercase">Internal <span className="text-[#2FA084]">Access</span></h2>
               <p className="text-[8px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1 italic">Identity Verification Required</p>
             </div>
 
@@ -177,7 +177,7 @@ const StaffLogin = () => {
                   <input
                     type="email"
                     required
-                    className="w-full py-2.5 pl-10 pr-4 bg-white/50 border border-slate-200 rounded-xl text-[12px] font-bold outline-none focus:border-[#bf9b30] focus:ring-4 focus:ring-[#bf9b30]/5 transition-all"
+                    className="w-full py-2.5 pl-10 pr-4 bg-white/50 border border-slate-200 rounded-xl text-[12px] font-bold outline-none focus:border-[#2FA084] focus:ring-4 focus:ring-[#2FA084]/5 transition-all"
                     placeholder="staff@innovahms.com"
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                   />
@@ -192,7 +192,7 @@ const StaffLogin = () => {
                   <input
                     type={showPassword ? "text" : "password"}
                     required
-                    className="w-full py-2.5 pl-10 pr-12 bg-white/50 border border-slate-200 rounded-xl text-[12px] font-bold outline-none focus:border-[#bf9b30] focus:ring-4 focus:ring-[#bf9b30]/5 transition-all"
+                    className="w-full py-2.5 pl-10 pr-12 bg-white/50 border border-slate-200 rounded-xl text-[12px] font-bold outline-none focus:border-[#2FA084] focus:ring-4 focus:ring-[#2FA084]/5 transition-all"
                     placeholder="••••••••"
                     onChange={(e) => setFormData({...formData, password: e.target.value})}
                   />
@@ -205,13 +205,13 @@ const StaffLogin = () => {
               {/* Hotel Code Verification Section */}
               <div className={`p-4 rounded-2xl border transition-all ${isVerified ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50/80 border-slate-200'}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Key size={12} className={isVerified ? 'text-emerald-500' : 'text-[#bf9b30]'} />
+                  <Key size={12} className={isVerified ? 'text-emerald-500' : 'text-[#2FA084]'} />
                   <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Hotel Affiliation Code</span>
                 </div>
                 <div className="flex gap-2">
                   <input 
                     type="text" 
-                    className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase outline-none focus:border-[#bf9b30]"
+                    className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase outline-none focus:border-[#2FA084]"
                     placeholder="CODE-XXXX"
                     value={formData.hotelCode}
                     onChange={(e) => setFormData({...formData, hotelCode: e.target.value.toUpperCase()})}
@@ -242,7 +242,7 @@ const StaffLogin = () => {
               <button 
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-[#bf9b30] hover:bg-[#a68628] disabled:bg-slate-300 text-white rounded-xl shadow-lg shadow-[#bf9b30]/20 transition-all text-[9px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 active:scale-95"
+                className="w-full py-3.5 bg-[#2FA084] hover:bg-[#1F6F5F] disabled:bg-slate-300 text-white rounded-xl shadow-lg shadow-[#2FA084]/20 transition-all text-[9px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 active:scale-95"
               >
                 {isLoading ? "Validating..." : "Initialize Shift"} <ArrowRight size={14} />
               </button>
@@ -252,15 +252,15 @@ const StaffLogin = () => {
               <button
                 type="button"
                 onClick={() => setShowForgotPassword(true)}
-                className="flex items-center justify-center gap-2 text-[8px] font-bold uppercase tracking-[0.3em] text-slate-500 transition-colors hover:text-[#bf9b30]"
+                className="flex items-center justify-center gap-2 text-[8px] font-bold uppercase tracking-[0.3em] text-slate-500 transition-colors hover:text-[#2FA084]"
               >
                 <Key size={12} /> Forgot Password
               </button>
-              <button onClick={() => navigate('/')} className="flex items-center justify-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-[0.3em] hover:text-[#bf9b30] transition-colors">
+              <button onClick={() => navigate('/')} className="flex items-center justify-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-[0.3em] hover:text-[#2FA084] transition-colors">
                 <Globe size={12} /> Public Terminal
               </button>
               <div className="text-center text-[8px] text-slate-300 font-bold uppercase tracking-widest">
-                No account? <Link to="/staff/signup" className="text-[#bf9b30] hover:underline">Request Access</Link>
+                No account? <Link to="/staff/signup" className="text-[#2FA084] hover:underline">Request Access</Link>
               </div>
             </div>
           </div>

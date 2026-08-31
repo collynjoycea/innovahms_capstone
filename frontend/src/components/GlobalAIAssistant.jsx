@@ -196,25 +196,25 @@ export default function GlobalAIAssistant() {
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="fixed bottom-6 right-6 z-[1200] h-14 w-14 rounded-full bg-[#bf9b30] text-[#0d0c0a] shadow-2xl shadow-[#bf9b30]/40 flex items-center justify-center hover:brightness-95 transition-all"
+        className="fixed bottom-6 right-6 z-[1200] h-14 w-14 rounded-full bg-[#1F6F5F] text-white shadow-2xl shadow-[#1F6F5F]/30 flex items-center justify-center hover:bg-[#288B77] transition-all"
         title="AI Assisted History"
       >
         {isOpen ? <X size={22} /> : <MessageCircle size={22} />}
       </button>
 
       {isOpen ? (
-        <div className="fixed bottom-24 right-6 z-[1200] w-[340px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-[#e4d9c2] dark:border-white/10 bg-white dark:bg-[#12110d] shadow-2xl">
-          <div className="px-4 py-3 border-b border-[#eee4cf] dark:border-white/10 bg-[#fbf5e9] dark:bg-[#1a1915] flex items-center justify-between">
+        <div className="fixed bottom-24 right-6 z-[1200] w-[340px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-[#d6eee7] dark:border-white/10 bg-white dark:bg-[#12110d] shadow-2xl">
+          <div className="px-4 py-3 border-b border-[#d6eee7] dark:border-white/10 bg-[#eaf8f3] dark:bg-[#1a1915] flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Bot size={16} className="text-[#bf9b30]" />
-              <p className="text-[11px] font-black uppercase tracking-widest text-[#5f5443] dark:text-[#d7c9a6]">
+              <Bot size={16} className="text-[#1F6F5F]" />
+              <p className="text-[11px] font-black uppercase tracking-widest text-[#1F6F5F] dark:text-[#9ad8c2]">
                 AI Assisted History
               </p>
             </div>
             <button
               type="button"
               onClick={handleClearHistory}
-              className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#8a7b61] dark:text-[#b5a789] hover:text-[#bf9b30]"
+              className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#2b7a68] dark:text-[#9ad8c2] hover:text-[#1F6F5F]"
             >
               <Trash2 size={12} />
               Clear
@@ -227,8 +227,8 @@ export default function GlobalAIAssistant() {
                 <div
                   className={`max-w-[86%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
                     message.from === "user"
-                      ? "bg-[#bf9b30] text-[#0d0c0a] rounded-tr-sm font-bold"
-                      : "bg-white dark:bg-[#1b1914] border border-[#eadfca] dark:border-white/10 text-[#4f4434] dark:text-[#d4ccb8] rounded-tl-sm"
+                      ? "bg-[#1F6F5F] text-white rounded-tr-sm font-bold"
+                      : "bg-white dark:bg-[#1b1914] border border-[#d6eee7] dark:border-white/10 text-[#4f4434] dark:text-[#d4ccb8] rounded-tl-sm"
                   }`}
                 >
                   {message.text}
@@ -260,13 +260,13 @@ export default function GlobalAIAssistant() {
                   }
                 }}
                 placeholder="Ask about rooms, promos, booking..."
-                className="flex-1 rounded-xl border border-[#e7ddc8] dark:border-white/10 bg-white dark:bg-[#12110d] px-3 py-2 text-sm text-[#504434] dark:text-[#d4ccb8] outline-none focus:border-[#bf9b30]"
+                className="flex-1 rounded-xl border border-[#d6eee7] dark:border-white/10 bg-white dark:bg-[#12110d] px-3 py-2 text-sm text-[#504434] dark:text-[#d4ccb8] outline-none focus:border-[#1F6F5F]"
               />
               <button
                 type="button"
                 onClick={handleSend}
                 disabled={!input.trim() || isTyping}
-                className="h-10 w-10 rounded-xl bg-[#bf9b30] text-[#0d0c0a] disabled:opacity-50 flex items-center justify-center"
+                className="h-10 w-10 rounded-xl bg-[#1F6F5F] text-white disabled:opacity-50 flex items-center justify-center hover:bg-[#288B77]"
               >
                 <Send size={14} />
               </button>

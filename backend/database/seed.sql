@@ -1,3 +1,31 @@
+-- Bootstrap a test owner + hotel if the database has none yet.
+-- (Everything below this — landmarks, room tours, staff — needs at least one hotel to attach to.)
+DO $$
+DECLARE
+  bootstrap_hotel_id INTEGER;
+  bootstrap_owner_id INTEGER;
+  bootstrap_hotel_code VARCHAR(20);
+BEGIN
+  SELECT id INTO bootstrap_hotel_id FROM hotels ORDER BY id ASC LIMIT 1;
+
+  IF bootstrap_hotel_id IS NULL THEN
+    INSERT INTO owners (first_name, last_name, email, contact_number, password_hash, approval_status)
+    VALUES ('Test', 'Owner', 'owner@innovahms.com', '+639171112222',
+      'scrypt:32768:8:1$wf8kTdWqdOxki5tG$b6984d45119d08d6e350b0ede425098d43c993c845cc80293d14cf1ecee20b3c4360af1ef8363721095b4a7a0a11fed322150b1951fd0ccb8729856d3f07264e',
+      'APPROVED')
+    RETURNING id INTO bootstrap_owner_id;
+
+    INSERT INTO hotels (owner_id, hotel_name, hotel_address, status)
+    VALUES (bootstrap_owner_id, 'Innova Test Hotel', 'Quezon City, Metro Manila, Philippines', 'Active')
+    RETURNING id INTO bootstrap_hotel_id;
+
+    bootstrap_hotel_code := 'INNOVAHMS-' || bootstrap_hotel_id;
+    UPDATE hotels SET hotel_code = bootstrap_hotel_code WHERE id = bootstrap_hotel_id;
+
+    RAISE NOTICE 'No hotel found — created test owner (owner@innovahms.com / Owner123!) and hotel % (%).', bootstrap_hotel_id, bootstrap_hotel_code;
+  END IF;
+END $$;
+
 -- Admin user
 INSERT INTO admins (name, email, password_hash)
 VALUES (
@@ -188,3 +216,62 @@ INSERT INTO notification_types (type_key, name, description, category, priority,
  'Maintenance due: {{equipment_name}} - {{location}}',
  'Maintenance due: {{equipment_name}} - {{location}}')
 ON CONFLICT (type_key) DO NOTHING;
+
+-- Seed a test Front Desk Operations staff account
+-- Login: frontdesk@innovahms.com / FrontDesk123!
+-- (Also seeds a test owner + hotel first if none exist yet, so this works on a fresh DB.)
+DO $$
+DECLARE
+  target_hotel_id INTEGER;
+  target_hotel_code VARCHAR(20);
+  test_owner_id INTEGER;
+BEGIN
+  SELECT id, hotel_code INTO target_hotel_id, target_hotel_code
+  FROM hotels
+  ORDER BY id ASC
+  LIMIT 1;
+
+  -- No hotel yet? Create a minimal test owner + hotel so we have something to attach staff to.
+  IF target_hotel_id IS NULL THEN
+    INSERT INTO owners (first_name, last_name, email, contact_number, password_hash, approval_status)
+    VALUES ('Test', 'Owner', 'owner@innovahms.com', '+639171112222',
+      'scrypt:32768:8:1$wf8kTdWqdOxki5tG$b6984d45119d08d6e350b0ede425098d43c993c845cc80293d14cf1ecee20b3c4360af1ef8363721095b4a7a0a11fed322150b1951fd0ccb8729856d3f07264e',
+      'APPROVED')
+    RETURNING id INTO test_owner_id;
+
+    INSERT INTO hotels (owner_id, hotel_name, hotel_address, status)
+    VALUES (test_owner_id, 'Innova Test Hotel', 'Quezon City, Metro Manila, Philippines', 'Active')
+    RETURNING id INTO target_hotel_id;
+
+    target_hotel_code := 'INNOVAHMS-' || target_hotel_id;
+    UPDATE hotels SET hotel_code = target_hotel_code WHERE id = target_hotel_id;
+
+    RAISE NOTICE 'No hotel found — created test owner (owner@innovahms.com / Owner123!) and hotel % (%).', target_hotel_id, target_hotel_code;
+  END IF;
+
+  IF target_hotel_code IS NULL OR target_hotel_code = '' THEN
+    target_hotel_code := 'INNOVAHMS-' || target_hotel_id;
+    UPDATE hotels SET hotel_code = target_hotel_code WHERE id = target_hotel_id;
+  END IF;
+
+  INSERT INTO staff (
+    hotel_id, first_name, last_name, email, contact_number,
+    password_hash, role, employee_id, hotel_code, status, date_hired
+  )
+  VALUES (
+    target_hotel_id,
+    'Collyn',
+    'Fernandez',
+    'frontdesk@innovahms.com',
+    '+639171234567',
+    'scrypt:32768:8:1$vGFrWGoeY7LnPDu7$da24854786c2f85c54e2922a640aef9812f5f74f6c791166cbbfedf6ca56bb0e0d10047122ab3be2d18d1c30eb7f33533257e8e8b338a108301dfab68988ee54',
+    'Front Desk Operations',
+    'EMP-FD-001',
+    target_hotel_code,
+    'Active',
+    CURRENT_DATE
+  )
+  ON CONFLICT (email) DO NOTHING;
+
+  RAISE NOTICE 'Front desk staff seeded for hotel_id % with hotel_code %', target_hotel_id, target_hotel_code;
+END $$;

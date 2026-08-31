@@ -124,7 +124,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
       <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-[#0f1117] p-6 text-white shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#bf9b30]">Account Recovery</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#2FA084]">Account Recovery</p>
             <h3 className="mt-2 text-2xl font-black tracking-tight">{title || "Forgot Password"}</h3>
             <p className="mt-2 text-sm text-slate-400">
               {step === 1 ? "Request a one-time password." : "Enter the OTP and your new password."}
@@ -162,7 +162,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm font-semibold outline-none focus:border-[#bf9b30]"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm font-semibold outline-none focus:border-[#2FA084]"
                   placeholder="name@hotel.com"
                 />
               </div>
@@ -175,7 +175,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
                   type="text"
                   value={hotelCode}
                   onChange={(event) => setHotelCode(event.target.value.toUpperCase())}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold uppercase outline-none focus:border-[#bf9b30]"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold uppercase outline-none focus:border-[#2FA084]"
                   placeholder="INNOVAHMS-1"
                 />
               </label>
@@ -188,7 +188,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
                   type="button"
                   onClick={() => setChannel("email")}
                   className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-xs font-black uppercase tracking-[0.2em] ${
-                    channel === "email" ? "border-[#bf9b30] bg-[#bf9b30]/15 text-[#f5d37e]" : "border-white/10 bg-white/5 text-slate-300"
+                    channel === "email" ? "border-[#2FA084] bg-[#2FA084]/15 text-[#6FCF97]" : "border-white/10 bg-white/5 text-slate-300"
                   }`}
                 >
                   <Mail size={14} /> Email
@@ -197,7 +197,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
                   type="button"
                   onClick={() => setChannel("sms")}
                   className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-xs font-black uppercase tracking-[0.2em] ${
-                    channel === "sms" ? "border-[#bf9b30] bg-[#bf9b30]/15 text-[#f5d37e]" : "border-white/10 bg-white/5 text-slate-300"
+                    channel === "sms" ? "border-[#2FA084] bg-[#2FA084]/15 text-[#6FCF97]" : "border-white/10 bg-white/5 text-slate-300"
                   }`}
                 >
                   <MessageSquare size={14} /> SMS
@@ -208,7 +208,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-2xl bg-[#bf9b30] px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-[#0f1117] transition hover:brightness-110 disabled:opacity-60"
+              className="w-full rounded-2xl bg-[#2FA084] px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-[#0f1117] transition hover:brightness-110 disabled:opacity-60"
             >
               {loading ? "Sending OTP..." : "Send OTP"}
             </button>
@@ -224,7 +224,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
                   value={otp}
                   maxLength={6}
                   onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm font-black tracking-[0.35em] outline-none focus:border-[#bf9b30]"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm font-black tracking-[0.35em] outline-none focus:border-[#2FA084]"
                   placeholder="123456"
                 />
               </div>
@@ -236,7 +236,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
                 type="password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold outline-none focus:border-[#bf9b30]"
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold outline-none focus:border-[#2FA084]"
                 placeholder="Create a stronger password"
               />
             </label>
@@ -247,7 +247,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
                 type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold outline-none focus:border-[#bf9b30]"
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold outline-none focus:border-[#2FA084]"
                 placeholder="Repeat the new password"
               />
             </label>
@@ -255,7 +255,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-2xl bg-[#bf9b30] px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-[#0f1117] transition hover:brightness-110 disabled:opacity-60"
+              className="w-full rounded-2xl bg-[#2FA084] px-4 py-3 text-xs font-black uppercase tracking-[0.24em] text-[#0f1117] transition hover:brightness-110 disabled:opacity-60"
             >
               {loading ? "Updating Password..." : "Reset Password"}
             </button>

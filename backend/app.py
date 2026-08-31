@@ -1,7 +1,8 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import psycopg2
-from psycopg2.extras import RealDictCursor, Json
+from psycopg2 import sql
+from psycopg2.extras import RealDictCursor
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import os
@@ -13,7 +14,7 @@ import uuid
 import random
 import sys
 from html import escape
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from collections import Counter, defaultdict
 
 try:
@@ -50,7 +51,7 @@ def get_db_connection():
         port=os.getenv("DB_PORT", "5432"),
     )
 
-_BACKEND_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_BACKEND_BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 UPLOAD_FOLDER = os.path.join(_BACKEND_BASE_DIR, 'static', 'uploads', 'rooms')
 OWNER_DOCUMENT_UPLOAD_FOLDER = os.path.join(_BACKEND_BASE_DIR, 'static', 'uploads', 'owner-documents')
 OWNER_DOCUMENT_FIELDS = {
@@ -72,6 +73,26 @@ def _safe_close(conn=None, cur=None):
     finally:
         if conn is not None:
             conn.close()
+
+
+def _utc_now():
+    """Return an aware UTC timestamp for consistent database/API dates."""
+    return datetime.now(timezone.utc)
+
+
+def _parse_iso_date(value):
+    """Parse an ISO date/datetime without using locale-dependent parsing."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value or '').strip()
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return None
 
 
 def _savepoint_name(prefix="sp"):
@@ -161,7 +182,7 @@ def _parse_text_array(value):
                 parsed = json.loads(raw)
                 if isinstance(parsed, list):
                     return [str(item) for item in parsed if item is not None]
-            except Exception:
+            except (TypeError, ValueError, json.JSONDecodeError):
                 pass
         return [part.strip() for part in raw.split(",") if part.strip()]
     return []
@@ -304,6 +325,9 @@ def _password_strength_message(password):
 
 def _ensure_password_reset_tables(cur):
     return db_bootstrap.ensure_password_reset_tables(cur)
+
+def _ensure_admin_feature_tables(cur):
+    return db_bootstrap.ensure_admin_feature_tables(cur)
 
 
 AUTH_USER_MAP = {
@@ -996,7 +1020,7 @@ def _extract_reservation_date(row):
         if hasattr(candidate, "date"):
             try:
                 return candidate.date() if hasattr(candidate, "hour") else candidate
-            except Exception:
+            except (AttributeError, TypeError, ValueError):
                 pass
         if isinstance(candidate, str):
             for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
@@ -1004,7 +1028,7 @@ def _extract_reservation_date(row):
                     return datetime.strptime(candidate[:19], fmt).date()
                 except Exception:
                     continue
-    return datetime.utcnow().date()
+    return _utc_now().date()
 
 
 def _extract_reservation_amount(row):
@@ -1043,16 +1067,18 @@ def _period_bucket_key(day_value, period):
 def _next_period_label(last_label, period, step):
     if period == "daily":
         try:
-            base = datetime.strptime(last_label, "%Y-%m-%d").date()
-        except Exception:
-            base = datetime.utcnow().date()
+            base = _parse_iso_date(last_label)
+            if base is None:
+                raise ValueError("invalid date")
+        except (TypeError, ValueError):
+            base = _utc_now().date()
         return (base + timedelta(days=step)).isoformat()
 
     # monthly
     try:
         year, month = [int(part) for part in str(last_label).split("-")[:2]]
     except Exception:
-        now = datetime.utcnow()
+        now = _utc_now()
         year, month = now.year, now.month
 
     month_index = month - 1 + step
@@ -1088,22 +1114,17 @@ def _parse_date_input(value):
     text = str(value).strip()
     if not text:
         return None
-    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
-        try:
-            return datetime.strptime(text[:19], fmt).date()
-        except Exception:
-            continue
-    return None
+    return _parse_iso_date(text)
 
 
 def _default_renewal_date(cycle, anchor=None):
-    base = _parse_date_input(anchor) or datetime.utcnow().date()
+    base = _parse_date_input(anchor) or _utc_now().date()
     cycle_name = str(cycle or "MONTHLY").upper()
     return base + timedelta(days=365 if cycle_name == "ANNUAL" else 30)
 
 
 def _subscription_cycle_dates(row=None, cycle=None, carry_requires_payment_proof=False):
-    today = datetime.utcnow().date()
+    today = _utc_now().date()
     current_row = row or {}
     current_status = str(current_row.get("status") or "PENDING").upper()
     current_renewal = _parse_date_input(current_row.get("renewal_date"))
@@ -1122,7 +1143,7 @@ def _days_until_date(value):
     target = _parse_date_input(value)
     if not target:
         return None
-    return (target - datetime.utcnow().date()).days
+    return (target - _utc_now().date()).days
 
 
 def _package_amount_for_cycle(package_row, cycle):
@@ -1142,16 +1163,16 @@ CUSTOMER_PRIVILEGE_PLAN_DEFINITIONS = {
         "name": "Silver",
         "slug": "silver",
         "description": "Entry access to member pricing and elevated guest benefits.",
-        "monthly_price": 399,
-        "annual_price": 3990,
-        "bonus_points": 500,
+        "monthly_price": 1,
+        "annual_price": 1,
+        "bonus_points": 1,
         "display_order": 1,
         "is_popular": False,
         "perks": [
             "Member-only room rate previews",
-            "5% dining and add-on discount",
+            "1% dining and add-on discount",
             "Priority support queue",
-            "500 welcome points on activation",
+            "1 welcome point on activation",
         ],
     },
     "gold": {
@@ -1167,7 +1188,7 @@ CUSTOMER_PRIVILEGE_PLAN_DEFINITIONS = {
             "Everything in Silver",
             "10% member booking discount",
             "Upgrade priority on eligible stays",
-            "1,500 bonus points every successful renewal",
+            "125 monthly or 1,500 annual bonus points",
         ],
     },
     "platinum": {
@@ -1184,14 +1205,28 @@ CUSTOMER_PRIVILEGE_PLAN_DEFINITIONS = {
             "15% member booking discount",
             "Late checkout priority requests",
             "Dedicated privilege support line",
-            "4,000 bonus points every successful renewal",
+            "400 monthly or 4,000 annual bonus points",
         ],
     },
 }
 
+CUSTOMER_PRIVILEGE_CYCLE_BONUS_POINTS = {
+    "gold": {"MONTHLY": 125, "ANNUAL": 1500},
+    "platinum": {"MONTHLY": 400, "ANNUAL": 4000},
+}
+
+
+def _customer_privilege_bonus_points(package_slug, billing_cycle, default=0):
+    slug = str(package_slug or "").strip().lower()
+    cycle = str(billing_cycle or "MONTHLY").strip().upper()
+    return _to_int(
+        CUSTOMER_PRIVILEGE_CYCLE_BONUS_POINTS.get(slug, {}).get(cycle, default),
+        default,
+    )
+
 
 CUSTOMER_PRIVILEGE_BOOKING_DISCOUNTS = {
-    "silver": 5,
+    "silver": 1,
     "gold": 10,
     "platinum": 15,
 }
@@ -1335,7 +1370,7 @@ def _seed_membership_packages(cur):
                 package["monthly_price"],
                 package["annual_price"],
                 package["max_rooms"],
-                Json(package["features"]),
+                package["features"],
                 package["is_popular"],
                 package["display_order"],
             ),
@@ -1605,6 +1640,10 @@ def _serialize_customer_privilege_subscription(row):
         }
 
     status = str(row.get("status") or "PENDING").upper()
+    billing_cycle = str(row.get("billing_cycle") or "MONTHLY").upper()
+    package_slug = row.get("package_slug")
+    monthly_bonus_points = _customer_privilege_bonus_points(package_slug, "MONTHLY", row.get("bonus_points"))
+    annual_bonus_points = _customer_privilege_bonus_points(package_slug, "ANNUAL", row.get("bonus_points"))
     renewal_date = _parse_date_input(row.get("renewal_date"))
     is_active = status == "ACTIVE" and (renewal_date is None or renewal_date >= datetime.utcnow().date())
     return {
@@ -1616,11 +1655,13 @@ def _serialize_customer_privilege_subscription(row):
         "packageName": row.get("package_name"),
         "packageSlug": row.get("package_slug"),
         "packageDescription": row.get("package_description") or "",
-        "billingCycle": str(row.get("billing_cycle") or "MONTHLY").upper(),
+        "billingCycle": billing_cycle,
         "amount": _to_float(row.get("amount"), 0),
         "renewalDate": _serialize_date(row.get("renewal_date")),
         "lastPaidAt": _serialize_date(row.get("last_paid_at")),
-        "bonusPoints": _to_int(row.get("bonus_points"), 0),
+        "bonusPoints": _customer_privilege_bonus_points(package_slug, billing_cycle, row.get("bonus_points")),
+        "monthlyBonusPoints": monthly_bonus_points,
+        "annualBonusPoints": annual_bonus_points,
         "perks": row.get("perks") or [],
     }
 
@@ -1634,7 +1675,29 @@ def _customer_booking_discount_percent(subscription):
     )
 
 
-def _build_customer_booking_pricing(cur, customer_id, base_amount):
+def _customer_redeemable_points(cur, customer_id):
+    if not customer_id:
+        return 0
+    loyalty = _get_customer_loyalty(cur, customer_id)
+    stay_points = 0
+    redeemed_points = 0
+    if _table_exists(cur, "reservations"):
+        _ensure_reservation_pricing_columns(cur)
+        cur.execute(
+            """SELECT total_amount, deposit_amount, status, points_redeemed
+                 FROM reservations
+                WHERE customer_id = %s""",
+            (customer_id,),
+        )
+        for row in cur.fetchall() or []:
+            if _reservation_has_paid_or_checked_in(row):
+                stay_points += int(_to_float(row.get("total_amount"), 0) // 100)
+            if str(row.get("status") or "").upper() not in {"CANCELLED", "FAILED"}:
+                redeemed_points += _to_int(row.get("points_redeemed"), 0)
+    return max(0, _to_int(loyalty.get("points"), 0) + stay_points - redeemed_points)
+
+
+def _build_customer_booking_pricing(cur, customer_id, base_amount, requested_points=0, use_all_points=False):
     normalized_base = round(max(_to_float(base_amount, 0), 0), 2)
     subscription = _serialize_customer_privilege_subscription(_get_customer_privilege_subscription(cur, customer_id)) if customer_id else {}
     discount_percent = _customer_booking_discount_percent(subscription)
@@ -1642,7 +1705,12 @@ def _build_customer_booking_pricing(cur, customer_id, base_amount):
     subtotal_amount = round(max(normalized_base - discount_amount, 0), 2)
     vat_amount = round(subtotal_amount * (CUSTOMER_BOOKING_VAT_PERCENT / 100), 2)
     tax_amount = round(subtotal_amount * (CUSTOMER_BOOKING_TAX_PERCENT / 100), 2)
-    total_amount = round(subtotal_amount + vat_amount + tax_amount, 2)
+    total_before_points = round(subtotal_amount + vat_amount + tax_amount, 2)
+    available_points = _customer_redeemable_points(cur, customer_id)
+    requested_points = available_points if use_all_points else max(0, _to_int(requested_points, 0))
+    points_redeemed = min(available_points, requested_points, int(total_before_points))
+    points_discount_amount = round(float(points_redeemed), 2)
+    total_amount = round(max(0, total_before_points - points_discount_amount), 2)
     return {
         "baseAmount": normalized_base,
         "discountPercent": discount_percent,
@@ -1652,6 +1720,10 @@ def _build_customer_booking_pricing(cur, customer_id, base_amount):
         "vatAmount": vat_amount,
         "taxPercent": CUSTOMER_BOOKING_TAX_PERCENT,
         "taxAmount": tax_amount,
+        "totalBeforePoints": total_before_points,
+        "availablePoints": available_points,
+        "pointsRedeemed": points_redeemed,
+        "pointsDiscountAmount": points_discount_amount,
         "totalAmount": total_amount,
         "subscription": subscription,
     }
@@ -1659,6 +1731,9 @@ def _build_customer_booking_pricing(cur, customer_id, base_amount):
 
 def _ensure_reservation_pricing_columns(cur):
     return db_bootstrap.ensure_reservation_pricing_columns(cur)
+
+def _ensure_hourly_room_rate_columns(cur):
+    return db_bootstrap.ensure_hourly_room_rate_columns(cur)
 
 
 def _ensure_about_page_table(cur):
@@ -1759,10 +1834,9 @@ def _build_about_page_payload(cur):
 
 
 def _customer_privilege_simulation_enabled():
-    raw = os.getenv("PAYMONGO_CUSTOMER_SIMULATION")
-    if str(raw or "").strip():
-        return _is_truthy(raw)
-    return _owner_subscription_simulation_enabled()
+    # Customer memberships must always be activated through a verified PayMongo payment.
+    # Keep this helper for compatibility with existing callers, but never auto-activate.
+    return False
 
 
 def _customer_privilege_simulated_link_id(customer_id, package_id, billing_cycle):
@@ -1774,6 +1848,23 @@ def _customer_privilege_simulated_link_id(customer_id, package_id, billing_cycle
 def _customer_privilege_checkout_url(frontend_url, state, simulated=False):
     suffix = "&simulation=1" if simulated else ""
     return f"{frontend_url}/privileges?payment={state}{suffix}"
+
+
+def _reservation_has_paid_or_checked_in(row):
+    if not row:
+        return False
+
+    status_text = str(row.get("status") or "").upper()
+    total_amount = _to_float(row.get("total_amount"), 0)
+    deposit_amount = _to_float(row.get("deposit_amount"), 0)
+
+    if status_text in {"CHECKED_IN", "CHECKED_OUT", "COMPLETED"}:
+        return True
+
+    if total_amount > 0 and deposit_amount >= total_amount and status_text in {"PENDING", "CONFIRMED", "PAID"}:
+        return True
+
+    return False
 
 
 def _build_customer_membership_summary(cur, customer_id):
@@ -1801,7 +1892,7 @@ def _build_customer_membership_summary(cur, customer_id):
     if _table_exists(cur, "reservations"):
         cur.execute(
             """
-            SELECT total_amount, check_in_date
+            SELECT total_amount, deposit_amount, check_in_date, check_out_date, status
             FROM reservations
             WHERE customer_id = %s
             """,
@@ -1810,10 +1901,14 @@ def _build_customer_membership_summary(cur, customer_id):
         rows = cur.fetchall() or []
         today = datetime.now()
         for row in rows:
+            if not _reservation_has_paid_or_checked_in(row):
+                continue
+
             amount = _to_float(row.get("total_amount"), 0)
             total_spend += amount
-            check_in = row.get("check_in_date")
-            if check_in and hasattr(check_in, "month") and check_in.month == today.month and check_in.year == today.year:
+
+            spend_date = row.get("check_out_date") or row.get("check_in_date") or row.get("created_at")
+            if hasattr(spend_date, "month") and spend_date.month == today.month and spend_date.year == today.year:
                 monthly_spend += amount
 
     stay_points_total = int(total_spend // 100)
@@ -1822,7 +1917,18 @@ def _build_customer_membership_summary(cur, customer_id):
     subscription = _serialize_customer_privilege_subscription(_get_customer_privilege_subscription(cur, customer_id))
     privilege_bonus_points = _to_int(loyalty.get("points"), 0)
     privilege_bonus_this_month = _to_int(loyalty.get("points_this_month"), 0)
-    points = stay_points_total + privilege_bonus_points
+    redeemed_points = 0
+    if _table_exists(cur, "reservations"):
+        _ensure_reservation_pricing_columns(cur)
+        cur.execute(
+            """SELECT COALESCE(SUM(points_redeemed), 0) AS points_redeemed
+                 FROM reservations
+                WHERE customer_id = %s
+                  AND UPPER(COALESCE(status, '')) NOT IN ('CANCELLED', 'FAILED')""",
+            (customer_id,),
+        )
+        redeemed_points = _to_int((cur.fetchone() or {}).get("points_redeemed"), 0)
+    points = max(0, stay_points_total + privilege_bonus_points - redeemed_points)
     raw_tier = _normalize_tier(points)
     points_this_month = stay_points_this_month + privilege_bonus_this_month
     effective_tier = _higher_customer_tier(raw_tier, str(subscription.get("packageSlug") or "").upper() if subscription.get("isActive") else raw_tier)
@@ -2432,10 +2538,7 @@ def _owner_subscription_simulation_enabled():
     raw = os.getenv("PAYMONGO_SUBSCRIPTION_SIMULATION")
     if str(raw or "").strip():
         return _is_truthy(raw)
-    secret_key = str(os.getenv("PAYMONGO_SECRET_KEY", "") or "").strip()
-    if not secret_key or "your_" in secret_key:
-        return True
-    return secret_key.startswith("sk_test_")
+    return False
 
 
 def _owner_subscription_simulated_link_id(owner_id, package_id, billing_cycle):
@@ -3029,6 +3132,7 @@ def admin_login():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_admin_feature_tables(cur)
         cur.execute("SELECT id, name, first_name, last_name, email, password_hash, profile_image FROM admins WHERE LOWER(email) = %s", (email,))
         admin = cur.fetchone()
         cur.close()
@@ -3036,15 +3140,7 @@ def admin_login():
         if admin and check_password_hash(admin['password_hash'], password):
             return jsonify({
                 "message": "Admin login successful!",
-                "admin": {
-                    "id": admin['id'],
-                    "name": admin['name'],
-                    "firstName": admin.get('first_name') or '',
-                    "lastName": admin.get('last_name') or '',
-                    "email": admin['email'],
-                    "profileImage": admin.get('profile_image') or '',
-                    "role": "Admin"
-                }
+                "admin": {"id": admin['id'], "name": admin['name'], "firstName": admin.get('first_name') or '', "lastName": admin.get('last_name') or '', "email": admin['email'], "profileImage": admin.get('profile_image') or '', "role": "Admin"}
             }), 200
         return jsonify({"error": "Access Denied: Invalid Credentials"}), 401
     except Exception as e:
@@ -3704,195 +3800,79 @@ def admin_delete_staff(staff_id):
 @app.route('/api/admin/profile/<int:admin_id>', methods=['GET'])
 def admin_get_profile(admin_id):
     conn = None
-    cur = None
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            "SELECT id, name, first_name, last_name, email, profile_image, created_at FROM admins WHERE id = %s",
-            (admin_id,)
-        )
-        admin = cur.fetchone()
-        if not admin:
+        _ensure_admin_feature_tables(cur)
+        cur.execute("SELECT id, name, first_name, last_name, email, profile_image, created_at FROM admins WHERE id = %s", (admin_id,))
+        row = cur.fetchone()
+        if not row:
             return jsonify({'error': 'Admin not found.'}), 404
-        return jsonify({
-            'id': admin['id'],
-            'name': admin['name'],
-            'firstName': admin.get('first_name') or '',
-            'lastName': admin.get('last_name') or '',
-            'email': admin['email'],
-            'profileImage': admin.get('profile_image') or '',
-            'createdAt': admin['created_at'].isoformat() if admin.get('created_at') else None,
-        }), 200
+        return jsonify({'id': row['id'], 'name': row['name'], 'firstName': row.get('first_name') or '', 'lastName': row.get('last_name') or '', 'email': row['email'], 'profileImage': row.get('profile_image') or '', 'createdAt': row['created_at'].isoformat() if row.get('created_at') else None}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
-        _safe_close(conn, cur)
+        _safe_close(conn, locals().get('cur'))
 
 
 @app.route('/api/admin/profile/<int:admin_id>', methods=['PATCH'])
 def admin_update_profile(admin_id):
     conn = None
-    cur = None
     try:
         data = request.get_json(force=True) or {}
-
         first_name = (data.get('firstName') or '').strip()
         last_name = (data.get('lastName') or '').strip()
         email = (data.get('email') or '').strip().lower()
-        profile_image = data.get('profileImage')  # optional base64 data URL or URL string
-
-        if not first_name:
-            return jsonify({'error': 'First name cannot be empty.'}), 400
-        if len(first_name) > 50 or len(last_name) > 50:
-            return jsonify({'error': 'Name is too long.'}), 400
-        if not email or '@' not in email:
-            return jsonify({'error': 'Enter a valid email address.'}), 400
-
-        full_name = f"{first_name} {last_name}".strip()
-
+        if not first_name or not email or '@' not in email:
+            return jsonify({'error': 'First name and a valid email are required.'}), 400
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Make sure no OTHER admin already uses this email
-        cur.execute(
-            "SELECT id FROM admins WHERE LOWER(email) = %s AND id != %s",
-            (email, admin_id)
-        )
-        if cur.fetchone():
-            return jsonify({'error': 'That email is already in use by another admin.'}), 409
-
-        cur.execute(
-            """
-            UPDATE admins
-            SET first_name = %s,
-                last_name = %s,
-                name = %s,
-                email = %s,
-                profile_image = COALESCE(%s, profile_image)
-            WHERE id = %s
-            RETURNING id, name, first_name, last_name, email, profile_image, created_at
-            """,
-            (first_name, last_name, full_name, email, profile_image, admin_id)
-        )
-        admin = cur.fetchone()
-        if not admin:
-            conn.rollback()
-            return jsonify({'error': 'Admin not found.'}), 404
+        _ensure_admin_feature_tables(cur)
+        cur.execute("SELECT id FROM admins WHERE LOWER(email) = %s AND id != %s", (email, admin_id))
+        if cur.fetchone(): return jsonify({'error': 'That email is already in use by another admin.'}), 409
+        cur.execute("""UPDATE admins SET first_name=%s, last_name=%s, name=%s, email=%s, profile_image=COALESCE(%s, profile_image) WHERE id=%s RETURNING id,name,first_name,last_name,email,profile_image,created_at""", (first_name, last_name, f'{first_name} {last_name}'.strip(), email, data.get('profileImage'), admin_id))
+        row = cur.fetchone()
+        if not row: return jsonify({'error': 'Admin not found.'}), 404
         conn.commit()
-
-        return jsonify({
-            'message': 'Profile updated.',
-            'id': admin['id'],
-            'name': admin['name'],
-            'firstName': admin.get('first_name') or '',
-            'lastName': admin.get('last_name') or '',
-            'email': admin['email'],
-            'profileImage': admin.get('profile_image') or '',
-            'createdAt': admin['created_at'].isoformat() if admin.get('created_at') else None,
-        }), 200
+        return jsonify({'message': 'Profile updated.', 'id': row['id'], 'name': row['name'], 'firstName': row.get('first_name') or '', 'lastName': row.get('last_name') or '', 'email': row['email'], 'profileImage': row.get('profile_image') or ''}), 200
     except Exception as e:
         if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
-        _safe_close(conn, cur)
+        _safe_close(conn, locals().get('cur'))
 
 
-STAFF_ROLES = [
-    'Hotel Manager',
-    'Front Desk Operations',
-    'Housekeeping & Maintenance',
-    'Inventory & Supplies',
-    'HR/Payroll Staff Management',
-]
-
-PERMISSION_MODULES = [
-    'dashboard', 'reservations', 'checkin_checkout', 'room_management',
-    'housekeeping', 'maintenance', 'inventory', 'staff_attendance',
-    'payroll', 'reports',
-]
+STAFF_ROLES = ['Hotel Manager', 'Front Desk Operations', 'Housekeeping & Maintenance', 'Inventory & Supplies', 'HR/Payroll Staff Management']
+PERMISSION_MODULES = ['dashboard', 'reservations', 'checkin_checkout', 'room_management', 'housekeeping', 'maintenance', 'inventory', 'staff_attendance', 'payroll', 'reports']
 
 
 @app.route('/api/admin/roles', methods=['GET'])
 def admin_list_roles():
     conn = None
-    cur = None
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute("SELECT role, permissions, updated_at, updated_by FROM role_permissions")
-        rows = {r['role']: r for r in (cur.fetchall() or [])}
-
-        cur.execute("SELECT role, COUNT(*) AS cnt FROM staff GROUP BY role")
-        counts = {r['role']: r['cnt'] for r in (cur.fetchall() or [])}
-
-        roles = []
-        for role_name in STAFF_ROLES:
-            row = rows.get(role_name)
-            permissions = row['permissions'] if row and row.get('permissions') else {}
-            full_permissions = {mod: bool(permissions.get(mod, False)) for mod in PERMISSION_MODULES}
-            roles.append({
-                'role': role_name,
-                'permissions': full_permissions,
-                'staffCount': counts.get(role_name, 0),
-                'updatedAt': row['updated_at'].isoformat() if row and row.get('updated_at') else None,
-                'updatedBy': row.get('updated_by') if row else None,
-            })
-
+        conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor); _ensure_admin_feature_tables(cur)
+        cur.execute("SELECT role, permissions, updated_at, updated_by FROM role_permissions"); rows = {r['role']: r for r in (cur.fetchall() or [])}
+        cur.execute("SELECT role, COUNT(*) AS cnt FROM staff GROUP BY role"); counts = {r['role']: r['cnt'] for r in (cur.fetchall() or [])}
+        roles = [{'role': role, 'permissions': {mod: bool((rows.get(role) or {}).get('permissions', {}).get(mod, False)) for mod in PERMISSION_MODULES}, 'staffCount': counts.get(role, 0), 'updatedAt': rows.get(role, {}).get('updated_at').isoformat() if rows.get(role, {}).get('updated_at') else None, 'updatedBy': rows.get(role, {}).get('updated_by') if rows.get(role) else None} for role in STAFF_ROLES]
         return jsonify({'roles': roles, 'modules': PERMISSION_MODULES}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        _safe_close(conn, cur)
+    except Exception as e: return jsonify({'error': str(e)}), 500
+    finally: _safe_close(conn, locals().get('cur'))
 
 
 @app.route('/api/admin/roles/<path:role_name>', methods=['PATCH'])
 def admin_update_role_permissions(role_name):
     conn = None
-    cur = None
     try:
-        if role_name not in STAFF_ROLES:
-            return jsonify({'error': 'Unknown role.'}), 400
-
-        data = request.get_json(force=True) or {}
-        incoming = data.get('permissions') or {}
-        updated_by = data.get('updatedBy') or 'Admin'
-
-        clean_permissions = {mod: bool(incoming.get(mod, False)) for mod in PERMISSION_MODULES}
-
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            INSERT INTO role_permissions (role, permissions, updated_at, updated_by)
-            VALUES (%s, %s, NOW(), %s)
-            ON CONFLICT (role) DO UPDATE
-            SET permissions = EXCLUDED.permissions,
-                updated_at = NOW(),
-                updated_by = EXCLUDED.updated_by
-            RETURNING role, permissions, updated_at, updated_by
-        """, (role_name, json.dumps(clean_permissions), updated_by))
-        row = cur.fetchone()
-        conn.commit()
-
-        cur.execute("SELECT COUNT(*) AS cnt FROM staff WHERE role = %s", (role_name,))
-        staff_count = (cur.fetchone() or {}).get('cnt', 0)
-
-        return jsonify({
-            'message': f'Permissions updated for {role_name}.',
-            'role': {
-                'role': row['role'],
-                'permissions': row['permissions'],
-                'staffCount': staff_count,
-                'updatedAt': row['updated_at'].isoformat() if row.get('updated_at') else None,
-                'updatedBy': row.get('updated_by'),
-            }
-        }), 200
+        if role_name not in STAFF_ROLES: return jsonify({'error': 'Unknown role.'}), 400
+        data = request.get_json(force=True) or {}; permissions = {mod: bool((data.get('permissions') or {}).get(mod, False)) for mod in PERMISSION_MODULES}
+        conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor); _ensure_admin_feature_tables(cur)
+        cur.execute("""INSERT INTO role_permissions (role, permissions, updated_at, updated_by) VALUES (%s,%s,NOW(),%s) ON CONFLICT (role) DO UPDATE SET permissions=EXCLUDED.permissions,updated_at=NOW(),updated_by=EXCLUDED.updated_by RETURNING role,permissions,updated_at,updated_by""", (role_name, json.dumps(permissions), data.get('updatedBy') or 'Admin'))
+        row = cur.fetchone(); conn.commit()
+        return jsonify({'message': f'Permissions updated for {role_name}.', 'role': {'role': row['role'], 'permissions': row['permissions'], 'updatedAt': row['updated_at'].isoformat() if row.get('updated_at') else None, 'updatedBy': row.get('updated_by')}}), 200
     except Exception as e:
         if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
-    finally:
-        _safe_close(conn, cur)
+    finally: _safe_close(conn, locals().get('cur'))
 
 
 @app.route('/api/admin/reports', methods=['GET'])
@@ -4146,7 +4126,6 @@ def get_reviews():
     cur = None
     try:
         hotel_id = request.args.get('hotel_id', type=int)
-        room_id = request.args.get('room_id', type=int)
         limit = min(request.args.get('limit', 20, type=int), 100)
 
         conn = get_db_connection()
@@ -7313,6 +7292,9 @@ def get_rooms(hotel_id):
                 'roomName': r.get('room_name') or '',
                 'roomType': r.get('room_type') or 'Single',
                 'price': float(r.get('price_per_night') or 0),
+                'rate3Hours': float(r.get('rate_3_hours') or 0),
+                'rate6Hours': float(r.get('rate_6_hours') or 0),
+                'rate12Hours': float(r.get('rate_12_hours') or 0),
                 'description': r.get('description') or '',
                 'maxAdults': int(r.get('max_adults') or 2),
                 'maxChildren': int(r.get('max_children') or 0),
@@ -7354,6 +7336,9 @@ def add_room():
         room_name = request.form.get('roomName', '')
         room_type = request.form.get('roomType', 'Single')
         price = float(request.form.get('price') or 0)
+        rate_3 = float(request.form.get('rate3Hours') or 0)
+        rate_6 = float(request.form.get('rate6Hours') or 0)
+        rate_12 = float(request.form.get('rate12Hours') or 0)
         desc = request.form.get('description', '')
         adults = int(request.form.get('maxAdults') or 2)
         children = int(request.form.get('maxChildren') or 0)
@@ -7369,6 +7354,7 @@ def add_room():
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_hourly_room_rate_columns(cur)
         owner_id = _hotel_owner_id(cur, hotel_id)
         guard, subscription = _owner_feature_guard(cur, owner_id, 'rooms', mutation=True)
         if guard:
@@ -7381,10 +7367,11 @@ def add_room():
                 return _owner_room_limit_response(subscription)
         cur.execute("""
             INSERT INTO rooms (hotel_id, room_number, room_name, room_type, price_per_night,
+                               rate_3_hours, rate_6_hours, rate_12_hours,
                                description, amenities, images, max_adults, max_children, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s::text[], %s::text[], %s, %s, 'Available')
-        """, (hotel_id, room_num, room_name, room_type, price, desc,
-               amenities_pg, images_pg, adults, children))
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::text[], %s::text[], %s, %s, 'Available')
+        """, (hotel_id, room_num, room_name, room_type, price,
+               rate_3, rate_6, rate_12, desc, amenities_pg, images_pg, adults, children))
         conn.commit()
         return jsonify({"message": "Room added successfully!"}), 201
     except Exception as e:
@@ -7405,6 +7392,9 @@ def update_room(room_id):
         room_name = request.form.get('roomName', '')
         room_type = request.form.get('roomType', 'Single')
         price = float(request.form.get('price') or 0)
+        rate_3 = float(request.form.get('rate3Hours') or 0)
+        rate_6 = float(request.form.get('rate6Hours') or 0)
+        rate_12 = float(request.form.get('rate12Hours') or 0)
         desc = request.form.get('description', '')
         adults = int(request.form.get('maxAdults') or 2)
         children = int(request.form.get('maxChildren') or 0)
@@ -7421,6 +7411,7 @@ def update_room(room_id):
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_hourly_room_rate_columns(cur)
         owner_id = _room_owner_id(cur, room_id) or _hotel_owner_id(cur, hotel_id)
         guard, _subscription = _owner_feature_guard(cur, owner_id, 'rooms', mutation=True)
         if guard:
@@ -7428,10 +7419,11 @@ def update_room(room_id):
         cur.execute("""
             UPDATE rooms
             SET room_number = %s, room_name = %s, room_type = %s, price_per_night = %s,
+                rate_3_hours = %s, rate_6_hours = %s, rate_12_hours = %s,
                 description = %s, amenities = %s::text[], images = %s::text[],
                 max_adults = %s, max_children = %s
             WHERE id = %s
-        """, (room_num, room_name, room_type, price, desc,
+        """, (room_num, room_name, room_type, price, rate_3, rate_6, rate_12, desc,
                amenities_pg, images_pg, adults, children, room_id))
         conn.commit()
         return jsonify({"message": "Room updated successfully!"}), 200
@@ -7528,6 +7520,15 @@ def _paymongo_headers():
         'Accept': 'application/json',
     }
 
+def _paymongo_public_headers():
+    import base64
+    key = os.getenv('PAYMONGO_PUBLIC_KEY', '')
+    encoded = base64.b64encode(f'{key}:'.encode()).decode()
+    return {
+        'Authorization': f'Basic {encoded}',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+    }
 
 @app.route('/api/payment/create-link', methods=['POST'])
 def create_payment_link():
@@ -7642,7 +7643,8 @@ def create_payment_link():
 
             next_action = attach_data['data']['attributes'].get('next_action') or {}
             redirect_url = next_action.get('redirect', {}).get('url', '')
-            qr_code_url = next_action.get('qr_code', {}).get('image_url', '') if isinstance(next_action.get('qr_code'), dict) else ''
+            qr_code = next_action.get('code') or next_action.get('qr_code') or {}
+            qr_code_url = qr_code.get('image_url', '') if isinstance(qr_code, dict) else ''
 
             cur.execute('UPDATE reservations SET paymongo_payment_id = %s WHERE id = %s', (intent_id, reservation_id))
             conn.commit()
@@ -7760,10 +7762,51 @@ def verify_payment(link_id):
                 'amount': amount,
             }), 200
 
+        if str(status).lower() in {'failed', 'cancelled', 'canceled', 'expired'}:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """UPDATE reservations
+                      SET status = 'CANCELLED'
+                    WHERE paymongo_payment_id = %s
+                      AND status = 'PENDING'
+                      AND LOWER(COALESCE(payment_method, 'cash')) IN ('card', 'gcash', 'maya', 'qrph', 'online')""",
+                (link_id,),
+            )
+            conn.commit()
+
         return jsonify({'status': status, 'amount': amount}), 200
 
     except Exception as e:
         if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/payment/failed/<int:reservation_id>', methods=['POST'])
+def mark_failed_payment(reservation_id):
+    """Release an online reservation when its payment is not completed."""
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """UPDATE reservations
+                  SET status = 'CANCELLED'
+                WHERE id = %s
+                  AND status = 'PENDING'
+                  AND LOWER(COALESCE(payment_method, 'cash')) IN ('card', 'gcash', 'maya', 'qrph', 'online')
+                RETURNING id""",
+            (reservation_id,),
+        )
+        updated = cur.fetchone()
+        conn.commit()
+        return jsonify({'cancelled': bool(updated)}), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)
@@ -7828,7 +7871,6 @@ def owner_get_reservations():
         owner_id = request.args.get('owner_id', type=int)
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
         query = """
             SELECT r.id, r.booking_number, r.check_in_date, r.check_out_date,
                    r.total_nights, r.total_amount, r.status, r.payment_method,
@@ -7980,9 +8022,17 @@ def create_reservation():
         check_out = data.get('checkOut')
         check_in_time = (data.get('checkInTime') or '14:00').strip()[:5]   # HH:MM
         check_out_time = (data.get('checkOutTime') or '12:00').strip()[:5] # HH:MM
+        duration_hours = _to_int(data.get('durationHours'), 0)
+        if duration_hours not in (0, 3, 6, 12):
+            return jsonify({'error': 'Duration must be overnight, 3, 6, or 12 hours.'}), 400
         guests = _to_int(data.get('guests'), 1)
         special_requests = (data.get('specialRequests') or '').strip()
-        payment_method = (data.get('paymentMethod') or 'cash').strip()
+        requested_points = data.get('pointsToUse', 0)
+        use_all_points = bool(data.get('useAllPoints'))
+        payment_method = (data.get('paymentMethod') or 'cash').strip().lower()
+        online_payment_methods = {'card', 'gcash', 'maya', 'qrph', 'online'}
+        if payment_method not in online_payment_methods and payment_method != 'cash':
+            return jsonify({'error': 'Invalid payment method. Choose Cash on Arrival or an online payment method.'}), 400
 
         if not room_id or not check_in or not check_out:
             return jsonify({'error': 'roomId, checkIn, and checkOut are required'}), 400
@@ -7990,9 +8040,10 @@ def create_reservation():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         _ensure_reservation_pricing_columns(cur)
+        _ensure_hourly_room_rate_columns(cur)
 
         # Get room details
-        cur.execute('SELECT id, price_per_night, hotel_id, room_number, room_name FROM rooms WHERE id = %s', (room_id,))
+        cur.execute('SELECT id, price_per_night, rate_3_hours, rate_6_hours, rate_12_hours, hotel_id, room_number, room_name FROM rooms WHERE id = %s', (room_id,))
         room = cur.fetchone()
         if not room:
             return jsonify({'error': 'Room not found'}), 404
@@ -8006,20 +8057,36 @@ def create_reservation():
         today = datetime.utcnow().date()
         if ci < today:
             return jsonify({'error': 'Check-in date cannot be in the past.'}), 400
-        if co <= ci:
+        if duration_hours:
+            try:
+                start_dt = datetime.combine(ci, datetime.strptime(check_in_time, '%H:%M').time())
+                end_dt = start_dt + timedelta(hours=duration_hours)
+            except Exception:
+                return jsonify({'error': 'Invalid check-in time.'}), 400
+            co = end_dt.date()
+            check_out = co.strftime('%Y-%m-%d')
+            check_out_time = end_dt.strftime('%H:%M')
+        if co < ci or (co == ci and not duration_hours):
             return jsonify({'error': 'Check-out must be after check-in.'}), 400
 
         # ── AVAILABILITY CHECK ──────────────────────────────────────────────
         # Block if room already has an active reservation overlapping these dates
-        cur.execute("""
-            SELECT id, booking_number, check_in_date, check_out_date
-            FROM reservations
-            WHERE room_id = %s
-              AND status NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
-              AND check_in_date < %s
-              AND check_out_date > %s
-            LIMIT 1
-        """, (room_id, co, ci))
+        if duration_hours:
+            cur.execute("""
+                SELECT id, booking_number, check_in_date, check_out_date FROM reservations
+                WHERE room_id = %s AND status NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
+                  AND NOT (status = 'PENDING' AND LOWER(COALESCE(payment_method, 'cash')) IN ('card', 'gcash', 'maya', 'qrph', 'online'))
+                  AND (check_in_date + COALESCE(check_in_time, TIME '00:00')) < (%s::date + %s::time)
+                  AND (check_out_date + COALESCE(check_out_time, TIME '00:00')) > (%s::date + %s::time)
+                LIMIT 1
+            """, (room_id, check_out, check_out_time, check_in, check_in_time))
+        else:
+            cur.execute("""
+                SELECT id, booking_number, check_in_date, check_out_date FROM reservations
+                WHERE room_id = %s AND status NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
+                  AND NOT (status = 'PENDING' AND LOWER(COALESCE(payment_method, 'cash')) IN ('card', 'gcash', 'maya', 'qrph', 'online'))
+                  AND check_in_date < %s AND check_out_date > %s LIMIT 1
+            """, (room_id, co, ci))
         conflict = cur.fetchone()
         if conflict:
             return jsonify({
@@ -8028,12 +8095,27 @@ def create_reservation():
             }), 409
         # ───────────────────────────────────────────────────────────────────
 
-        nights = (co - ci).days
+        nights = (co - ci).days if not duration_hours else 1
         price = _to_float(room.get('price_per_night'), 0)
-        base_total = round(price * nights, 2)
-        pricing = _build_customer_booking_pricing(cur, customer_id, base_total)
+        hourly_rates = {3: room.get('rate_3_hours'), 6: room.get('rate_6_hours'), 12: room.get('rate_12_hours')}
+        rate_type = f'{duration_hours}_hours' if duration_hours else 'overnight'
+        price = _to_float(hourly_rates.get(duration_hours), 0) if duration_hours else price
+        if duration_hours and price <= 0:
+            return jsonify({'error': f'The {duration_hours}-hour rate is not configured for this room.'}), 400
+        base_total = round(price, 2) if duration_hours else round(price * nights, 2)
+        pricing = _build_customer_booking_pricing(cur, customer_id, base_total, requested_points, use_all_points)
         total = pricing["totalAmount"]
         privilege = pricing.get("subscription") or {}
+
+        if pricing["pointsRedeemed"] > 0:
+            # Lock the balance record and re-check before saving the redemption.
+            # Points are consumed by the reservation ledger, so cancelled bookings restore them automatically.
+            cur.execute(
+                "SELECT customer_id FROM customer_loyalty WHERE customer_id = %s FOR UPDATE",
+                (customer_id,),
+            )
+            if not cur.fetchone() or _customer_redeemable_points(cur, customer_id) < pricing["pointsRedeemed"]:
+                return jsonify({'error': 'Your points balance changed. Please try again.'}), 409
 
         import random, string
         booking_number = 'INV-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
@@ -8042,16 +8124,16 @@ def create_reservation():
             INSERT INTO reservations
               (booking_number, customer_id, room_id, hotel_id, check_in_date, check_out_date,
                check_in_time, check_out_time,
-               total_nights, total_amount, base_amount, privilege_discount_percent, privilege_discount_amount,
-               subtotal_amount, vat_percent, vat_amount, tax_percent, tax_amount,
+               total_nights, stay_duration_hours, rate_type, total_amount, base_amount, privilege_discount_percent, privilege_discount_amount,
+               subtotal_amount, vat_percent, vat_amount, tax_percent, tax_amount, points_redeemed,
                applied_privilege_slug, applied_privilege_name, payment_method, special_requests, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'PENDING')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id, booking_number
         """, (booking_number, customer_id, room_id, room.get('hotel_id'),
                check_in, check_out, check_in_time, check_out_time,
-               nights, total, pricing["baseAmount"], pricing["discountPercent"], pricing["discountAmount"],
-               pricing["subtotalAmount"], pricing["vatPercent"], pricing["vatAmount"], pricing["taxPercent"], pricing["taxAmount"],
-               privilege.get("packageSlug"), privilege.get("packageName"), payment_method, special_requests))
+               nights, duration_hours or None, rate_type, total, pricing["baseAmount"], pricing["discountPercent"], pricing["discountAmount"],
+               pricing["subtotalAmount"], pricing["vatPercent"], pricing["vatAmount"], pricing["taxPercent"], pricing["taxAmount"], pricing["pointsRedeemed"],
+               privilege.get("packageSlug"), privilege.get("packageName"), payment_method, special_requests, 'PENDING'))
         row = cur.fetchone()
         conn.commit()
 
@@ -8069,6 +8151,10 @@ def create_reservation():
             'vatAmount': pricing["vatAmount"],
             'taxPercent': pricing["taxPercent"],
             'taxAmount': pricing["taxAmount"],
+            'totalBeforePoints': pricing["totalBeforePoints"],
+            'availablePoints': pricing["availablePoints"],
+            'pointsRedeemed': pricing["pointsRedeemed"],
+            'pointsDiscountAmount': pricing["pointsDiscountAmount"],
             'appliedPrivilege': {
                 'isActive': bool(privilege.get("isActive")),
                 'packageName': privilege.get("packageName"),
@@ -8954,24 +9040,13 @@ def get_rooms_catalog():
     cur = None
     try:
         hotel_id = request.args.get('hotel_id', type=int)
+        room_id = request.args.get('room_id', type=int)
         status_filter = request.args.get('status')
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
         query = """
-            SELECT
-                r.id,
-                r.room_number,
-                r.room_name,
-                r.room_type,
-                r.price_per_night,
-                r.description,
-                r.images,
-                r.amenities,
-                r.max_adults,
-                r.max_children,
-                r.status,
+            SELECT r.*,
                 h.hotel_name,
                 h.hotel_address
             FROM rooms r
@@ -8983,6 +9058,10 @@ def get_rooms_catalog():
         if hotel_id:
             query += " AND r.hotel_id = %s"
             params.append(hotel_id)
+
+        if room_id:
+            query += " AND r.id = %s"
+            params.append(room_id)
 
         if status_filter:
             query += " AND LOWER(COALESCE(r.status, '')) = LOWER(%s)"
@@ -9008,6 +9087,9 @@ def get_rooms_catalog():
                 "roomName": display_name,
                 "roomType": row.get('room_type') or "Suite",
                 "price": float(row.get('price_per_night') or 0),
+                "rate3Hours": float(row.get('rate_3_hours') or 0),
+                "rate6Hours": float(row.get('rate_6_hours') or 0),
+                "rate12Hours": float(row.get('rate_12_hours') or 0),
                 "description": row.get('description') or '',
                 "images": images,
                 "amenities": amenities,
@@ -9047,10 +9129,21 @@ def home_hotels():
                 select_columns.append(f"h.{column_name}")
 
         query = f"""
-            SELECT {', '.join(select_columns)}, COUNT(r.id) AS room_count
+            SELECT {', '.join(select_columns)},
+                   COUNT(r.id) AS room_count,
+                   MIN(r.price_per_night) AS min_price,
+                   MAX(r.price_per_night) AS max_price,
+                   rv.avg_rating,
+                   rv.review_count
             FROM hotels h
             LEFT JOIN rooms r ON r.hotel_id = h.id
-            GROUP BY {', '.join(select_columns)}
+            LEFT JOIN (
+                SELECT hotel_id, AVG(rating)::numeric(3,1) AS avg_rating, COUNT(*) AS review_count
+                FROM reviews
+                WHERE status = 'published'
+                GROUP BY hotel_id
+            ) rv ON rv.hotel_id = h.id
+            GROUP BY {', '.join(select_columns)}, rv.avg_rating, rv.review_count
             ORDER BY COUNT(r.id) DESC, h.id DESC
             LIMIT 6
         """
@@ -9061,6 +9154,10 @@ def home_hotels():
         for row in rows:
             hotel_id = row.get("id")
             building_image = row.get("hotel_building_image") or row.get("hotel_logo") or _room_preview_image_for_hotel(cur, hotel_id) or "/images/signup-img.png"
+            min_price = _to_float(row.get("min_price"), 0)
+            max_price = _to_float(row.get("max_price"), 0)
+            avg_rating = _to_float(row.get("avg_rating"), 0)
+            review_count = _to_int(row.get("review_count"), 0)
             hotels.append({
                 "id": hotel_id,
                 "name": row.get("hotel_name") or "Innova Property",
@@ -9070,6 +9167,11 @@ def home_hotels():
                 "rooms": _to_int(row.get("room_count"), 0),
                 "description": row.get("hotel_description") or "A connected hotel experience powered by Innova HMS.",
                 "contactPhone": row.get("contact_phone") or "",
+                "minPrice": min_price,
+                "maxPrice": max_price,
+                "startingPrice": min_price,
+                "avgRating": avg_rating,
+                "reviewCount": review_count,
             })
         return jsonify({"hotels": hotels}), 200
     except Exception as e:
@@ -9800,6 +9902,7 @@ def get_customer_dashboard(customer_id):
                         r.check_in_date,
                         r.check_out_date,
                         r.total_amount,
+                        r.deposit_amount,
                         r.status,
                         r.room_id,
                         r.payment_method,
@@ -9817,14 +9920,19 @@ def get_customer_dashboard(customer_id):
                 booking_rows = cur.fetchall() or []
 
                 for row in booking_rows:
-                    total_amount = _to_float(row.get("total_amount"), 0)
-                    total_spend += total_amount
                     status_text = str(row.get("status") or "PENDING").upper()
-                    check_in = row.get("check_in_date")
-                    if check_in and hasattr(check_in, "month"):
-                        today = datetime.now()
-                        if check_in.month == today.month and check_in.year == today.year:
-                            monthly_spend += total_amount
+                    total_amount = _to_float(row.get("total_amount"), 0)
+                    deposit_amount = _to_float(row.get("deposit_amount"), 0)
+                    total_paid = total_amount > 0 and deposit_amount >= total_amount
+                    spend_eligible = status_text in {"CHECKED_IN", "CHECKED_OUT", "COMPLETED"} or total_paid
+
+                    if spend_eligible:
+                        total_spend += total_amount
+                        spend_date = row.get("check_out_date") or row.get("check_in_date") or row.get("created_at")
+                        if hasattr(spend_date, "month"):
+                            today = datetime.now()
+                            if spend_date.month == today.month and spend_date.year == today.year:
+                                monthly_spend += total_amount
 
                     if not preferred_room_type and row.get("room_type"):
                         preferred_room_type = row.get("room_type")
@@ -9970,6 +10078,8 @@ def customer_privileges():
             "monthlyPrice": _to_float(row.get("monthly_price"), 0),
             "annualPrice": _to_float(row.get("annual_price"), 0),
             "bonusPoints": _to_int(row.get("bonus_points"), 0),
+            "monthlyBonusPoints": _customer_privilege_bonus_points(row.get("slug"), "MONTHLY", row.get("bonus_points")),
+            "annualBonusPoints": _customer_privilege_bonus_points(row.get("slug"), "ANNUAL", row.get("bonus_points")),
             "perks": row.get("perks") or [],
             "isPopular": bool(row.get("is_popular")),
         } for row in package_rows]
@@ -10007,9 +10117,6 @@ def customer_privileges_cancel():
         serialized_subscription = _serialize_customer_privilege_subscription(current_subscription)
         if not serialized_subscription.get("id"):
             return jsonify({"error": "No privilege tier is linked to this customer."}), 404
-        if not serialized_subscription.get("isActive"):
-            return jsonify({"error": "There is no active privilege tier to cancel."}), 400
-
         cur.execute(
             """
             UPDATE customer_privilege_subscriptions
@@ -10018,13 +10125,31 @@ def customer_privileges_cancel():
                 renewal_date = CURRENT_DATE,
                 updated_at = NOW()
             WHERE id = %s
-            RETURNING id
+            RETURNING id, customer_id
             """,
             (serialized_subscription.get("id"),),
         )
-        if not cur.fetchone():
+        cancelled_row = cur.fetchone()
+        if not cancelled_row:
             conn.rollback()
             return jsonify({"error": "Unable to cancel the privilege tier right now."}), 400
+
+        if _table_has_column(cur, "customers", "membership_level"):
+            cur.execute(
+                "UPDATE customers SET membership_level = 'STANDARD' WHERE id = %s",
+                (customer_id,),
+            )
+
+        # Keep the customer's loyalty record in sync even when it did not exist yet.
+        cur.execute(
+            """
+            INSERT INTO customer_loyalty (customer_id, points, tier, points_this_month, updated_at)
+            VALUES (%s, 0, 'STANDARD', 0, NOW())
+            ON CONFLICT (customer_id) DO UPDATE
+            SET tier = 'STANDARD', updated_at = NOW()
+            """,
+            (customer_id,),
+        )
 
         conn.commit()
         refreshed_summary = _build_customer_membership_summary(cur, customer_id)
@@ -10056,8 +10181,11 @@ def customer_privileges_create_payment_link():
         customer_id = _to_int(data.get("customerId"), 0)
         package_id = _to_int(data.get("packageId"), 0)
         billing_cycle = str(data.get("billingCycle") or "MONTHLY").strip().upper()
+        payment_method = str(data.get("paymentMethod") or "gcash").strip().lower()
         if billing_cycle not in {"MONTHLY", "ANNUAL"}:
             billing_cycle = "MONTHLY"
+        if payment_method not in {"gcash", "paymaya", "qrph", "card", "online"}:
+            payment_method = "gcash"
 
         if not customer_id or not package_id:
             return jsonify({"error": "customerId and packageId are required."}), 400
@@ -10093,6 +10221,8 @@ def customer_privileges_create_payment_link():
         frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
         success_url = _customer_privilege_checkout_url(frontend_url, 'success', simulation_mode)
         failed_url = _customer_privilege_checkout_url(frontend_url, 'failed', simulation_mode)
+        qr_code_url = ''
+        is_qr_payment = payment_method == 'qrph'
 
         current_subscription = _serialize_customer_privilege_subscription(_get_customer_privilege_subscription(cur, customer_id))
         pending_status = 'ACTIVE' if current_subscription.get("isActive") else 'PENDING'
@@ -10103,32 +10233,94 @@ def customer_privileges_create_payment_link():
         else:
             if not paymongo_key or 'your_' in paymongo_key:
                 return jsonify({"error": "PayMongo API key not configured."}), 503
-            payload = {
-                'data': {
-                    'attributes': {
-                        'amount': int(amount * 100),
-                        'currency': 'PHP',
-                        'description': f'Innova HMS Customer Privilege {package_row.get("name")}',
-                        'remarks': f'Customer #{customer_id} privilege package',
-                        'redirect': {'success': success_url, 'failed': failed_url}
+
+            if payment_method in {'gcash', 'paymaya', 'qrph'}:
+                intent_payload = {
+                    'data': {
+                        'attributes': {
+                            'amount': int(amount * 100),
+                            'currency': 'PHP',
+                            'payment_method_allowed': [payment_method],
+                            'payment_method_options': {
+                                payment_method: {'redirect': {'success': success_url, 'failed': failed_url}}
+                            },
+                            'description': f'Innova HMS Customer Privilege {package_row.get("name")}',
+                            'statement_descriptor': 'INNOVA HMS',
+                            'capture_type': 'automatic',
+                        }
                     }
                 }
-            }
-            response = requests.post(
-                'https://api.paymongo.com/v1/links',
-                json=payload,
-                headers=_paymongo_headers(),
-                timeout=15
-            )
-            result = response.json()
-            if not response.ok:
-                errors = result.get('errors', [{}])
-                msg = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
-                return jsonify({'error': msg}), 400
-            link_data = result.get('data', {})
-            attrs = link_data.get('attributes', {})
-            checkout_url = attrs.get('checkout_url', '')
-            link_id = link_data.get('id', '')
+                intent_res = requests.post(
+                    'https://api.paymongo.com/v1/payment_intents',
+                    json=intent_payload,
+                    headers=_paymongo_headers(),
+                    timeout=15
+                )
+                intent_data = intent_res.json()
+                if not intent_res.ok:
+                    errors = intent_data.get('errors', [{}])
+                    msg = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
+                    return jsonify({'error': msg}), 400
+
+                intent_id = intent_data['data']['id']
+                client_key = intent_data['data']['attributes']['client_key']
+                pm_res = requests.post(
+                    'https://api.paymongo.com/v1/payment_methods',
+                    json={'data': {'attributes': {'type': payment_method, 'billing': {'name': 'Innova HMS Guest', 'email': 'guest@innovahms.com'}}}},
+                    headers=_paymongo_headers(),
+                    timeout=15
+                )
+                pm_data = pm_res.json()
+                if not pm_res.ok:
+                    errors = pm_data.get('errors', [{}])
+                    msg = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
+                    return jsonify({'error': msg}), 400
+
+                pm_id = pm_data['data']['id']
+                attach_res = requests.post(
+                    f'https://api.paymongo.com/v1/payment_intents/{intent_id}/attach',
+                    json={'data': {'attributes': {'payment_method': pm_id, 'client_key': client_key, 'return_url': success_url}}},
+                    headers=_paymongo_headers(),
+                    timeout=15
+                )
+                attach_data = attach_res.json()
+                if not attach_res.ok:
+                    errors = attach_data.get('errors', [{}])
+                    msg = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
+                    return jsonify({'error': msg}), 400
+
+                next_action = attach_data['data']['attributes'].get('next_action') or {}
+                qr_code = next_action.get('code') or next_action.get('qr_code') or {}
+                qr_code_url = qr_code.get('image_url', '') if isinstance(qr_code, dict) else ''
+                checkout_url = next_action.get('redirect', {}).get('url', '') or qr_code_url
+                link_id = intent_id
+            else:
+                payload = {
+                    'data': {
+                        'attributes': {
+                            'amount': int(amount * 100),
+                            'currency': 'PHP',
+                            'description': f'Innova HMS Customer Privilege {package_row.get("name")}',
+                            'remarks': f'Customer #{customer_id} privilege package',
+                            'redirect': {'success': success_url, 'failed': failed_url}
+                        }
+                    }
+                }
+                response = requests.post(
+                    'https://api.paymongo.com/v1/links',
+                    json=payload,
+                    headers=_paymongo_headers(),
+                    timeout=15
+                )
+                result = response.json()
+                if not response.ok:
+                    errors = result.get('errors', [{}])
+                    msg = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
+                    return jsonify({'error': msg}), 400
+                link_data = result.get('data', {})
+                attrs = link_data.get('attributes', {})
+                checkout_url = attrs.get('checkout_url', '')
+                link_id = link_data.get('id', '')
 
         cur.execute(
             """
@@ -10154,6 +10346,8 @@ def customer_privileges_create_payment_link():
 
         return jsonify({
             "checkoutUrl": checkout_url,
+            "qrCodeUrl": qr_code_url,
+            "isQrPayment": is_qr_payment,
             "linkId": link_id,
             "amount": amount,
             "subscriptionId": subscription_row.get("id"),
@@ -10208,43 +10402,23 @@ def customer_privileges_verify_payment(link_id):
             return _customer_privilege_success_response(cur, customer_id, amount, simulated_link)
 
         if simulated_link:
-            amount = _to_float(subscription.get('amount'), 0)
-            starts_at, next_renewal = _subscription_cycle_dates(subscription, carry_requires_payment_proof=True)
-            cur.execute(
-                """
-                UPDATE customer_privilege_subscriptions
-                SET status = 'ACTIVE',
-                    payment_status = 'PAID',
-                    starts_at = %s,
-                    renewal_date = %s,
-                    last_paid_at = NOW(),
-                    updated_at = NOW()
-                WHERE id = %s
-                """,
-                (starts_at, next_renewal, subscription.get("id")),
-            )
-            _apply_customer_loyalty_bonus(
-                cur,
-                customer_id,
-                bonus_points=_to_int(subscription.get("bonus_points"), 0),
-                tier_floor=str(subscription.get("package_slug") or "").upper(),
-            )
-            conn.commit()
-            return _customer_privilege_success_response(cur, customer_id, amount, True)
+            return jsonify({'error': 'Membership activation requires a completed PayMongo payment.'}), 400
 
-        response = requests.get(
-            f'https://api.paymongo.com/v1/links/{link_id}',
-            headers=_paymongo_headers(),
-            timeout=15
+        resource_url = (
+            f'https://api.paymongo.com/v1/payment_intents/{link_id}'
+            if str(link_id).startswith('pi_')
+            else f'https://api.paymongo.com/v1/links/{link_id}'
         )
+        response = requests.get(resource_url, headers=_paymongo_headers(), timeout=15)
         result = response.json()
         if not response.ok:
             return jsonify({'error': 'Failed to verify privilege payment.'}), 400
 
         attrs = result.get('data', {}).get('attributes', {})
-        status = attrs.get('status', 'unpaid')
+        status = attrs.get('status', 'awaiting_payment_method' if str(link_id).startswith('pi_') else 'unpaid')
         amount = attrs.get('amount', 0) / 100
-        if status == 'paid':
+        is_paid = status == 'paid' or (str(link_id).startswith('pi_') and status in {'succeeded', 'processing'})
+        if is_paid:
             starts_at, next_renewal = _subscription_cycle_dates(subscription, carry_requires_payment_proof=True)
             cur.execute(
                 """
@@ -10262,7 +10436,11 @@ def customer_privileges_verify_payment(link_id):
             _apply_customer_loyalty_bonus(
                 cur,
                 customer_id,
-                bonus_points=_to_int(subscription.get("bonus_points"), 0),
+                bonus_points=_customer_privilege_bonus_points(
+                    subscription.get("package_slug"),
+                    subscription.get("billing_cycle"),
+                    subscription.get("bonus_points"),
+                ),
                 tier_floor=str(subscription.get("package_slug") or "").upper(),
             )
             conn.commit()
@@ -10696,8 +10874,12 @@ def vision_hotel():
             cur.execute(query, tuple(params))
             row = cur.fetchone()
             if row:
+                target_hotel_id = row.get("id") or 0
+                review_query = "SELECT AVG(rating)::numeric(3,1) AS avg_rating, COUNT(*) AS review_count FROM reviews WHERE hotel_id = %s AND status = 'published'"
+                cur.execute(review_query, (target_hotel_id,))
+                review_row = cur.fetchone() or {}
                 hotel = {
-                    "id": row.get("id") or 0,
+                    "id": target_hotel_id,
                     "name": row.get("hotel_name") or "Innova Vision Suites",
                     "locationLabel": row.get("hotel_address") or row.get("hotel_name") or "Innova Smart Hotel",
                     "location": {
@@ -10711,6 +10893,8 @@ def vision_hotel():
                     "checkInPolicy": row.get("check_in_policy") or "",
                     "checkOutPolicy": row.get("check_out_policy") or "",
                     "cancellationPolicy": row.get("cancellation_policy") or "",
+                    "avgRating": _to_float(review_row.get("avg_rating"), 0),
+                    "reviewCount": _to_int(review_row.get("review_count"), 0),
                 }
 
         return jsonify({"hotel": hotel}), 200
@@ -10760,9 +10944,17 @@ def vision_rooms():
                 r.max_children,
                 r.status,
                 r.hotel_id,
-                h.hotel_name
+                h.hotel_name,
+                rr.avg_rating,
+                rr.review_count
             FROM rooms r
             LEFT JOIN hotels h ON h.id = r.hotel_id
+            LEFT JOIN (
+                SELECT room_id, AVG(rating)::numeric(3,1) AS avg_rating, COUNT(*) AS review_count
+                FROM reviews
+                WHERE status = 'published'
+                GROUP BY room_id
+            ) rr ON rr.room_id = r.id
             WHERE LOWER(COALESCE(r.status, '')) = 'available'
         """
         params = []
@@ -10833,6 +11025,8 @@ def vision_rooms():
                 "hotelId": row.get("hotel_id"),
                 "hotelName": row.get("hotel_name") or "",
                 "isAvailableForSelectedDates": True,
+                "avgRating": _to_float(row.get("avg_rating"), 0),
+                "reviewCount": _to_int(row.get("review_count"), 0),
             })
 
         return jsonify({"rooms": rooms}), 200

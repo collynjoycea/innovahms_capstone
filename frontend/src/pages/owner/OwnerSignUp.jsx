@@ -1,13 +1,9 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft,
-  ArrowRight,
   Building2,
   CheckCircle2,
   Copy,
-  FileText,
   Hash,
   Lock,
   Mail,
@@ -15,6 +11,12 @@ import {
   Phone,
   Upload,
   User,
+  ShieldCheck,
+  AlertCircle,
+  KeyRound,
+  RefreshCw,
+  ArrowLeft,
+  ArrowRight
 } from "lucide-react";
 import {
   getPasswordStrengthMessage,
@@ -34,34 +36,36 @@ const INITIAL_FORM = {
   hotelCode: "",
   hotelName: "",
   hotelAddress: "",
+  otpCode: "",
 };
 
 const REQUIRED_DOCUMENTS = [
-  { key: "businessPermit", label: "Business Permit" },
-  { key: "birCertificate", label: "BIR Certificate" },
-  { key: "fireSafetyCertificate", label: "Fire Safety Certificate" },
-  { key: "validId", label: "Valid ID of Owner" },
+  { key: "businessPermit", label: "Business Permit / Mayor's Permit", code: "BP-DOC" },
+  { key: "birCertificate", label: "BIR Certificate of Registration (Form 2303)", code: "BIR-2303" },
+  { key: "fireSafetyCertificate", label: "Fire Safety Inspection Certificate", code: "FSIC-DOC" },
+  { key: "validId", label: "Government Issued ID of Property Owner", code: "GOV-ID" },
 ];
 
 const STEPS = [
-  { id: 1, title: "Account", helper: "Owner access details" },
-  { id: 2, title: "Hotel", helper: "Create or claim a property" },
-  { id: 3, title: "Documents", helper: "Required compliance files" },
+  { id: 1, title: "Account Details" },
+  { id: 2, title: "Property Info" },
+  { id: 3, title: "Legal Documents" },
+  { id: 4, title: "Email Verification" },
 ];
 
-const INPUT_CLASS =
-  "w-full rounded-2xl border border-[#eadfc8] bg-white py-3.5 pl-11 pr-4 text-sm font-semibold text-slate-900 outline-none transition-all placeholder:text-[#a6977b] focus:border-[#bf9b30] focus:ring-4 focus:ring-[#bf9b30]/12 dark:border-[#3a2e18] dark:bg-[#0f1115] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-[#c9a84c] dark:focus:ring-[#c9a84c]/12";
+const MAX_FILE_SIZE_MB = 5;
+const ALLOWED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 
 const formatFileMeta = (file) => {
-  if (!file) return "PDF, JPG, PNG, or WEBP";
+  if (!file) return "No file selected (.pdf, .jpg, .png, .webp)";
   const sizeInKb = file.size / 1024;
-  return `${file.name} • ${sizeInKb >= 1024 ? `${(sizeInKb / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(sizeInKb))} KB`}`;
+  return `${file.name} (${sizeInKb >= 1024 ? `${(sizeInKb / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(sizeInKb))} KB`})`;
 };
 
 export default function OwnerSignUp() {
   const navigate = useNavigate();
-  const [signupMode, setSignupMode] = useState("create");
   const [currentStep, setCurrentStep] = useState(1);
+  const [signupMode, setSignupMode] = useState("create");
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [documents, setDocuments] = useState({
     businessPermit: null,
@@ -69,17 +73,143 @@ export default function OwnerSignUp() {
     fireSafetyCertificate: null,
     validId: null,
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Validation & Touched States
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [touchedFields, setTouchedFields] = useState({});
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // OTP States
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  
+  // Completion States
   const [successData, setSuccessData] = useState(null);
   const [copied, setCopied] = useState(false);
 
+  // Timer Countdown Effect para sa OTP
+  useEffect(() => {
+    let interval = null;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    } else {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  // Single-Field Validation Helper for Immediate Feedback
+  const validateSingleField = (key, value, currentFormData = formData) => {
+    let error = null;
+
+    if (key === "firstName") {
+      if (!value.trim()) error = "First name is required.";
+      else if (value.trim().length < 2) error = "First name must be at least 2 characters.";
+      else if (!isValidName(value)) error = "Enter a valid name (alphabetic characters only).";
+    }
+
+    if (key === "lastName") {
+      if (!value.trim()) error = "Last name is required.";
+      else if (value.trim().length < 2) error = "Last name must be at least 2 characters.";
+      else if (!isValidName(value)) error = "Enter a valid last name (alphabetic characters only).";
+    }
+
+    if (key === "email") {
+      if (!value.trim()) error = "Business email address is required.";
+      else if (!isValidEmail(value)) error = "Enter a valid email address";
+    }
+
+    if (key === "contactNumber") {
+      if (!value.trim()) error = "Contact number is required.";
+      else if (value.length !== 11 || !value.startsWith("09")) {
+        error = "Must be a valid 11-digit PH mobile number starting with 09.";
+      } else if (!isValidPhone(value)) {
+        error = "Invalid contact number format.";
+      }
+    }
+
+    if (key === "password") {
+      if (!value) {
+        error = "Password is required.";
+      } else {
+        error = getPasswordStrengthMessage(value);
+      }
+    }
+
+    if (key === "hotelName" && signupMode === "create") {
+      if (!value.trim()) error = "Property name is required.";
+      else if (value.trim().length < 3) error = "Hotel name must be at least 3 characters.";
+    }
+
+    if (key === "hotelAddress" && signupMode === "create") {
+      if (!value.trim()) error = "Complete property address is required.";
+      else if (value.trim().length < 10) error = "Please provide a more detailed address.";
+    }
+
+    if (key === "hotelCode" && signupMode === "claim") {
+      if (!value.trim()) error = "Hotel code is required.";
+      else if (!isValidHotelCode(value)) error = "Must strictly follow format: INNOVAHMS-123.";
+    }
+
+    if (key === "otpCode") {
+      if (!value.trim()) error = "Enter the 6-digit confirmation code.";
+      else if (value.trim().length !== 6) error = "OTP must be exactly 6 digits.";
+    }
+
+    return error;
+  };
+
   const updateField = (key, value) => {
-    setFormData((current) => ({ ...current, [key]: value }));
+    let sanitizedValue = value;
+
+    // Strict Real-time Formatting & Masking
+    if (key === "firstName" || key === "lastName") {
+      sanitizedValue = value.replace(/[^a-zA-Z\sñÑ-]/g, "");
+    } else if (key === "contactNumber") {
+      sanitizedValue = value.replace(/[^0-9]/g, "").slice(0, 11);
+    } else if (key === "otpCode") {
+      sanitizedValue = value.replace(/[^0-9]/g, "").slice(0, 6);
+    } else if (key === "hotelCode") {
+      sanitizedValue = value.replace(/[^a-zA-Z0-9-]/g, "").toUpperCase();
+    }
+
+    const updatedFormData = { ...formData, [key]: sanitizedValue };
+    setFormData(updatedFormData);
+
+    // Dynamic error checking on input change if field has already been touched
+    if (touchedFields[key]) {
+      const err = validateSingleField(key, sanitizedValue, updatedFormData);
+      setFieldErrors((prev) => ({ ...prev, [key]: err }));
+    }
+  };
+
+  const handleBlur = (key) => {
+    setTouchedFields((prev) => ({ ...prev, [key]: true }));
+    const err = validateSingleField(key, formData[key]);
+    setFieldErrors((prev) => ({ ...prev, [key]: err }));
   };
 
   const updateDocument = (key, file) => {
-    setDocuments((current) => ({ ...current, [key]: file || null }));
+    setTouchedFields((prev) => ({ ...prev, [key]: true }));
+    let error = null;
+
+    if (!file) {
+      const docLabel = REQUIRED_DOCUMENTS.find(d => d.key === key)?.label || "Document";
+      error = `${docLabel} attachment is required.`;
+    } else {
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        error = `File size exceeds limit (${MAX_FILE_SIZE_MB}MB max allowed).`;
+      } else if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+        error = "Invalid file format. Upload PDF, JPG, PNG, or WEBP only.";
+      }
+    }
+
+    setFieldErrors((prev) => ({ ...prev, [key]: error }));
+    setDocuments((current) => ({ ...current, [key]: error ? null : file }));
   };
 
   const selectedCount = useMemo(
@@ -87,56 +217,101 @@ export default function OwnerSignUp() {
     [documents]
   );
 
-  const validateStep = (step) => {
+  // Full validation per step (Triggers on Proceed / Submit)
+  const validateCurrentStep = (step) => {
+    const errors = {};
+    const newTouched = { ...touchedFields };
+
     if (step === 1) {
-      if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.email.trim() || !formData.contactNumber.trim() || !formData.password) {
-        return "Please complete the owner account details first.";
-      }
-      if (!isValidName(formData.firstName) || !isValidName(formData.lastName)) {
-        return "Enter a valid owner first and last name.";
-      }
-      if (!isValidEmail(formData.email)) {
-        return "Enter a valid owner email address.";
-      }
-      if (!isValidPhone(formData.contactNumber)) {
-        return "Enter a valid owner contact number.";
-      }
-      const passwordError = getPasswordStrengthMessage(formData.password);
-      if (passwordError) {
-        return passwordError;
-      }
+      ["firstName", "lastName", "email", "contactNumber", "password"].forEach((field) => {
+        newTouched[field] = true;
+        const err = validateSingleField(field, formData[field]);
+        if (err) errors[field] = err;
+      });
     }
 
     if (step === 2) {
-      if (signupMode === "create" && !formData.hotelName.trim()) {
-        return "Hotel name is required when creating a new hotel.";
-      }
-      if (signupMode === "claim" && !formData.hotelCode.trim()) {
-        return "Please enter the existing hotel code.";
-      }
-      if (signupMode === "claim" && !isValidHotelCode(formData.hotelCode)) {
-        return "Hotel code must follow the INNOVAHMS-123 format.";
+      if (signupMode === "create") {
+        ["hotelName", "hotelAddress"].forEach((field) => {
+          newTouched[field] = true;
+          const err = validateSingleField(field, formData[field]);
+          if (err) errors[field] = err;
+        });
+      } else {
+        newTouched.hotelCode = true;
+        const err = validateSingleField("hotelCode", formData.hotelCode);
+        if (err) errors.hotelCode = err;
       }
     }
 
     if (step === 3) {
-      const missingDocuments = REQUIRED_DOCUMENTS.filter(({ key }) => !documents[key]);
-      if (missingDocuments.length) {
-        return "Please upload the Business Permit, BIR Certificate, Fire Safety Certificate, and Valid ID of Owner.";
-      }
+      REQUIRED_DOCUMENTS.forEach(({ key, label }) => {
+        newTouched[key] = true;
+        if (!documents[key]) {
+          errors[key] = `${label} attachment is required.`;
+        }
+      });
     }
 
-    return "";
+    if (step === 4) {
+      newTouched.otpCode = true;
+      const err = validateSingleField("otpCode", formData.otpCode);
+      if (err) errors.otpCode = err;
+    }
+
+    setTouchedFields(newTouched);
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
-  const goToStep = (nextStep) => {
-    const stepError = validateStep(currentStep);
-    if (nextStep > currentStep && stepError) {
-      setErrorMessage(stepError);
+  const handleSendOtp = async () => {
+    setIsSendingOtp(true);
+    setErrorMessage("");
+    try {
+      const response = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizeEmail(formData.email) }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setErrorMessage(data.error || "Failed to send verification code. Please try again.");
+        return false;
+      }
+
+      setOtpSent(true);
+      setResendTimer(60);
+      return true;
+    } catch {
+      setOtpSent(true);
+      setResendTimer(60);
+      return true;
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleNextStep = async () => {
+    if (!validateCurrentStep(currentStep)) {
+      setErrorMessage("Please resolve the highlighted validation errors before proceeding.");
       return;
     }
+
+    if (currentStep === 3) {
+      const sent = await handleSendOtp();
+      if (sent) {
+        setCurrentStep(4);
+      }
+      return;
+    }
+
+    setCurrentStep((prev) => prev + 1);
+  };
+
+  const handlePrevStep = () => {
     setErrorMessage("");
-    setCurrentStep(nextStep);
+    setCurrentStep((prev) => prev - 1);
   };
 
   const handleCopyCode = async () => {
@@ -158,11 +333,7 @@ export default function OwnerSignUp() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const finalStepError = validateStep(currentStep) || validateStep(1) || validateStep(2) || validateStep(3);
-    if (finalStepError) {
-      setErrorMessage(finalStepError);
-      return;
-    }
+    if (!validateCurrentStep(4)) return;
 
     const payload = {
       ...formData,
@@ -190,7 +361,7 @@ export default function OwnerSignUp() {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        setErrorMessage(data.error || "Registration failed.");
+        setErrorMessage(data.error || "Verification failed or registration rejected. Check your OTP code.");
         return;
       }
 
@@ -205,456 +376,567 @@ export default function OwnerSignUp() {
         fireSafetyCertificate: null,
         validId: null,
       });
+      setTouchedFields({});
       setSignupMode("create");
       setCurrentStep(1);
     } catch {
-      setErrorMessage("Unable to reach the server right now. Please try again.");
+      setErrorMessage("Server connection error during activation. Please verify your connection.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <>
-      <main className="relative min-h-screen overflow-hidden bg-white px-4 py-10 text-slate-900 transition-colors duration-300 dark:bg-[#090b10] dark:text-white md:px-8">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-0 top-0 h-72 w-72 rounded-full bg-[#f3e5c2]/60 blur-3xl dark:bg-[#3a2b13]/25" />
-          <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#f6edd8] blur-3xl dark:bg-[#241a0d]/40" />
+    <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans">
+
+      {/* Main Registration Area */}
+      <main className="max-w-5xl mx-auto px-4 py-8">
+        
+        {/* Title & Progress Tracker */}
+        <div className="mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Property Owner Registration Form</h2>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+            Complete all fields and email verification for administrative review and account deployment.
+          </p>
+
+          {/* Steps Indicator */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
+            {STEPS.map((s) => {
+              const isActive = currentStep === s.id;
+              const isDone = currentStep > s.id;
+              return (
+                <div
+                  key={s.id}
+                  className={`p-2.5 rounded border text-left text-xs font-semibold transition-colors ${
+                    isActive
+                      ? "border-emerald-700 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950 dark:text-emerald-200"
+                      : isDone
+                      ? "border-slate-300 bg-slate-200/60 dark:border-slate-800 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                      : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 text-slate-400"
+                  }`}
+                >
+                  <span className="block text-[10px] font-mono uppercase text-slate-400">Step 0{s.id}</span>
+                  <span className="truncate block">{s.title}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative mx-auto grid w-full max-w-6xl overflow-hidden rounded-[32px] border border-[#eadfc8] bg-white shadow-[0_24px_80px_rgba(84,58,20,0.12)] dark:border-[#2d2417] dark:bg-[#111318] dark:shadow-[0_28px_90px_rgba(0,0,0,0.35)] lg:grid-cols-[0.95fr_1.25fr]"
-        >
-          <section className="border-b border-[#eadfc8] bg-[linear-gradient(180deg,#fffaf0_0%,#f8f1e3_100%)] p-8 dark:border-[#2d2417] dark:bg-[linear-gradient(180deg,#13100b_0%,#0d1015_100%)] lg:border-b-0 lg:border-r">
-            <p className="text-xs font-black uppercase tracking-[0.32em] text-[#9b7a2a] dark:text-[#c9a84c]">
-              Innova HMS
-            </p>
-            <h1 className="mt-5 text-4xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
-              Owner Registration
-            </h1>
-            <p className="mt-4 max-w-md text-sm leading-relaxed text-[#6b5d45] dark:text-[#b7a88d]">
-              Shorter signup flow na ito. Bank details, hotel policies, at hotel profile images ay ilalagay mo na lang sa owner profile page after login.
-            </p>
-
-            <div className="mt-8 space-y-4">
-              <InfoCard
-                title="Step-by-step"
-                body="Tap Next to move through account details, hotel setup, then required documents."
-              />
-              <InfoCard
-                title="After signup"
-                body="Once your owner account is created, you can complete your hotel profile, policies, payout details, and website images inside the owner system."
-              />
-              <InfoCard
-                title="Admin review"
-                body="Required documents are still collected here so your registration can proceed to approval review immediately."
-              />
+        {/* Global Error Banner */}
+        {errorMessage && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border-l-4 border-red-600 rounded-r text-red-800 dark:text-red-200 text-xs flex items-start gap-3">
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <strong className="font-bold block mb-0.5">Alert</strong>
+              <span>{errorMessage}</span>
             </div>
-          </section>
+          </div>
+        )}
 
-          <section className="p-8 md:p-10">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.3em] text-[#9b7a2a] dark:text-[#c9a84c]">
-                  Owner Sign Up
-                </p>
-                <h2 className="mt-3 text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
-                  Register Your Account
-                </h2>
+        <form onSubmit={handleSubmit} className="space-y-8">
+          
+          {/* STEP 1: ACCOUNT DETAILS */}
+          {currentStep === 1 && (
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="w-5 h-5 bg-emerald-800 text-white rounded-full inline-flex items-center justify-center text-[11px] font-bold">1</span>
+                  Account Credentials
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Provide account administrator contact and login details.</p>
               </div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#aa9362] dark:text-[#8f7a4f]">
-                Step {currentStep} of {STEPS.length}
-              </p>
-            </div>
 
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSignupMode("create");
-                  setErrorMessage("");
-                }}
-                className={`rounded-[24px] border p-5 text-left transition-all ${
-                  signupMode === "create"
-                    ? "border-[#bf9b30] bg-[linear-gradient(135deg,#cda548_0%,#b88d2a_100%)] text-white shadow-[0_16px_36px_rgba(191,155,48,0.22)]"
-                    : "border-[#eadfc8] bg-white text-slate-900 hover:border-[#cfb57a] dark:border-[#2e2619] dark:bg-[#12161d] dark:text-white dark:hover:border-[#4a3b23]"
-                }`}
-              >
-                <p className="text-sm font-black uppercase tracking-[0.18em]">Create New Hotel</p>
-                <p className={`mt-2 text-xs font-semibold ${signupMode === "create" ? "text-white/80" : "text-[#7f7056] dark:text-slate-400"}`}>
-                  The system assigns a hotel code after signup.
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSignupMode("claim");
-                  setErrorMessage("");
-                }}
-                className={`rounded-[24px] border p-5 text-left transition-all ${
-                  signupMode === "claim"
-                    ? "border-[#bf9b30] bg-[linear-gradient(135deg,#cda548_0%,#b88d2a_100%)] text-white shadow-[0_16px_36px_rgba(191,155,48,0.22)]"
-                    : "border-[#eadfc8] bg-white text-slate-900 hover:border-[#cfb57a] dark:border-[#2e2619] dark:bg-[#12161d] dark:text-white dark:hover:border-[#4a3b23]"
-                }`}
-              >
-                <p className="text-sm font-black uppercase tracking-[0.18em]">Claim Existing Hotel</p>
-                <p className={`mt-2 text-xs font-semibold ${signupMode === "claim" ? "text-white/80" : "text-[#7f7056] dark:text-slate-400"}`}>
-                  Use the hotel code already assigned to your property.
-                </p>
-              </button>
-            </div>
-
-            <div className="mt-8 grid gap-3 md:grid-cols-3">
-              {STEPS.map((step) => {
-                const isActive = currentStep === step.id;
-                const isDone = currentStep > step.id;
-                return (
-                  <button
-                    key={step.id}
-                    type="button"
-                    onClick={() => {
-                      if (step.id <= currentStep) setCurrentStep(step.id);
-                    }}
-                    className={`rounded-[24px] border px-4 py-4 text-left transition-all ${
-                      isActive
-                        ? "border-[#bf9b30] bg-[#fff5dd] dark:border-[#c9a84c] dark:bg-[#17120a]"
-                        : "border-[#eadfc8] bg-white dark:border-[#2d2417] dark:bg-[#12161d]"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`flex h-9 w-9 items-center justify-center rounded-full text-[11px] font-black uppercase ${
-                          isDone || isActive
-                            ? "bg-[#bf9b30] text-white"
-                            : "bg-[#efe4c7] text-[#8b6f2b] dark:bg-[#2d2417] dark:text-[#d4b25c]"
-                        }`}
-                      >
-                        {isDone ? <CheckCircle2 size={16} /> : step.id}
-                      </span>
-                      <div>
-                        <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-900 dark:text-white">
-                          {step.title}
-                        </p>
-                        <p className="mt-1 text-[11px] font-semibold text-[#7f7056] dark:text-slate-400">
-                          {step.helper}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-              <AnimatePresence mode="wait">
-                {currentStep === 1 ? (
-                  <motion.div
-                    key="step-1"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="space-y-5"
-                  >
-                    <SectionCard title="Owner Account" body="Enter the basic access details for the owner profile.">
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <TextInput icon={User} placeholder="First Name" value={formData.firstName} onChange={(event) => updateField("firstName", event.target.value)} />
-                        <TextInput icon={User} placeholder="Last Name" value={formData.lastName} onChange={(event) => updateField("lastName", event.target.value)} />
-                        <TextInput icon={Mail} type="email" placeholder="Business Email" value={formData.email} onChange={(event) => updateField("email", event.target.value)} className="sm:col-span-2" />
-                        <TextInput icon={Phone} placeholder="Contact Number" value={formData.contactNumber} onChange={(event) => updateField("contactNumber", event.target.value)} />
-                        <TextInput icon={Lock} type="password" placeholder="Password" value={formData.password} onChange={(event) => updateField("password", event.target.value)} />
-                      </div>
-                    </SectionCard>
-                  </motion.div>
-                ) : null}
-
-                {currentStep === 2 ? (
-                  <motion.div
-                    key="step-2"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="space-y-5"
-                  >
-                    {signupMode === "create" ? (
-                      <SectionCard title="Create Hotel" body="Only the hotel name and address are needed here. Hotel profile images, policies, and bank details can be completed after login.">
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <TextInput icon={Building2} placeholder="Hotel Name" value={formData.hotelName} onChange={(event) => updateField("hotelName", event.target.value)} />
-                          <TextInput icon={MapPin} placeholder="Hotel Address" value={formData.hotelAddress} onChange={(event) => updateField("hotelAddress", event.target.value)} />
-                        </div>
-                        <div className="mt-5 rounded-2xl border border-[#eadfc8] bg-white px-4 py-3 dark:border-[#2e2619] dark:bg-[#12161d]">
-                          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#9b7a2a] dark:text-[#c9a84c]">
-                            Hotel code
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-[#5d4e36] dark:text-slate-300">
-                            You do not need to create the code manually. The server will generate it for the hotel after signup.
-                          </p>
-                        </div>
-                      </SectionCard>
-                    ) : (
-                      <SectionCard title="Claim Hotel" body="Use the existing hotel code already assigned to your property.">
-                        <TextInput
-                          icon={Hash}
-                          placeholder="Hotel Code"
-                          value={formData.hotelCode}
-                          onChange={(event) => updateField("hotelCode", event.target.value.toUpperCase())}
-                          inputClassName={`${INPUT_CLASS} uppercase`}
-                        />
-                        <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-[#9f8b63] dark:text-[#8c7851]">
-                          Example: INNOVAHMS-12
-                        </p>
-                      </SectionCard>
-                    )}
-                  </motion.div>
-                ) : null}
-
-                {currentStep === 3 ? (
-                  <motion.div
-                    key="step-3"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="space-y-5"
-                  >
-                    <SectionCard title="Document Uploads" body="Upload the required files for admin review. The selected file name is shown directly in each card.">
-                      <div className="mb-5 rounded-2xl border border-[#eadfc8] bg-white px-4 py-3 dark:border-[#2e2619] dark:bg-[#12161d]">
-                        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#9b7a2a] dark:text-[#c9a84c]">
-                          Completion
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-[#5d4e36] dark:text-slate-300">
-                          {selectedCount} of {REQUIRED_DOCUMENTS.length} required documents selected.
-                        </p>
-                      </div>
-
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {REQUIRED_DOCUMENTS.map((document) => (
-                          <FilePickerCard
-                            key={document.key}
-                            label={document.label}
-                            file={documents[document.key]}
-                            onChange={(file) => updateDocument(document.key, file)}
-                          />
-                        ))}
-                      </div>
-                    </SectionCard>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-
-              {errorMessage ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
-                  {errorMessage}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    First Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <User size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="e.g. Juan"
+                      value={formData.firstName}
+                      onChange={(e) => updateField("firstName", e.target.value)}
+                      onBlur={() => handleBlur("firstName")}
+                      className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                        touchedFields.firstName && fieldErrors.firstName
+                          ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                          : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                      }`}
+                    />
+                  </div>
+                  {touchedFields.firstName && fieldErrors.firstName && (
+                    <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                      {fieldErrors.firstName}
+                    </span>
+                  )}
                 </div>
-              ) : null}
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#aa9362] dark:text-[#8f7a4f]">
-                  Already registered?{" "}
-                  <Link to="/owner/login" className="text-[#9b7a2a] hover:underline dark:text-[#d3af56]">
-                    Go to owner login
-                  </Link>
-                </p>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Last Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <User size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="e.g. Dela Cruz"
+                      value={formData.lastName}
+                      onChange={(e) => updateField("lastName", e.target.value)}
+                      onBlur={() => handleBlur("lastName")}
+                      className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                        touchedFields.lastName && fieldErrors.lastName
+                          ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                          : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                      }`}
+                    />
+                  </div>
+                  {touchedFields.lastName && fieldErrors.lastName && (
+                    <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                      {fieldErrors.lastName}
+                    </span>
+                  )}
+                </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  {currentStep > 1 ? (
-                    <button
-                      type="button"
-                      onClick={() => goToStep(currentStep - 1)}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#eadfc8] bg-white px-5 py-4 text-xs font-black uppercase tracking-[0.26em] text-[#8e7229] dark:border-[#2e2619] dark:bg-[#12161d] dark:text-[#d6b65a]"
-                    >
-                      <ArrowLeft size={16} />
-                      Back
-                    </button>
-                  ) : null}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Business Email Address <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="email"
+                      placeholder="owner@gmail.com"
+                      value={formData.email}
+                      onChange={(e) => updateField("email", e.target.value)}
+                      onBlur={() => handleBlur("email")}
+                      className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                        touchedFields.email && fieldErrors.email
+                          ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                          : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                      }`}
+                    />
+                  </div>
+                  {touchedFields.email && fieldErrors.email && (
+                    <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                      {fieldErrors.email}
+                    </span>
+                  )}
+                </div>
 
-                  {currentStep < STEPS.length ? (
-                    <button
-                      type="button"
-                      onClick={() => goToStep(currentStep + 1)}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#cda548_0%,#b88d2a_100%)] px-5 py-4 text-xs font-black uppercase tracking-[0.26em] text-white shadow-[0_16px_34px_rgba(191,155,48,0.22)] transition-all hover:brightness-105"
-                    >
-                      Next
-                      <ArrowRight size={16} />
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#cda548_0%,#b88d2a_100%)] px-5 py-4 text-xs font-black uppercase tracking-[0.26em] text-white shadow-[0_16px_34px_rgba(191,155,48,0.22)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      {isSubmitting ? "Creating account..." : "Create Owner Account"}
-                      <ArrowRight size={16} />
-                    </button>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Contact / Mobile Number <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Phone size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="tel"
+                      maxLength={11}
+                      placeholder="09171234567"
+                      value={formData.contactNumber}
+                      onChange={(e) => updateField("contactNumber", e.target.value)}
+                      onBlur={() => handleBlur("contactNumber")}
+                      className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                        touchedFields.contactNumber && fieldErrors.contactNumber
+                          ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                          : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                      }`}
+                    />
+                  </div>
+                  {touchedFields.contactNumber && fieldErrors.contactNumber && (
+                    <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                      {fieldErrors.contactNumber}
+                    </span>
+                  )}
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Account Password <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="password"
+                      placeholder="At least 8 characters, with letters and numbers"
+                      value={formData.password}
+                      onChange={(e) => updateField("password", e.target.value)}
+                      onBlur={() => handleBlur("password")}
+                      className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                        touchedFields.password && fieldErrors.password
+                          ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                          : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                      }`}
+                    />
+                  </div>
+                  {touchedFields.password && fieldErrors.password && (
+                    <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                      {fieldErrors.password}
+                    </span>
                   )}
                 </div>
               </div>
-            </form>
-          </section>
-        </motion.div>
-      </main>
+            </section>
+          )}
 
-      <AnimatePresence>
-        {successData ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.97, y: 14 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 12 }}
-              className="w-full max-w-xl rounded-[28px] border border-[#eadfc8] bg-white p-6 text-slate-900 shadow-[0_28px_80px_rgba(84,58,20,0.22)] dark:border-[#2d2417] dark:bg-[#111318] dark:text-white"
-            >
-              <div className="flex items-start gap-4">
-                <div className="rounded-2xl bg-[#bf9b30]/12 p-3 text-[#b88d2a] dark:bg-[#c9a84c]/12 dark:text-[#d6b65a]">
-                  <CheckCircle2 size={28} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#9b7a2a] dark:text-[#c9a84c]">
-                    Registration complete
-                  </p>
-                  <h3 className="mt-2 text-2xl font-black uppercase tracking-tight">
-                    {successData.createdHotel ? "Hotel Code Assigned" : "Hotel Code Linked"}
-                  </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-[#6b5d45] dark:text-[#b7a88d]">
-                    {successData.createdHotel
-                      ? "Your owner account and hotel profile are saved. Keep this hotel code and activate a subscription to unlock the included owner tools."
-                      : "Your owner account is now linked to the existing hotel code shown below. Activate a subscription when you're ready to unlock the owner tools."}
-                  </p>
-                </div>
+          {/* STEP 2: PROPERTY INFO */}
+          {currentStep === 2 && (
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="w-5 h-5 bg-emerald-800 text-white rounded-full inline-flex items-center justify-center text-[11px] font-bold">2</span>
+                  Hotel Property Details
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Select property registration type and specify location info.</p>
               </div>
 
-              <div className="mt-6 rounded-[24px] border border-[#eadfc8] bg-[#fffaf1] p-5 dark:border-[#2e2619] dark:bg-[#0d1015]">
-                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#9b7a2a] dark:text-[#c9a84c]">
-                  Hotel Code
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+                <label className={`p-3 border rounded cursor-pointer flex items-start gap-3 ${signupMode === "create" ? "border-emerald-600 bg-emerald-50/30 dark:bg-emerald-950/20" : "border-slate-200 dark:border-slate-800"}`}>
+                  <input
+                    type="radio"
+                    name="signupMode"
+                    checked={signupMode === "create"}
+                    onChange={() => setSignupMode("create")}
+                    className="mt-0.5 accent-emerald-700"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white block">Register New Establishment</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Generates a new property code upon administration approval.</span>
+                  </div>
+                </label>
+
+                <label className={`p-3 border rounded cursor-pointer flex items-start gap-3 ${signupMode === "claim" ? "border-emerald-600 bg-emerald-50/30 dark:bg-emerald-950/20" : "border-slate-200 dark:border-slate-800"}`}>
+                  <input
+                    type="radio"
+                    name="signupMode"
+                    checked={signupMode === "claim"}
+                    onChange={() => setSignupMode("claim")}
+                    className="mt-0.5 accent-emerald-700"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white block">Claim Existing Hotel Code</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Link account to a pre-generated hotel system code.</span>
+                  </div>
+                </label>
+              </div>
+
+              {signupMode === "create" ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Hotel / Property Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Building2 size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="e.g. Grand Vista Hotel"
+                        value={formData.hotelName}
+                        onChange={(e) => updateField("hotelName", e.target.value)}
+                        onBlur={() => handleBlur("hotelName")}
+                        className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                          touchedFields.hotelName && fieldErrors.hotelName
+                            ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                            : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                        }`}
+                      />
+                    </div>
+                    {touchedFields.hotelName && fieldErrors.hotelName && (
+                      <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                        {fieldErrors.hotelName}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Complete Property Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <MapPin size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Street, Barangay, City, Province"
+                        value={formData.hotelAddress}
+                        onChange={(e) => updateField("hotelAddress", e.target.value)}
+                        onBlur={() => handleBlur("hotelAddress")}
+                        className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                          touchedFields.hotelAddress && fieldErrors.hotelAddress
+                            ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                            : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                        }`}
+                      />
+                    </div>
+                    {touchedFields.hotelAddress && fieldErrors.hotelAddress && (
+                      <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                        {fieldErrors.hotelAddress}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Pre-issued Hotel Code <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative max-w-md">
+                    <Hash size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="INNOVAHMS-123"
+                      value={formData.hotelCode}
+                      onChange={(e) => updateField("hotelCode", e.target.value)}
+                      onBlur={() => handleBlur("hotelCode")}
+                      className={`w-full pl-9 pr-3 py-2 border text-xs font-mono uppercase rounded focus:outline-none transition-colors ${
+                        touchedFields.hotelCode && fieldErrors.hotelCode
+                          ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                          : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                      }`}
+                    />
+                  </div>
+                  {touchedFields.hotelCode && fieldErrors.hotelCode && (
+                    <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                      {fieldErrors.hotelCode}
+                    </span>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* STEP 3: DOCUMENTS */}
+          {currentStep === 3 && (
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="w-5 h-5 bg-emerald-800 text-white rounded-full inline-flex items-center justify-center text-[11px] font-bold">3</span>
+                    Compliance Documents
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Upload required digital verification documents (Max 5MB each).</p>
+                </div>
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded">
+                  Files Attached: {selectedCount}/4
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {REQUIRED_DOCUMENTS.map((doc) => (
+                  <FileRowItem
+                    key={doc.key}
+                    label={doc.label}
+                    code={doc.code}
+                    file={documents[doc.key]}
+                    error={touchedFields[doc.key] ? fieldErrors[doc.key] : null}
+                    onChange={(file) => updateDocument(doc.key, file)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* STEP 4: GMAIL OTP CONFIRMATION */}
+          {currentStep === 4 && (
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="w-5 h-5 bg-emerald-800 text-white rounded-full inline-flex items-center justify-center text-[11px] font-bold">4</span>
+                  Gmail Confirmation Code (OTP)
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  We sent a 6-digit verification code to <strong className="text-slate-900 dark:text-white font-semibold">{formData.email}</strong>.
                 </p>
-                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-2xl font-black tracking-[0.18em] text-slate-900 dark:text-white">
-                    {successData.hotelCode}
-                  </p>
+              </div>
+
+              <div className="max-w-md mx-auto py-4">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2 text-center">
+                  Enter 6-Digit Verification Code <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <KeyRound size={18} className="absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="000000"
+                    value={formData.otpCode}
+                    onChange={(e) => updateField("otpCode", e.target.value)}
+                    onBlur={() => handleBlur("otpCode")}
+                    className={`w-full pl-10 pr-4 py-2.5 text-center tracking-[0.5em] font-mono text-lg font-bold border rounded focus:outline-none transition-colors ${
+                      touchedFields.otpCode && fieldErrors.otpCode
+                        ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                        : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                    }`}
+                  />
+                </div>
+                {touchedFields.otpCode && fieldErrors.otpCode && (
+                  <span className="text-[11px] text-red-600 dark:text-red-400 mt-1.5 block text-center font-medium">
+                    {fieldErrors.otpCode}
+                  </span>
+                )}
+
+                {/* Resend OTP Bar */}
+                <div className="mt-5 flex items-center justify-between text-xs border-t border-slate-100 dark:border-slate-800 pt-4">
+                  <span className="text-slate-500">Didn't receive the email code?</span>
+                  <button
+                    type="button"
+                    disabled={resendTimer > 0 || isSendingOtp}
+                    onClick={handleSendOtp}
+                    className="font-semibold text-emerald-800 dark:text-emerald-400 disabled:opacity-50 hover:underline flex items-center gap-1"
+                  >
+                    <RefreshCw size={12} className={isSendingOtp ? "animate-spin" : ""} />
+                    {resendTimer > 0 ? `Resend code in ${resendTimer}s` : "Resend OTP Code"}
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Form Step Controls */}
+          <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-6">
+            <div>
+              {currentStep > 1 && (
+                <button
+                  type="button"
+                  onClick={handlePrevStep}
+                  disabled={isSubmitting}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5"
+                >
+                  <ArrowLeft size={14} /> Back
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {currentStep < 4 ? (
+                <button
+                  type="button"
+                  onClick={handleNextStep}
+                  disabled={isSendingOtp}
+                  className="px-6 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSendingOtp ? "Sending Code..." : "Proceed"}
+                  <ArrowRight size={14} />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm disabled:opacity-50"
+                >
+                  {isSubmitting ? "Verifying Account..." : "Confirm & Submit Application"}
+                </button>
+              )}
+            </div>
+          </div>
+
+        </form>
+      </main>
+
+      {/* Completion Modal */}
+      {successData && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg max-w-lg w-full p-6 shadow-xl">
+            <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+              <CheckCircle2 className="text-emerald-700" size={24} />
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Registration Complete</h3>
+                <p className="text-[11px] text-slate-500">Email Address Verified</p>
+              </div>
+            </div>
+
+            <div className="my-5 text-xs text-slate-600 dark:text-slate-300 space-y-3">
+              <p>Your property account application has been verified via OTP and logged into the administrative queue.</p>
+              
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Property System Code</span>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="font-mono text-base font-bold text-slate-900 dark:text-white">{successData.hotelCode}</span>
                   <button
                     type="button"
                     onClick={handleCopyCode}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#eadfc8] bg-white px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#8e7229] hover:bg-[#fff8ea] dark:border-[#2e2619] dark:bg-[#12161d] dark:text-[#d6b65a]"
+                    className="text-[11px] flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold"
                   >
-                    <Copy size={16} />
+                    <Copy size={13} />
                     {copied ? "Copied" : "Copy Code"}
                   </button>
                 </div>
               </div>
 
-              <div className="mt-5 space-y-3">
-                <div className="rounded-2xl border border-[#eadfc8] bg-[#fffaf1] px-4 py-4 dark:border-[#2e2619] dark:bg-[#0d1015]">
-                  <p className="text-sm font-semibold leading-relaxed text-[#5d4e36] dark:text-slate-300">
-                    {successData.hotelCodeEmailSent
-                      ? `A copy of the hotel code was sent to ${successData.hotelCodeSentTo || successData.email}.`
-                      : `Email delivery is not configured right now, so please keep this code safely: ${successData.hotelCode}.`}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-[#eadfc8] bg-[#fffaf1] px-4 py-4 dark:border-[#2e2619] dark:bg-[#0d1015]">
-                  <p className="text-sm font-semibold leading-relaxed text-[#5d4e36] dark:text-slate-300">
-                    You can complete bank details, hotel policies, and website-ready hotel profile images inside the owner profile page after login.
-                  </p>
-                </div>
-              </div>
+              <p className="text-[11px] text-slate-500">
+                A confirmation copy has been sent to your verified Gmail inbox ({successData.email}).
+              </p>
+            </div>
 
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={closeSuccessModal}
-                  className="flex-1 rounded-2xl bg-[linear-gradient(135deg,#cda548_0%,#b88d2a_100%)] px-5 py-4 text-[11px] font-black uppercase tracking-[0.24em] text-white shadow-[0_16px_34px_rgba(191,155,48,0.22)] hover:brightness-105"
-                >
-                  Continue To Owner Login
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </>
-  );
-}
+            <button
+              type="button"
+              onClick={closeSuccessModal}
+              className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded"
+            >
+              Proceed to Owner Portal Login
+            </button>
+          </div>
+        </div>
+      )}
 
-function InfoCard({ title, body }) {
-  return (
-    <div className="rounded-[24px] border border-[#e7d5ac] bg-white/90 p-5 shadow-[0_14px_34px_rgba(191,155,48,0.08)] dark:border-[#3a2e18] dark:bg-[#12161d]">
-      <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#9b7a2a] dark:text-[#c9a84c]">
-        {title}
-      </p>
-      <p className="mt-2 text-sm font-semibold leading-relaxed text-[#52452f] dark:text-slate-300">
-        {body}
-      </p>
     </div>
   );
 }
 
-function SectionCard({ title, body, children }) {
-  return (
-    <div className="rounded-[28px] border border-[#eadfc8] bg-[#fffaf1] p-5 dark:border-[#2e2619] dark:bg-[#0d1015]">
-      <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#9b7a2a] dark:text-[#c9a84c]">
-        {title}
-      </p>
-      <p className="mt-2 text-sm font-semibold leading-relaxed text-[#5d4e36] dark:text-slate-300">
-        {body}
-      </p>
-      <div className="mt-5">{children}</div>
-    </div>
-  );
-}
-
-function TextInput({ icon: Icon, placeholder, value, onChange, type = "text", className = "", inputClassName = INPUT_CLASS }) {
-  return (
-    <label className={`relative block ${className}`}>
-      <Icon className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-      <input type={type} placeholder={placeholder} value={value} className={inputClassName} onChange={onChange} />
-    </label>
-  );
-}
-
-function FilePickerCard({ label, file, onChange }) {
-  const inputRef = useRef(null);
+// Sub-component for Documents with Immediate Visual Error State
+function FileRowItem({ label, code, file, error, onChange }) {
+  const fileInputRef = useRef(null);
 
   return (
-    <div className="rounded-[24px] border border-dashed border-[#d6c192] bg-white p-4 dark:border-[#3a2e18] dark:bg-[#12161d]">
-      <div className="flex items-start justify-between gap-3">
+    <div className={`border rounded p-3 transition-colors ${
+      error
+        ? "border-red-500 bg-red-50/20 dark:bg-red-950/20"
+        : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40"
+    }`}>
+      <div className="flex items-start justify-between gap-2 mb-2">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#7f6a3b] dark:text-[#cbb27a]">
-            {label}
-          </p>
-          <p className="mt-2 break-all text-sm font-semibold text-[#5d4e36] dark:text-slate-300">
-            {formatFileMeta(file)}
-          </p>
+          <span className="text-[10px] font-mono text-slate-400 block">{code}</span>
+          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{label}</span>
         </div>
-        <div className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${file ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "bg-[#f4ead1] text-[#8d6f2c] dark:bg-[#1d1811] dark:text-[#d3b159]"}`}>
-          {file ? "Selected" : "Required"}
-        </div>
+        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+          file 
+            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" 
+            : error 
+            ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" 
+            : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+        }`}>
+          {file ? "Attached" : "Required"}
+        </span>
+      </div>
+
+      <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2 py-1 rounded">
+        {formatFileMeta(file)}
       </div>
 
       <input
-        ref={inputRef}
+        ref={fileInputRef}
         type="file"
         accept=".pdf,.png,.jpg,.jpeg,.webp"
         className="hidden"
-        onChange={(event) => onChange(event.target.files?.[0] || null)}
+        onChange={(e) => onChange(e.target.files?.[0] || null)}
       />
 
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
-        className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[#bf9b30]/12 px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-[#8e7229] transition-all hover:bg-[#bf9b30]/18 dark:bg-[#c9a84c]/12 dark:text-[#d6b65a]"
+        onClick={() => fileInputRef.current?.click()}
+        className={`w-full text-xs font-semibold border py-1.5 rounded flex items-center justify-center gap-1.5 transition-colors ${
+          error
+            ? "border-red-400 text-red-700 bg-white dark:bg-slate-900 hover:bg-red-50 dark:hover:bg-red-950"
+            : "text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
+        }`}
       >
-        <Upload size={16} />
-        {file ? "Change File" : "Choose File"}
+        <Upload size={13} />
+        {file ? "Change File..." : "Choose File..."}
       </button>
 
-      <div className="mt-4 flex items-start gap-3 rounded-2xl border border-[#eadfc8] bg-[#fffaf1] px-4 py-3 text-sm text-[#7f7056] dark:border-[#2e2619] dark:bg-[#0d1015] dark:text-slate-400">
-        <FileText size={16} className="mt-0.5 shrink-0 text-[#9b7a2a] dark:text-[#c9a84c]" />
-        <span>Accepted formats: PDF, JPG, PNG, and WEBP.</span>
-      </div>
+      {error && <span className="text-[10px] text-red-600 dark:text-red-400 mt-1.5 block font-medium">{error}</span>}
     </div>
   );
 }

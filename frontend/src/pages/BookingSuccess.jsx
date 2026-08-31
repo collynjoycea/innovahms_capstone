@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, XCircle, Loader2, Star } from 'lucide-react';
 
 export default function BookingSuccess() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const reservationId = searchParams.get('reservationId');
   const bookingNumber = searchParams.get('bookingNumber');
 
@@ -28,6 +29,17 @@ export default function BookingSuccess() {
   useEffect(() => {
     if (!reservationId) { setStatus('failed'); return; }
 
+    if (location.pathname === '/booking/failed') {
+      fetch(`/api/payment/failed/${reservationId}`, { method: 'POST' }).catch(() => {});
+      setStatus('failed');
+      return;
+    }
+
+    if (status === 'paid') {
+      const redirectTimer = setTimeout(() => navigate('/customer/bookings'), 1500);
+      return () => clearTimeout(redirectTimer);
+    }
+
     // Poll PayMongo verify endpoint
     const verify = async () => {
       try {
@@ -42,7 +54,11 @@ export default function BookingSuccess() {
             totalAmount: found.total_amount,
             status: found.status,
           });
-          setStatus(found.status === 'CONFIRMED' ? 'paid' : 'verifying');
+          if (['CANCELLED', 'FAILED'].includes(String(found.status || '').toUpperCase())) {
+            setStatus('failed');
+          } else {
+            setStatus(found.status === 'CONFIRMED' ? 'paid' : 'verifying');
+          }
         }
       } catch { setStatus('failed'); }
     };
@@ -53,10 +69,14 @@ export default function BookingSuccess() {
     const interval = setInterval(async () => {
       attempts++;
       await verify();
-      if (attempts >= 10) { clearInterval(interval); setStatus(s => s === 'verifying' ? 'paid' : s); }
+      if (attempts >= 10) {
+        clearInterval(interval);
+        setStatus(s => s === 'verifying' ? 'failed' : s);
+        fetch(`/api/payment/failed/${reservationId}`, { method: 'POST' }).catch(() => {});
+      }
     }, 3000);
     return () => clearInterval(interval);
-  }, [reservationId]);
+  }, [reservationId, location.pathname]);
 
   const submitReview = async () => {
     if (!rating || !comment.trim()) return;
@@ -116,9 +136,9 @@ export default function BookingSuccess() {
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  <button onClick={() => setShowReview(true)}
+                  <button onClick={() => navigate('/customer/bookings')}
                     className="w-full py-3.5 rounded-xl bg-[#bf9b30] text-[#0d0c0a] text-[11px] font-black uppercase tracking-widest hover:bg-[#d4ac37] transition-all flex items-center justify-center gap-2">
-                    <Star size={14} /> Leave a Review
+                    <Star size={14} /> View Upcoming Bookings
                   </button>
                   <button onClick={() => navigate('/')}
                     className="w-full py-3.5 rounded-xl border border-white/20 text-white/60 text-[11px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">

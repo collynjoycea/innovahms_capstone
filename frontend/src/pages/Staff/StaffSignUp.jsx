@@ -9,8 +9,16 @@ import {
   Mail,
   Phone,
   User,
+  AlertCircle
 } from 'lucide-react';
-import { normalizeEmail, validateStaffSignup } from '../../utils/authValidation';
+import {
+  normalizeEmail,
+  isValidEmail,
+  isValidName,
+  isValidPhone,
+  isValidHotelCode,
+  getPasswordStrengthMessage
+} from '../../utils/authValidation';
 
 const STAFF_ROLES = [
   'Hotel Manager',
@@ -18,6 +26,11 @@ const STAFF_ROLES = [
   'Housekeeping & Maintenance',
   'Inventory & Supplies',
   'HR/Payroll Staff Management',
+];
+
+const STEPS = [
+  { id: 1, title: "Staff Credentials" },
+  { id: 2, title: "Hotel Verification" },
 ];
 
 const INITIAL_FORM = {
@@ -31,39 +44,133 @@ const INITIAL_FORM = {
   hotelCode: '',
 };
 
-const INPUT_CLASS =
-  'w-full rounded-2xl border border-[#eadfc8] bg-white py-3.5 pl-11 pr-4 text-sm font-semibold text-slate-900 outline-none transition-all placeholder:text-[#a6977b] focus:border-[#bf9b30] focus:ring-4 focus:ring-[#bf9b30]/12 dark:border-[#3a2e18] dark:bg-[#0f1115] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-[#c9a84c] dark:focus:ring-[#c9a84c]/12';
-
 export default function StaffSignUp() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState(INITIAL_FORM);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [touchedFields, setTouchedFields] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  const validateSingleField = (key, value, currentFormData = formData) => {
+    let error = null;
+
+    if (key === 'firstName') {
+      if (!value.trim()) error = 'First name is required.';
+      else if (value.trim().length < 2) error = 'Min 2 characters required.';
+      else if (!isValidName(value)) error = 'Alphabetic characters only.';
+    }
+
+    if (key === 'lastName') {
+      if (!value.trim()) error = 'Last name is required.';
+      else if (value.trim().length < 2) error = 'Min 2 characters required.';
+      else if (!isValidName(value)) error = 'Alphabetic characters only.';
+    }
+
+    if (key === 'role') {
+      if (!value) error = 'Please select a role.';
+    }
+
+    if (key === 'email') {
+      if (!value.trim()) error = 'Email address is required.';
+      else if (!isValidEmail(value)) error = 'Enter a valid email address';
+    }
+
+    if (key === 'contactNumber') {
+      if (!value.trim()) error = 'Contact number is required.';
+      else if (value.length !== 11 || !value.startsWith('09')) {
+        error = 'Must be 11 digits starting with 09.';
+      } else if (!isValidPhone(value)) {
+        error = 'Invalid contact number format.';
+      }
+    }
+
+    if (key === 'hotelCode') {
+      if (!value.trim()) error = 'Hotel verification code is required.';
+      else if (!isValidHotelCode(value)) error = 'Invalid format (e.g. INNOVAHMS-123).';
+    }
+
+    if (key === 'password') {
+      if (!value) {
+        error = 'Password is required.';
+      } else {
+        error = getPasswordStrengthMessage(value);
+      }
+    }
+
+    if (key === 'confirmPassword') {
+      if (!value) {
+        error = 'Please confirm your password.';
+      } else if (value !== currentFormData.password) {
+        error = 'Passwords do not match.';
+      }
+    }
+
+    return error;
+  };
+
   const updateField = (key, value) => {
-    setFormData((current) => ({ ...current, [key]: value }));
+    let sanitizedValue = value;
+
+    if (key === 'firstName' || key === 'lastName') {
+      sanitizedValue = value.replace(/[^a-zA-Z\sñÑ-]/g, '');
+    } else if (key === 'contactNumber') {
+      sanitizedValue = value.replace(/[^0-9]/g, '').slice(0, 11);
+    } else if (key === 'hotelCode') {
+      sanitizedValue = value.replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
+    }
+
+    const updatedFormData = { ...formData, [key]: sanitizedValue };
+    setFormData(updatedFormData);
+
+    if (touchedFields[key]) {
+      const err = validateSingleField(key, sanitizedValue, updatedFormData);
+      setFieldErrors((prev) => ({ ...prev, [key]: err }));
+    }
+
+    if (key === 'password' && touchedFields.confirmPassword) {
+      const confirmErr = validateSingleField('confirmPassword', updatedFormData.confirmPassword, updatedFormData);
+      setFieldErrors((prev) => ({ ...prev, confirmPassword: confirmErr }));
+    }
+  };
+
+  const handleBlur = (key) => {
+    setTouchedFields((prev) => ({ ...prev, [key]: true }));
+    const err = validateSingleField(key, formData[key]);
+    setFieldErrors((prev) => ({ ...prev, [key]: err }));
+  };
+
+  const validateAllFields = () => {
+    const errors = {};
+    const allTouched = {};
+    const keys = ['firstName', 'lastName', 'role', 'email', 'contactNumber', 'hotelCode', 'password', 'confirmPassword'];
+
+    keys.forEach((key) => {
+      allTouched[key] = true;
+      const err = validateSingleField(key, formData[key]);
+      if (err) errors[key] = err;
+    });
+
+    setTouchedFields(allTouched);
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setErrorMessage('');
+
+    if (!validateAllFields()) {
+      setErrorMessage('Please fix all highlighted input errors.');
+      return;
+    }
+
     setIsSubmitting(true);
     const normalizedForm = {
       ...formData,
       email: normalizeEmail(formData.email),
       hotelCode: formData.hotelCode.trim().toUpperCase(),
     };
-    const validationError = validateStaffSignup(normalizedForm);
-    if (validationError) {
-      setErrorMessage(validationError);
-      setIsSubmitting(false);
-      return;
-    }
-    if (normalizedForm.password !== normalizedForm.confirmPassword) {
-      setErrorMessage('Passwords do not match.');
-      setIsSubmitting(false);
-      return;
-    }
 
     try {
       const response = await fetch('/api/staff/register', {
@@ -75,207 +182,332 @@ export default function StaffSignUp() {
         body: JSON.stringify(normalizedForm),
       });
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setErrorMessage(result.error || 'Failed to register.');
+        setErrorMessage(result.error || 'Failed to register staff account.');
         return;
       }
 
       navigate('/staff/login');
     } catch {
-      setErrorMessage('Unable to reach the server right now. Please try again.');
+      setErrorMessage('Unable to reach the server. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-white px-4 py-10 text-slate-900 transition-colors duration-300 dark:bg-[#090b10] dark:text-white md:px-8">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-0 top-0 h-72 w-72 rounded-full bg-[#f3e5c2]/60 blur-3xl dark:bg-[#3a2b13]/25" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#f6edd8] blur-3xl dark:bg-[#241a0d]/40" />
-      </div>
-      <div className="relative mx-auto grid w-full max-w-5xl overflow-hidden rounded-[32px] border border-[#eadfc8] bg-white shadow-[0_24px_80px_rgba(84,58,20,0.12)] dark:border-[#2d2417] dark:bg-[#111318] dark:shadow-[0_28px_90px_rgba(0,0,0,0.35)] lg:grid-cols-[0.9fr_1.1fr]">
-        <section className="border-b border-[#eadfc8] bg-[linear-gradient(180deg,#fffaf0_0%,#f8f1e3_100%)] p-8 dark:border-[#2d2417] dark:bg-[linear-gradient(180deg,#13100b_0%,#0d1015_100%)] lg:border-b-0 lg:border-r">
-          <p className="text-xs font-black uppercase tracking-[0.32em] text-[#9b7a2a] dark:text-[#c9a84c]">
-            Team Access
-          </p>
-          <h1 className="mt-5 text-4xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
-            Staff Registration
-          </h1>
-          <p className="mt-4 max-w-md text-sm leading-relaxed text-[#6b5d45] dark:text-[#b7a88d]">
-            Register your staff account using the hotel verification code assigned to your hotel. This page follows the active light or dark theme.
+    <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans">
+      
+      {/* Main Registration Area */}
+      <main className="max-w-5xl mx-auto px-4 py-8">
+        
+        {/* Title & Progress Tracker */}
+        <div className="mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Staff Member Registration Form
+          </h2>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+            Complete all required staff details and hotel verification code for account activation.
           </p>
 
-          <div className="mt-8 space-y-4">
-            <div className="rounded-[24px] border border-[#e7d5ac] bg-white/90 p-5 shadow-[0_14px_34px_rgba(191,155,48,0.08)] dark:border-[#3a2e18] dark:bg-[#12161d]">
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#9b7a2a] dark:text-[#c9a84c]">
-                Verification
-              </p>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-[#52452f] dark:text-slate-300">
-                Staff registration only works with a valid hotel code already issued by the owner or hotel setup flow.
-              </p>
-            </div>
+          {/* Steps Indicator Bar (Kagaya sa Owner SignUp) */}
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            {STEPS.map((s, idx) => {
+              const isActive = idx === 0; // Highlight first step as active
+              return (
+                <div
+                  key={s.id}
+                  className={`p-2.5 rounded border text-left text-xs font-semibold transition-colors ${
+                    isActive
+                      ? "border-emerald-700 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950 dark:text-emerald-200"
+                      : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 text-slate-400"
+                  }`}
+                >
+                  <span className="block text-[10px] font-mono uppercase text-slate-400">Step 0{s.id}</span>
+                  <span className="truncate block">{s.title}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-            <div className="rounded-[24px] border border-[#e7d5ac] bg-white/90 p-5 shadow-[0_14px_34px_rgba(191,155,48,0.08)] dark:border-[#3a2e18] dark:bg-[#12161d]">
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#9b7a2a] dark:text-[#c9a84c]">
-                Roles
-              </p>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-[#52452f] dark:text-slate-300">
-                Choose the exact hotel role so the account matches the backend staff module permissions and records.
-              </p>
+        {/* Global Error Banner */}
+        {errorMessage && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border-l-4 border-red-600 rounded-r text-red-800 dark:text-red-200 text-xs flex items-start gap-3">
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <strong className="font-bold block mb-0.5">Alert</strong>
+              <span>{errorMessage}</span>
             </div>
           </div>
-        </section>
+        )}
 
-          <section className="p-8 md:p-10">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.3em] text-[#9b7a2a] dark:text-[#c9a84c]">
-              Staff Sign Up
-            </p>
-            <h2 className="mt-3 text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
-              Join Your Hotel Team
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-[#6b5d45] dark:text-[#b7a88d]">
-              Enter your staff details and the hotel verification code provided by your hotel.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="relative block">
-                <User className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-                <input
-                  required
-                  type="text"
-                  placeholder="First Name"
-                  value={formData.firstName}
-                  className={INPUT_CLASS}
-                  onChange={(event) => updateField('firstName', event.target.value)}
-                />
-              </label>
-
-              <label className="relative block">
-                <User className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-                <input
-                  required
-                  type="text"
-                  placeholder="Last Name"
-                  value={formData.lastName}
-                  className={INPUT_CLASS}
-                  onChange={(event) => updateField('lastName', event.target.value)}
-                />
-              </label>
+        <form onSubmit={handleSubmit} className="space-y-8" noValidate>
+          
+          {/* Main Card Container */}
+          <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                <span className="w-5 h-5 bg-emerald-800 text-white rounded-full inline-flex items-center justify-center text-[11px] font-bold">1</span>
+                Account Details & Verification
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Provide your employee information, role assignment, and hotel code.
+              </p>
             </div>
 
-            <label className="relative block">
-              <Briefcase className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-              <select
-                required
-                value={formData.role}
-                onChange={(event) => updateField('role', event.target.value)}
-                className={`${INPUT_CLASS} appearance-none`}
-              >
-                <option value="" disabled>
-                  Select your role
-                </option>
-                {STAFF_ROLES.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-            </label>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="relative block">
-                <Mail className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-                <input
-                  required
-                  type="email"
-                  placeholder="staff@hotel.com"
-                  value={formData.email}
-                  className={INPUT_CLASS}
-                  onChange={(event) => updateField('email', event.target.value)}
-                />
-              </label>
-
-              <label className="relative block">
-                <Phone className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-                <input
-                  required
-                  type="text"
-                  placeholder="09XXXXXXXXX"
-                  value={formData.contactNumber}
-                  className={INPUT_CLASS}
-                  onChange={(event) => updateField('contactNumber', event.target.value)}
-                />
-              </label>
-            </div>
-
-            <label className="relative block">
-              <Key className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-              <input
-                required
-                type="text"
-                placeholder="Hotel Verification Code"
-                value={formData.hotelCode}
-                className={`${INPUT_CLASS} uppercase`}
-                onChange={(event) => updateField('hotelCode', event.target.value.toUpperCase())}
-              />
-            </label>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="relative block">
-                <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-                <input
-                  required
-                  type="password"
-                  placeholder="Password"
-                  value={formData.password}
-                  className={INPUT_CLASS}
-                  onChange={(event) => updateField('password', event.target.value)}
-                />
-              </label>
-
-              <label className="relative block">
-                <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
-                <input
-                  required
-                  type="password"
-                  placeholder="Confirm Password"
-                  value={formData.confirmPassword}
-                  className={INPUT_CLASS}
-                  onChange={(event) => updateField('confirmPassword', event.target.value)}
-                />
-              </label>
-            </div>
-
-            {errorMessage ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
-                {errorMessage}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* First Name */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  First Name <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <User size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="e.g. Juan"
+                    value={formData.firstName}
+                    onChange={(e) => updateField('firstName', e.target.value)}
+                    onBlur={() => handleBlur('firstName')}
+                    className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                      touchedFields.firstName && fieldErrors.firstName
+                        ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                        : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                    }`}
+                  />
+                </div>
+                {touchedFields.firstName && fieldErrors.firstName && (
+                  <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                    {fieldErrors.firstName}
+                  </span>
+                )}
               </div>
-            ) : null}
+
+              {/* Last Name */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Last Name <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <User size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="e.g. Dela Cruz"
+                    value={formData.lastName}
+                    onChange={(e) => updateField('lastName', e.target.value)}
+                    onBlur={() => handleBlur('lastName')}
+                    className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                      touchedFields.lastName && fieldErrors.lastName
+                        ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                        : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                    }`}
+                  />
+                </div>
+                {touchedFields.lastName && fieldErrors.lastName && (
+                  <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                    {fieldErrors.lastName}
+                  </span>
+                )}
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Business Email Address <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Mail size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="email"
+                    placeholder="staff@hoteldomain.com"
+                    value={formData.email}
+                    onChange={(e) => updateField('email', e.target.value)}
+                    onBlur={() => handleBlur('email')}
+                    className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                      touchedFields.email && fieldErrors.email
+                        ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                        : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                    }`}
+                  />
+                </div>
+                {touchedFields.email && fieldErrors.email && (
+                  <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                    {fieldErrors.email}
+                  </span>
+                )}
+              </div>
+
+              {/* Contact Number */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Contact / Mobile Number <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Phone size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="tel"
+                    maxLength={11}
+                    placeholder="09171234567"
+                    value={formData.contactNumber}
+                    onChange={(e) => updateField('contactNumber', e.target.value)}
+                    onBlur={() => handleBlur('contactNumber')}
+                    className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                      touchedFields.contactNumber && fieldErrors.contactNumber
+                        ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                        : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                    }`}
+                  />
+                </div>
+                {touchedFields.contactNumber && fieldErrors.contactNumber && (
+                  <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                    {fieldErrors.contactNumber}
+                  </span>
+                )}
+              </div>
+
+              {/* Assigned Staff Role */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Assigned Staff Role <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Briefcase size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <select
+                    value={formData.role}
+                    onChange={(e) => updateField('role', e.target.value)}
+                    onBlur={() => handleBlur('role')}
+                    className={`w-full pl-9 pr-8 py-2 border text-xs rounded appearance-none focus:outline-none transition-colors ${
+                      touchedFields.role && fieldErrors.role
+                        ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                        : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                    }`}
+                  >
+                    <option value="" disabled>
+                      Select role assignment
+                    </option>
+                    {STAFF_ROLES.map((role) => (
+                      <option key={role} value={role} className="dark:bg-slate-800 dark:text-white">
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={15} className="pointer-events-none absolute right-3 top-2.5 text-slate-400" />
+                </div>
+                {touchedFields.role && fieldErrors.role && (
+                  <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                    {fieldErrors.role}
+                  </span>
+                )}
+              </div>
+
+              {/* Hotel Verification Code */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Hotel Verification Code <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Key size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="e.g. INNOVAHMS-123"
+                    value={formData.hotelCode}
+                    onChange={(e) => updateField('hotelCode', e.target.value)}
+                    onBlur={() => handleBlur('hotelCode')}
+                    className={`w-full pl-9 pr-3 py-2 border text-xs font-mono uppercase rounded focus:outline-none transition-colors ${
+                      touchedFields.hotelCode && fieldErrors.hotelCode
+                        ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                        : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                    }`}
+                  />
+                </div>
+                {touchedFields.hotelCode && fieldErrors.hotelCode && (
+                  <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                    {fieldErrors.hotelCode}
+                  </span>
+                )}
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Account Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Lock size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="password"
+                    placeholder="At least 8 characters, with letters and numbers"
+                    value={formData.password}
+                    onChange={(e) => updateField('password', e.target.value)}
+                    onBlur={() => handleBlur('password')}
+                    className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                      touchedFields.password && fieldErrors.password
+                        ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                        : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                    }`}
+                  />
+                </div>
+                {touchedFields.password && fieldErrors.password && (
+                  <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                    {fieldErrors.password}
+                  </span>
+                )}
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Confirm Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Lock size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="password"
+                    placeholder="Re-enter password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => updateField('confirmPassword', e.target.value)}
+                    onBlur={() => handleBlur('confirmPassword')}
+                    className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                      touchedFields.confirmPassword && fieldErrors.confirmPassword
+                        ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                        : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                    }`}
+                  />
+                </div>
+                {touchedFields.confirmPassword && fieldErrors.confirmPassword && (
+                  <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                    {fieldErrors.confirmPassword}
+                  </span>
+                )}
+              </div>
+
+            </div>
+          </section>
+
+          {/* Form Bottom Action Controls */}
+          <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-6">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Already registered?{' '}
+              <Link to="/staff/login" className="font-bold text-emerald-800 dark:text-emerald-400 hover:underline">
+                Sign in here
+              </Link>
+            </p>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#cda548_0%,#b88d2a_100%)] px-5 py-4 text-xs font-black uppercase tracking-[0.26em] text-white shadow-[0_16px_34px_rgba(191,155,48,0.22)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-[linear-gradient(135deg,#d2ae5a_0%,#9c7822_100%)]"
+              className="px-6 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1.5 disabled:opacity-50 transition-colors"
             >
-              {isSubmitting ? 'Registering...' : 'Register Staff Account'}
-              <ArrowRight size={18} />
+              {isSubmitting ? 'Registering Account...' : 'Continue Registration'}
+              <ArrowRight size={14} />
             </button>
+          </div>
 
-            <p className="text-center text-[11px] font-bold uppercase tracking-[0.22em] text-[#aa9362] dark:text-[#8f7a4f]">
-              Already part of the team?{' '}
-              <Link to="/staff/login" className="text-[#9b7a2a] hover:underline dark:text-[#d3af56]">
-                Sign in here
-              </Link>
-            </p>
-          </form>
-        </section>
-      </div>
-    </main>
+        </form>
+      </main>
+    </div>
   );
 }

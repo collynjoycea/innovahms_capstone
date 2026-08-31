@@ -15,91 +15,97 @@ export default function Footer() {
   };
 
   return (
-    <footer className="border-t border-gray-100 bg-white py-8 text-gray-700 dark:border-white/10 dark:bg-zinc-950 dark:text-zinc-300">
-      <div className="max-w-7xl mx-auto px-8">
-        <div className="grid grid-cols-1 gap-8 border-b border-gray-100 pb-8 md:grid-cols-[1.4fr_0.9fr_0.9fr] dark:border-white/10">
+    <footer className="border-t border-slate-200 bg-white py-10 text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 font-sans">
+      <div className="mx-auto max-w-7xl px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-8 border-b border-slate-200 pb-10 md:grid-cols-[1.4fr_0.9fr_0.9fr] dark:border-slate-800">
+          
+          {/* BRAND COLUMN */}
           <div className="space-y-3">
-            <Link to="/" className="flex items-center gap-2 w-fit">
-              <div className="w-6 h-6 bg-[#2FA084] rounded-sm flex items-center justify-center shadow-sm">
-                <span className="text-white text-[10px] font-black">IA</span>
-              </div>
-              <h2 className="text-xl font-black tracking-tighter text-gray-900 dark:text-white">
-                INNOVA-<span className="text-[#2FA084]">HMS</span>
+            <Link to="/" className="flex w-fit items-center gap-2.5">
+             
+              <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
+                INNOVA-<span className="text-emerald-700 dark:text-emerald-500">HMS</span>
               </h2>
             </Link>
 
-            <p className="max-w-md text-sm font-bold leading-relaxed text-gray-500 dark:text-zinc-400">
+            <p className="max-w-md text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
               Smart hotel booking, room discovery, and guest support in one simple platform.
             </p>
           </div>
 
+          {/* NAVIGATION COLUMN */}
           <div className="space-y-4">
-            <h3 className="w-fit border-b-2 border-[#2FA084] pb-1 text-sm font-black uppercase tracking-widest text-gray-900 dark:text-white">
+            <h3 className="w-fit border-b-2 border-emerald-700 pb-1 text-xs font-bold uppercase tracking-wider text-slate-900 dark:border-emerald-500 dark:text-white">
               Navigation
             </h3>
-            <ul className="space-y-3 text-sm font-bold">
+            <ul className="space-y-2.5 text-xs font-medium">
               <li>
                 <button
                   type="button"
                   onClick={() => scrollToHomeSection("hero")}
-                  className="transition-colors hover:text-[#2FA084]"
+                  className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400"
                 >
                   Home
                 </button>
               </li>
               <li>
-                <Link to="/features" className="transition-colors hover:text-[#2FA084]">
+                <Link to="/features" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
                   Features
                 </Link>
               </li>
               <li>
-                <Link to="/about" className="transition-colors hover:text-[#2FA084]">
+                <Link to="/about" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
                   About Us
                 </Link>
               </li>
               <li>
-                <Link to="/vision-suites" className="transition-colors hover:text-[#2FA084]">
+                <Link to="/vision-suites" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
                   Vision Suites
                 </Link>
               </li>
             </ul>
           </div>
 
+          {/* CONTACT & LOCATION COLUMN */}
           <div className="space-y-4">
-            <h3 className="w-fit border-b-2 border-[#2FA084] pb-1 text-sm font-black uppercase tracking-widest text-gray-900 dark:text-white">
+            <h3 className="w-fit border-b-2 border-emerald-700 pb-1 text-xs font-bold uppercase tracking-wider text-slate-900 dark:border-emerald-500 dark:text-white">
               Contact
             </h3>
-            <ul className="space-y-3 text-sm font-bold">
+            <ul className="space-y-2.5 text-xs font-medium">
               <li>
-                <a href="sms:+18005550199" className="transition-colors hover:text-[#2FA084]">
+                <a href="tel:+18005550199" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
+                  +1 (800) 555-0199
+                </a>
+              </li>
+              <li>
+                <a href="sms:+18005550199" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
                   SMS Support
                 </a>
               </li>
               <li>
-                <a href="mailto:support@innova-hms.com" className="transition-colors hover:text-[#2FA084]">
-                  Email Support
+                <a href="mailto:support@innova-hms.com" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
+                  support@innova-hms.com
                 </a>
               </li>
-              <li>
-                <a href="tel:+18005550199" className="transition-colors hover:text-[#2FA084]">
-                  +1 (800) 555-0199
-                </a>
+              <li className="pt-1 text-slate-500 dark:text-slate-400 font-semibold">
+                📍 Metro Manila, Philippines
               </li>
-              <li className="text-gray-600 dark:text-zinc-400">support@innova-hms.com</li>
-              <li className="text-gray-600 dark:text-zinc-400">Metro Manila, Philippines</li>
             </ul>
           </div>
         </div>
+        
+        
 
-        <div className="flex flex-col items-center justify-between gap-3 pt-5 text-center text-[10px] font-black uppercase tracking-widest text-gray-400 md:flex-row md:text-left">
+        {/* BOTTOM COPYRIGHT & LEGAL */}
+        <div className="flex flex-col items-center justify-between gap-3 pt-6 text-center text-[11px] font-semibold tracking-wider text-slate-400 md:flex-row md:text-left">
           <p>
-            Copyright {new Date().getFullYear()} <span className="text-[#2FA084]">INNOVA-HMS</span>. All rights reserved.
+            Copyright {new Date().getFullYear()} <span className="text-emerald-700 dark:text-emerald-500">INNOVA-HMS</span>. All rights reserved.
           </p>
           <div className="flex gap-6">
-            <Link to="/about" className="transition-colors hover:text-gray-900 dark:hover:text-white">
+            <Link to="/about" className="transition-colors hover:text-slate-900 dark:hover:text-white">
               About Us
             </Link>
-            <Link to="/features" className="transition-colors hover:text-gray-900 dark:hover:text-white">
+            <Link to="/features" className="transition-colors hover:text-slate-900 dark:hover:text-white">
               Features
             </Link>
           </div>

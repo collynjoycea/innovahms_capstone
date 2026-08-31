@@ -131,7 +131,7 @@ const AdminSidebar = ({ isDarkMode }) => {
         {/* 1. BRAND LOGO & NETWORK STATUS */}
         <div className={`py-6 flex items-center shrink-0 ${expanded ? 'px-7 justify-between' : 'px-0 justify-center'}`}>
           <Link to="/admin" className={`transition-transform hover:scale-105 shrink-0 flex items-center overflow-hidden ${expanded ? 'gap-2' : 'mx-auto'}`}>
-            <img src="/images/logo-icon.png?v=2" alt="Innova HMS" className="w-8 h-8 object-contain shrink-0" />
+            <img src="/images/logo.png?v=2" alt="Innova HMS" className="w-8 h-8 object-contain shrink-0" />
             {expanded && (
               <span className={`text-sm font-black tracking-tight uppercase whitespace-nowrap overflow-hidden transition-all duration-200 ${isDarkMode ? 'text-white' : 'text-black'}`}>
                 INNOVA-<span className="text-[#6FCF97]">HMS</span>

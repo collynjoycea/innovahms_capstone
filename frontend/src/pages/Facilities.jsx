@@ -227,7 +227,7 @@ export default function Facilities() {
 
   const allFacilities = [...dbFacilities, ...STATIC_FACILITIES];
   const buildTourTarget = (item) =>
-    item.roomId ? `/hoteldetail/${item.roomId}` : "/facilities";
+    item.roomId ? `/roomdetail/${item.roomId}` : "/facilities";
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 dark:bg-[#0d0c0a] dark:text-[#e5e1d8] font-sans selection:bg-[#bf9b30]/30 transition-colors duration-300">

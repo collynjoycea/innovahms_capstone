@@ -33,6 +33,9 @@ export default function Header() {
   const [membershipLoading, setMembershipLoading] = useState(false);
   const [openDrop, setOpenDrop] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // State para sa search input
+  const [searchQuery, setSearchQuery] = useState("");
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -194,7 +197,15 @@ export default function Header() {
     navigate("/");
   };
 
-  const handleFindRoom = () => go("/vision-suites");
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    closeAll();
+    if (searchQuery.trim()) {
+      navigate(`/vision-suites?search=${encodeURIComponent(searchQuery.trim())}`);
+    } else {
+      navigate("/vision-suites");
+    }
+  };
 
   const handleBookings = () => {
     if (user?.isStaff) {
@@ -213,25 +224,29 @@ export default function Header() {
   const points = Number(membershipSummary?.points || 0);
 
   const surfaceClass = isDarkMode
-    ? "border-white/10 bg-[#163C34]/92 text-[#EEEEEE] shadow-[0_18px_50px_rgba(0,0,0,0.45)]"
-    : "border-[#D9E9E3] bg-[#EEEEEE]/96 text-[#173F35] shadow-[0_12px_35px_rgba(31,111,95,0.10)]";
+    ? "border-white/10 bg-[#0d1412] text-[#EEEEEE] shadow-[0_18px_50px_rgba(0,0,0,0.45)]"
+    : "border-[#e2e8f0] bg-white text-[#14231e] shadow-sm";
 
   const navShellClass = isDarkMode
     ? "border-white/10 bg-white/5"
-    : "border-[#D9E9E3] bg-[#EEEEEE]";
+    : "border-[#cce3dc] bg-[#f2f8f6]";
+
+  const inputClass = isDarkMode
+    ? "border-white/10 bg-white/5 text-[#EEEEEE] placeholder:text-zinc-400 focus:border-[#2FA084]"
+    : "border-[#bcdcd3] bg-white text-[#1F6F5F] placeholder:text-slate-400 focus:border-[#1F6F5F]";
 
   const ghostButtonClass = isDarkMode
     ? "border-white/10 bg-white/5 text-[#EEEEEE] hover:bg-white/10"
-    : "border-[#D9E9E3] bg-white text-[#4B6F65] hover:bg-[#EEEEEE]";
+    : "border-[#bcdcd3] bg-white text-[#1F6F5F] hover:bg-[#eef7f4]";
 
   const iconButtonClass = isDarkMode
     ? "border-white/10 bg-white/5 text-[#EEEEEE] hover:bg-white/10"
-    : "border-[#D9E9E3] bg-white text-[#4B6F65] hover:bg-[#EEEEEE]";
+    : "border-[#bcdcd3] bg-white text-[#1F6F5F] hover:bg-[#eef7f4]";
 
-  const menuPanelClass = isDarkMode ? "border-white/10 bg-[#163C34]" : "border-[#D9E9E3] bg-white";
+  const menuPanelClass = isDarkMode ? "border-white/10 bg-[#0f1a17]" : "border-[#bcdcd3] bg-white shadow-xl";
 
   return (
-    <header className={`fixed inset-x-0 top-0 z-[1000] border-b backdrop-blur-2xl transition-colors duration-300 ${surfaceClass}`}>
+    <header className={`fixed inset-x-0 top-0 z-[1000] border-b transition-colors duration-300 ${surfaceClass}`}>
       <div className="mx-auto max-w-[1320px] px-5 py-2.5 sm:px-7" ref={dropRef}>
         <div className="flex min-h-[60px] items-center justify-between gap-4">
           <Link to="/" onClick={handleLogoClick} className="min-w-0 flex-shrink-0">
@@ -248,10 +263,10 @@ export default function Header() {
                   onClick={() => go(item.path)}
                   className={`whitespace-nowrap rounded-full px-5 py-2 text-sm font-medium transition-all ${
                     active
-                      ? "bg-[#2FA084] text-white shadow-[0_8px_20px_rgba(47,160,132,0.20)]"
+                      ? "bg-[#1F6F5F] text-white shadow-[0_8px_20px_rgba(31,111,95,0.25)]"
                       : isDarkMode
-                        ? "text-[#9FC2B6] hover:bg-white/8 hover:text-white"
-                        : "text-[#4B6F65] hover:bg-white hover:text-[#1F6F5F]"
+                        ? "text-[#6FCF97] hover:bg-white/8 hover:text-white"
+                        : "text-[#1F6F5F] hover:bg-white hover:text-[#2FA084]"
                   }`}
                 >
                   {item.label}
@@ -261,19 +276,28 @@ export default function Header() {
           </nav>
 
           <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleFindRoom}
-              className={`hidden lg:inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-all ${ghostButtonClass}`}
-            >
-              <Search size={16} className="text-[#2FA084]" />
-              Find a Room
-            </button>
+            {/* WORKING SEARCH BAR */}
+            <form onSubmit={handleSearchSubmit} className="hidden lg:relative lg:flex items-center">
+              <input
+                type="text"
+                placeholder="Find a room..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`w-48 xl:w-56 rounded-full border py-2 pl-9 pr-4 text-sm outline-none transition-all ${inputClass}`}
+              />
+              <button
+                type="submit"
+                aria-label="Search"
+                className="absolute left-3 text-[#2FA084] hover:scale-110 transition-transform"
+              >
+                <Search size={16} />
+              </button>
+            </form>
 
             <button
               type="button"
               onClick={handleBookings}
-              className="hidden sm:inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[#6FCF97] px-4 py-2 text-sm font-semibold text-[#1F6F5F] shadow-[0_8px_20px_rgba(47,160,132,0.14)] transition-all hover:bg-[#6FCF97]"
+              className="hidden sm:inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[#1F6F5F] px-4 py-2 text-sm font-semibold text-[#EEEEEE] shadow-[0_8px_20px_rgba(31,111,95,0.22)] transition-all hover:bg-[#2FA084] sm:px-5 sm:py-2.5"
             >
               <BookOpen size={16} />
               {user?.isStaff ? "Dashboard" : "My Bookings"}
@@ -290,16 +314,19 @@ export default function Header() {
 
             {user ? (
               <div className="relative">
+                {/* PROFILE BUTTON - MATCHES THEME COLOR */}
                 <button
                   type="button"
                   onClick={() => toggle("user")}
-                  className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold shadow-md transition-all ${
+                  className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold transition-all border ${
                     user.isStaff
-                      ? "bg-[#1F6F5F] text-white hover:bg-[#1F6F5F]"
-                      : "bg-[#163C34] text-white hover:bg-[#163C34] dark:bg-[#6FCF97] dark:text-[#173F35] dark:hover:bg-[#6FCF97]"
+                      ? "bg-[#1F6F5F] text-white hover:bg-[#2FA084] border-transparent"
+                      : isDarkMode
+                        ? "bg-[#2FA084] text-white hover:bg-[#1F6F5F] border-transparent"
+                        : "bg-[#eef7f4] text-[#1F6F5F] hover:bg-[#e1f2ec] border-[#bcdcd3]"
                   }`}
                 >
-                  <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/15 shrink-0">
+                  <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-current/20 bg-white/20 shrink-0">
                     {user.profileImage
                       ? <img src={user.profileImage} alt={user.displayName} className="h-full w-full object-cover" />
                       : user.isStaff ? <Briefcase size={13} /> : <User size={13} />
@@ -318,16 +345,16 @@ export default function Header() {
                       <button
                         type="button"
                         onClick={() => go("/privileges")}
-                        className="flex w-full items-center gap-3 border-b border-[#2FA084]/20 bg-gradient-to-r from-[#EEEEEE] via-[#EEEEEE] to-white px-4 py-4 text-left transition-all hover:from-[#6FCF97] hover:to-[#EEEEEE] dark:from-[#0F2B25] dark:via-[#163C34] dark:to-[#163C34]"
+                        className="flex w-full items-center gap-3 border-b border-[#2FA084]/20 bg-gradient-to-r from-[#eef7f4] via-[#f5fbf9] to-white px-4 py-4 text-left transition-all hover:from-[#e1f2ec] hover:to-[#f0f8f5] dark:from-[#11241f] dark:via-[#0c1815] dark:to-[#091210]"
                       >
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2FA084]/15 text-[#2FA084]">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1F6F5F]/15 text-[#1F6F5F] dark:bg-[#6FCF97]/15 dark:text-[#6FCF97]">
                           <Crown size={18} />
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block text-[10px] font-black uppercase tracking-[0.24em] text-[#2FA084]">
+                          <span className="block text-[10px] font-black uppercase tracking-[0.24em] text-[#1F6F5F] dark:text-[#6FCF97]">
                             {membershipLoading ? "Syncing..." : `${tier} Member`}
                           </span>
-                          <span className={`block truncate pt-1 text-xs ${isDarkMode ? "text-[#9FC2B6]" : "text-[#4B6F65]"}`}>
+                          <span className={`block truncate pt-1 text-xs ${isDarkMode ? "text-[#a0c2b7]" : "text-[#477366]"}`}>
                             {membershipLoading ? "Checking your perks..." : `${points.toLocaleString()} pts available`}
                           </span>
                         </span>
@@ -336,7 +363,7 @@ export default function Header() {
                     ) : null}
 
                     <div className="p-2">
-                      <p className={`px-3 py-2 text-[9px] font-black uppercase tracking-[0.24em] ${isDarkMode ? "text-[#9FC2B6]" : "text-[#6F9186]"}`}>
+                      <p className={`px-3 py-2 text-[9px] font-black uppercase tracking-[0.24em] ${isDarkMode ? "text-[#80a397]" : "text-[#588577]"}`}>
                         {user.isStaff ? "Staff Portal" : "My Account"}
                       </p>
 
@@ -344,7 +371,7 @@ export default function Header() {
                         <button
                           type="button"
                           onClick={() => go("/staff/dashboard")}
-                          className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#173F35] hover:bg-[#EEEEEE]"}`}
+                          className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#14231e] hover:bg-[#eef7f4]"}`}
                         >
                           <LayoutDashboard size={16} className="text-[#2FA084]" />
                           Dashboard
@@ -354,7 +381,7 @@ export default function Header() {
                           <button
                             type="button"
                             onClick={() => go("/customer/dashboard")}
-                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#173F35] hover:bg-[#EEEEEE]"}`}
+                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#14231e] hover:bg-[#eef7f4]"}`}
                           >
                             <LayoutDashboard size={16} className="text-[#2FA084]" />
                             Dashboard
@@ -362,7 +389,7 @@ export default function Header() {
                           <button
                             type="button"
                             onClick={() => go("/customer/bookings")}
-                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#173F35] hover:bg-[#EEEEEE]"}`}
+                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#14231e] hover:bg-[#eef7f4]"}`}
                           >
                             <BookOpen size={16} className="text-[#2FA084]" />
                             My Bookings
@@ -370,7 +397,7 @@ export default function Header() {
                           <button
                             type="button"
                             onClick={() => go("/profile")}
-                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#173F35] hover:bg-[#EEEEEE]"}`}
+                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#14231e] hover:bg-[#eef7f4]"}`}
                           >
                             <Settings size={16} className="text-[#2FA084]" />
                             Profile Settings
@@ -378,7 +405,7 @@ export default function Header() {
                           <button
                             type="button"
                             onClick={() => go("/rewards")}
-                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#173F35] hover:bg-[#EEEEEE]"}`}
+                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#14231e] hover:bg-[#eef7f4]"}`}
                           >
                             <Crown size={16} className="text-[#2FA084]" />
                             Membership & Rewards
@@ -386,7 +413,7 @@ export default function Header() {
                         </>
                       )}
 
-                      <div className={`my-2 h-px ${isDarkMode ? "bg-white/10" : "bg-[#D9E9E3]"}`} />
+                      <div className={`my-2 h-px ${isDarkMode ? "bg-white/10" : "bg-[#d9ece6]"}`} />
 
                       <button
                         type="button"
@@ -406,7 +433,7 @@ export default function Header() {
                   <button
                     type="button"
                     onClick={() => toggle("login")}
-                    className={`inline-flex items-center gap-1 rounded-full px-4 py-2.5 text-sm font-semibold transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#4B6F65] hover:bg-[#EEEEEE]"}`}
+                    className={`inline-flex items-center gap-1 rounded-full px-4 py-2.5 text-sm font-semibold transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#1F6F5F] hover:bg-[#eef7f4]"}`}
                   >
                     Login
                     <ChevronDown size={14} className={`transition-transform ${openDrop === "login" ? "rotate-180" : ""}`} />
@@ -424,7 +451,7 @@ export default function Header() {
                           key={item.to}
                           to={item.to}
                           onClick={closeAll}
-                          className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#173F35] hover:bg-[#EEEEEE]"}`}
+                          className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#14231e] hover:bg-[#eef7f4]"}`}
                         >
                           {item.icon}
                           {item.label}
@@ -438,7 +465,7 @@ export default function Header() {
                   <button
                     type="button"
                     onClick={() => toggle("signup")}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#2FA084] px-5 py-2.5 text-sm font-bold text-white shadow-[0_14px_32px_rgba(47,160,132,0.28)] transition-all hover:bg-[#1F6F5F]"
+                    className="inline-flex items-center gap-1 rounded-full bg-[#1F6F5F] px-5 py-2.5 text-sm font-bold text-[#EEEEEE] shadow-[0_14px_32px_rgba(31,111,95,0.28)] transition-all hover:bg-[#2FA084]"
                   >
                     Register
                     <ChevronDown size={14} className={`transition-transform ${openDrop === "signup" ? "rotate-180" : ""}`} />
@@ -455,7 +482,7 @@ export default function Header() {
                           key={item.to}
                           to={item.to}
                           onClick={closeAll}
-                          className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#173F35] hover:bg-[#EEEEEE]"}`}
+                          className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#14231e] hover:bg-[#eef7f4]"}`}
                         >
                           {item.icon}
                           {item.label}
@@ -479,6 +506,24 @@ export default function Header() {
 
         {openDrop === "mobile" ? (
           <div className={`mt-4 rounded-[1.6rem] border p-3 shadow-xl lg:hidden ${menuPanelClass}`}>
+            {/* MOBILE SEARCH BAR */}
+            <form onSubmit={handleSearchSubmit} className="relative mb-3 flex items-center">
+              <input
+                type="text"
+                placeholder="Find a room..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`w-full rounded-2xl border py-2.5 pl-10 pr-4 text-sm outline-none transition-all ${inputClass}`}
+              />
+              <button
+                type="submit"
+                aria-label="Search"
+                className="absolute left-3 text-[#2FA084]"
+              >
+                <Search size={16} />
+              </button>
+            </form>
+
             <div className="grid grid-cols-2 gap-2">
               {NAV_LINKS.map((item) => (
                 <button
@@ -487,10 +532,10 @@ export default function Header() {
                   onClick={() => go(item.path)}
                   className={`rounded-2xl px-4 py-3 text-sm font-semibold transition-all ${
                     isActiveRoute(item.path)
-                      ? "bg-[#2FA084] text-white"
+                      ? "bg-[#1F6F5F] text-white"
                       : isDarkMode
                         ? "bg-white/5 text-[#EEEEEE]"
-                        : "bg-[#EEEEEE] text-[#4B6F65]"
+                        : "bg-[#eef7f4] text-[#1F6F5F]"
                   }`}
                 >
                   {item.label}
@@ -501,15 +546,8 @@ export default function Header() {
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={handleFindRoom}
-                className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition-all ${ghostButtonClass}`}
-              >
-                Find a Room
-              </button>
-              <button
-                type="button"
                 onClick={handleBookings}
-                className="rounded-2xl bg-[#6FCF97] px-4 py-3 text-sm font-semibold text-[#1F6F5F]"
+                className="rounded-2xl bg-[#2FA084] px-4 py-3 text-sm font-semibold text-white"
               >
                 {user?.isStaff ? "Open Dashboard" : "My Bookings"}
               </button>
@@ -527,7 +565,7 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => go("/signup")}
-                  className="rounded-2xl bg-[#2FA084] px-4 py-3 text-sm font-bold text-white"
+                  className="rounded-2xl bg-[#1F6F5F] px-4 py-3 text-sm font-bold text-white hover:bg-[#2FA084]"
                 >
                   Register
                 </button>
