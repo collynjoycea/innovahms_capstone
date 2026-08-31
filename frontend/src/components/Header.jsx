@@ -5,6 +5,7 @@ import {
   Briefcase,
   Building2,
   ChevronDown,
+  Gift,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -330,6 +331,14 @@ export default function Header() {
                           >
                             <BookOpen size={16} className="text-[#2FA084]" />
                             My Bookings
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => go("/rewards")}
+                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#14231e] hover:bg-[#eef7f4]"}`}
+                          >
+                            <Gift size={16} className="text-[#2FA084]" />
+                            Rewards & Points
                           </button>
                           <button
                             type="button"

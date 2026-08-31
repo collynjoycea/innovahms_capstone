@@ -113,6 +113,7 @@ import CustomerDashboard from "./customer/CustomerDashboard";
 import CustomerBookings from "./customer/CustomerBookings";
 import CustomerReviews from "./customer/CustomerReviews";
 import InnovaSuites from "./customer/InnovaSuites";
+import Rewards from "./pages/customer/Rewards";
 import VisionSuites from "./pages/customer/VisionSuites";
 
 // --- PROTECTED ROUTE COMPONENTS ---
@@ -189,6 +190,7 @@ function App() {
           />
           <Route path="/innova-suites" element={<InnovaSuites />} />
           <Route path="/vision-suites" element={<VisionSuites />} />
+          <Route path="/rewards" element={<ProtectedCustomer><Rewards /></ProtectedCustomer>} />
 
           <Route path="/booking" element={<Booking />} />
           <Route path="/booking/success" element={<BookingSuccess />} />
