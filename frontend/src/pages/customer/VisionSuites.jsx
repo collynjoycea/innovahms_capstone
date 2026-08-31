@@ -4,7 +4,6 @@ import {
   ArrowUpDown,
   Calendar,
   Check,
-  Heart,
   Hotel,
   MapPin,
   MessageCircle,
@@ -16,7 +15,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Marzipano from "marzipano";
 import resolveImg from "../../utils/resolveImg";
 import { extractCustomerSession } from "../../customer/customerHelpers";
@@ -25,13 +24,6 @@ const php = (value) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(
     Number(value || 0)
   );
-
-const friendlyDate = (value) => {
-  if (!value) return "";
-  const parsed = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
-};
 
 const getRoomPreviewImage = (value, fallback = null) => {
   const rawImage =
@@ -46,39 +38,49 @@ const getRoomPreviewImage = (value, fallback = null) => {
   return rawImage ? resolveImg(rawImage, fallback) : fallback;
 };
 
-// UPDATED LOGIC: Pinagsasama ang mga room kapag nasa parehong hotel at magkapareho ang pangalan/uri
-const getRoomDisplayName = (room, allRooms = []) => {
-  const baseName = room?.name || room?.roomName || room?.room_name || room?.type || "Room";
-  const normalizedName = String(baseName).trim();
+const roomText = (room, ...fields) => {
+  for (const field of fields) {
+    const value = room?.[field];
+    if (value !== null && value !== undefined && String(value).trim()) return String(value).trim();
+  }
+  return "";
+};
 
-  if (!normalizedName) return "Room";
+const normalizeRoomText = (value) => String(value || "").replace(/\s+/g, " ").trim();
+const getRoomNumber = (room) => roomText(room, "roomNumber", "room_number", "roomNo");
+const escapeRegExp = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-  // Hanapin ang mga may kaparehong pangalan sa loob ng parehong hotel
-  const duplicates = (allRooms || []).filter((item) => {
-    const candidate = String(item?.name || item?.roomName || item?.room_name || item?.type || "").trim();
-    const sameHotel = (item?.hotelId || item?.hotel_id) === (room?.hotelId || room?.hotel_id);
-    return sameHotel && candidate && candidate.toLowerCase() === normalizedName.toLowerCase();
-  });
+const getRoomGroupName = (room) => {
+  const roomName = normalizeRoomText(roomText(room, "name", "roomName", "room_name"));
+  const roomType = normalizeRoomText(roomText(room, "type", "roomType", "room_type"));
+  const hotelName = normalizeRoomText(roomText(room, "hotelName", "hotel_name", "hotel"));
+  let name = roomName || roomType || "Room";
 
-  if (duplicates.length > 1) {
-    // Kunin ang lahat ng room numbers at pag-isahin gamit ang slash '/'
-    const roomNumbers = duplicates
-      .map((item) => String(item?.roomNumber || item?.room_number || item?.roomNo || "").trim())
-      .filter(Boolean);
+  if (hotelName) {
+    name = name.replace(new RegExp(`^${escapeRegExp(hotelName)}\\s*[-:/]\\s*`, "i"), "");
+  }
 
-    const uniqueRoomNums = Array.from(new Set(roomNumbers));
-    if (uniqueRoomNums.length > 0) {
-      return `${normalizedName} • Room ${uniqueRoomNums.join(" / ")}`;
+  if (name.includes(" - ")) {
+    const splitParts = name.split(" - ");
+    if (splitParts.length > 1) {
+      name = splitParts[splitParts.length - 1].trim();
     }
-    return `${normalizedName} • ${duplicates.length} rooms`;
   }
 
-  const singleRoomNum = room?.roomNumber || room?.room_number || room?.roomNo || "";
-  if (singleRoomNum) {
-    return `${normalizedName} • Room ${singleRoomNum}`;
-  }
+  name = name
+    .replace(/\s*[-:/]\s*\d+\s*$/i, "")
+    .replace(/\s*(?:room|suite|unit)\s*#?\s*\d+\s*$/i, "")
+    .replace(/\s*\d+\s*$/i, "")
+    .replace(/\s*[-:/]\s*.*$/i, "")
+    .trim();
 
-  return normalizedName;
+  return normalizeRoomText(name) || roomType || "Room";
+};
+
+const getRoomDisplayName = (room) => {
+  const roomGroupName = room?.groupName || getRoomGroupName(room);
+  // Room number display removed per instruction ("hindi dapat ipapakita room number nya")
+  return roomGroupName || normalizeRoomText(roomText(room, "type", "roomType", "room_type")) || "Room";
 };
 
 function TourModal({ open, onClose, onReserve, roomName, tour, loading, notice }) {
@@ -251,8 +253,8 @@ export default function VisionSuites() {
   const [sessionUser, setSessionUser] = useState(null);
 
   const [hotel, setHotel] = useState(null);
-  const [locationLabel, setLocationLabel] = useState("Hotel Location");
-  const [searchContext, setSearchContext] = useState({
+  const [, setLocationLabel] = useState("Hotel Location");
+  const [, setSearchContext] = useState({
     from: "",
     to: "",
     guests: "",
@@ -491,10 +493,10 @@ export default function VisionSuites() {
           customer_id: sessionUser?.id || null,
           message,
           context_path: "/vision-suites",
-          hotel_id: searchContext.hotelId || hotel?.id || null,
-          from: filterCheckIn || searchContext.from || "",
-          to: filterCheckOut || searchContext.to || "",
-          guests: filterGuests || searchContext.guests || "",
+          hotel_id: hotel?.id || null,
+          from: filterCheckIn || "",
+          to: filterCheckOut || "",
+          guests: filterGuests || "",
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -515,7 +517,7 @@ export default function VisionSuites() {
   };
 
   const roomTypeOptions = useMemo(
-    () => Array.from(new Set((rooms || []).map((room) => room.type).filter(Boolean))),
+    () => Array.from(new Set((rooms || []).map((room) => getRoomGroupName(room)).filter(Boolean))),
     [rooms]
   );
 
@@ -537,66 +539,54 @@ export default function VisionSuites() {
   const filteredRooms = useMemo(() => {
     const query = hotelSearch.trim().toLowerCase();
     const next = (rooms || []).filter((room) => {
-      const matchRoomType = selectedRoomType === "all" || String(room.type || "").toLowerCase() === String(selectedRoomType).toLowerCase();
+      const groupName = getRoomGroupName(room);
+      const matchRoomType = selectedRoomType === "all" || String(groupName).toLowerCase() === String(selectedRoomType).toLowerCase();
       const matchSearch =
         !query ||
         String(room.hotelName || "").toLowerCase().includes(query) ||
         String(room.name || "").toLowerCase().includes(query) ||
-        String(room.type || "").toLowerCase().includes(query);
+        String(room.type || "").toLowerCase().includes(query) ||
+        String(room.roomNumber || "").toLowerCase().includes(query);
 
       let matchRating = true;
       if (selectedRating !== "all") {
         const ratingNum = Number(selectedRating);
-        const roomRating = room.rating || 5;
-        matchRating = Math.floor(roomRating) === ratingNum;
+        const roomRating = room.rating || room.avgRating || 5;
+        matchRating = Math.floor(Number(roomRating) || 5) === ratingNum;
       }
 
       return matchRoomType && matchSearch && matchRating;
     });
 
-    const grouped = new Map();
-    for (const room of next) {
-      const hotelIdKey = String(room.hotelId || room.hotel_id || "unknown");
-      const roomName = String(room.name || room.roomName || room.room_name || room.type || "Room").trim();
-      const roomType = String(room.type || room.roomType || "Suite").trim();
-      // Grouping key: magkaiba ang hotel, kaya hiwalay sila kahit pareho ang pangalan ng room
-      const key = `${hotelIdKey}|${roomType}|${roomName}`.toLowerCase();
+    const roomList = next.map((room) => {
+      const groupName = getRoomGroupName(room);
+      const roomNumber = normalizeRoomText(getRoomNumber(room));
+      const price = Number(room.basePricePhp ?? room.price ?? 0);
+      const featureList = Array.isArray(room.features)
+        ? room.features
+        : Array.isArray(room.amenities)
+          ? room.amenities
+          : [];
 
-      if (!grouped.has(key)) {
-        grouped.set(key, {
-          ...room,
-          count: 1,
-          variants: [room],
-          roomNumbers: room.roomNumber ? [String(room.roomNumber)] : [],
-          minPrice: Number(room.basePricePhp || room.price || 0),
-          maxPrice: Number(room.basePricePhp || room.price || 0),
-        });
-        continue;
-      }
-
-      const current = grouped.get(key);
-      current.count += 1;
-      current.variants = [...current.variants, room];
-      current.minPrice = Math.min(current.minPrice || Number.MAX_SAFE_INTEGER, Number(room.basePricePhp || room.price || 0));
-      current.maxPrice = Math.max(current.maxPrice || 0, Number(room.basePricePhp || room.price || 0));
-      current.maxAdults = Math.max(Number(current.maxAdults || 0), Number(room.maxAdults || 0));
-      current.maxChildren = Math.max(Number(current.maxChildren || 0), Number(room.maxChildren || 0));
-      if (room.roomNumber || room.room_number || room.roomNo) {
-        current.roomNumbers = Array.from(new Set([...current.roomNumbers, String(room.roomNumber || room.room_number || room.roomNo)]));
-      }
-    }
-
-    const groupedList = Array.from(grouped.values());
+      return {
+        ...room,
+        groupName,
+        roomNumbers: roomNumber ? [roomNumber] : [],
+        minPrice: price,
+        maxPrice: price,
+        roomFeatures: featureList,
+      };
+    });
 
     if (sortMode === "price-asc") {
-      groupedList.sort((a, b) => Number(a.minPrice || a.basePricePhp || 0) - Number(b.minPrice || b.basePricePhp || 0));
+      roomList.sort((a, b) => Number(a.minPrice || 0) - Number(b.minPrice || 0));
     } else if (sortMode === "price-desc") {
-      groupedList.sort((a, b) => Number(b.maxPrice || b.basePricePhp || 0) - Number(a.maxPrice || a.basePricePhp || 0));
+      roomList.sort((a, b) => Number(b.maxPrice || 0) - Number(a.minPrice || 0));
     } else if (sortMode === "capacity") {
-      groupedList.sort((a, b) => Number(b.capacity || 0) - Number(a.capacity || 0));
+      roomList.sort((a, b) => Number(b.maxAdults || 0) - Number(a.maxAdults || 0));
     }
 
-    return groupedList;
+    return roomList;
   }, [rooms, hotelSearch, selectedRoomType, selectedRating, sortMode]);
 
   const handleSearchRoomsSubmit = () => {
@@ -645,7 +635,7 @@ export default function VisionSuites() {
           closeTour();
           if (roomId) navigate(`/booking?roomId=${roomId}`);
         }}
-        roomName={tourRoom?.name}
+        roomName={tourRoom ? getRoomDisplayName(tourRoom) : "Vision Suite"}
         tour={tourData}
         loading={tourLoading}
         notice={tourNotice}
@@ -739,7 +729,7 @@ export default function VisionSuites() {
             <div className="absolute -top-4 left-6">
               <div className="flex items-center gap-2 bg-white dark:bg-[#18261e] px-4 py-1.5 shadow-md border border-[#1F6F5F]/30 text-[#2FA084] font-black text-xs tracking-widest uppercase font-sans">
                 <Hotel size={14} className="text-[#2FA084]" />
-                <span>{viewMode === "hotel" ? "Hotel Directory" : "Room Collection"}</span>
+                <span>{viewMode === "hotel" ? "Hotel" : "Room"}</span>
               </div>
             </div>
 
@@ -954,177 +944,115 @@ export default function VisionSuites() {
               ))}
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {paginatedList.map((room, index) => {
-                const roomDisplayName = getRoomDisplayName(room, filteredRooms);
-                const basePrice = Number(room.minPrice ?? room.basePricePhp ?? room.price ?? 1500);
-                const promoPrice = Math.round(basePrice * 0.9);
-                const bookableRoomId = room.variants?.[0]?.id || room.id;
+                const roomDisplayName = getRoomDisplayName(room);
+                const roomPrice = Number(room.minPrice ?? room.basePricePhp ?? room.price ?? 0);
+                const roomAmenities = Array.isArray(room.roomFeatures) && room.roomFeatures.length
+                  ? room.roomFeatures
+                  : Array.isArray(room.features)
+                    ? room.features
+                    : Array.isArray(room.amenities)
+                      ? room.amenities
+                      : [];
+                const roomNumbersText = Array.isArray(room.roomNumbers) && room.roomNumbers.length
+                  ? `Room ${room.roomNumbers.join(" / ")}`
+                  : "Room details";
+                const bookableRoomId = room.id;
 
                 return (
                   <motion.article
-                    key={room.id}
-                    initial={{ opacity: 0, y: 20 }}
+                    key={room.groupKey || room.id || `${roomDisplayName}-${index}`}
+                    initial={{ opacity: 0, y: 10 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    transition={{ delay: index * 0.05 }}
-                    className="group grid grid-cols-1 lg:grid-cols-12 overflow-hidden border border-[#1F6F5F]/30 bg-white shadow-xl transition-all duration-300 hover:border-[#2FA084] dark:border-[#1F6F5F]/30 dark:bg-[#121c16]"
+                    transition={{ delay: index * 0.03 }}
+                    className="group grid grid-cols-1 overflow-hidden border border-[#1F6F5F]/30 bg-white shadow-md transition-all duration-200 hover:border-[#2FA084] dark:border-[#1F6F5F]/30 dark:bg-[#121c16] lg:grid-cols-[240px_minmax(0,1fr)_220px]"
                   >
-                    {/* LEFT COLUMN: Room Visual & Essential Info (Span 4) */}
-                    <div className="lg:col-span-4 p-5 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-[#1F6F5F]/20 bg-slate-50/50 dark:bg-[#0f1913]">
-                      <div>
-                        <div className="relative h-48 overflow-hidden rounded-md bg-zinc-900 mb-4">
-                          <img
-                            src={getRoomPreviewImage(room, undefined)}
-                            alt={roomDisplayName}
-                            onError={(e) => { e.currentTarget.src = "/images/deluxe-room.jpg"; }}
-                            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                          />
-                          <div className="absolute top-2 left-2 bg-[#1F6F5F] text-white px-2.5 py-0.5 text-[9px] font-black tracking-wider uppercase">
-                            Our last {room.count > 1 ? room.count : 3}!
-                          </div>
-                          <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 text-[10px] font-semibold">
-                            1/5 Photos
-                          </div>
-                        </div>
-
-                        <h4 className="text-xl font-sans font-black text-slate-900 dark:text-white leading-tight mb-1">
-                          {roomDisplayName}
-                        </h4>
-                        <p className="text-xs font-semibold text-[#2FA084] mb-3">
-                          Up to {room.maxAdults || room.capacity || 2} adults{Number(room.maxChildren || 0) > 0 ? ` + ${room.maxChildren} children` : ""} · {room.count} room units
-                        </p>
-
-                        <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 mb-4 border-t border-[#1F6F5F]/10 pt-3">
-                          <div className="flex items-center gap-2">
-                            <Check size={13} className="text-[#2FA084]" />
-                            <span>Private modern bathroom</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Check size={13} className="text-[#2FA084]" />
-                            <span>Complimentary high-speed Wi-Fi</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Check size={13} className="text-[#2FA084]" />
-                            <span>Air conditioning & bottled water</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => openTour(room)}
-                          className="flex-1 border border-[#1F6F5F]/40 py-2 px-3 text-[10px] font-black uppercase tracking-wider text-[#2FA084] transition-all hover:bg-[#1F6F5F]/20 text-center"
-                        >
-                          {room.hasVirtualTour ? "360° Virtual Tour" : "Preview Room"}
-                        </button>
-                        <Link
-                          to={`/roomdetail/${room.id}`}
-                          className="border border-slate-300 dark:border-white/10 py-2 px-3 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 transition-all hover:bg-[#1F6F5F]/20 text-center"
-                        >
-                          Details
-                        </Link>
+                    {/* Column 1: Image & Basic Badge */}
+                    <div className="relative h-48 lg:h-full min-h-[170px] bg-zinc-900 overflow-hidden">
+                      <img
+                        src={getRoomPreviewImage(room, undefined)}
+                        alt={roomDisplayName}
+                        onError={(e) => { e.currentTarget.src = "/images/deluxe-room.jpg"; }}
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                      <div className="absolute top-2 left-2 bg-[#1F6F5F] text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 shadow">
+                        {room.hotelName || hotel?.name || "Vision Suite"}
                       </div>
                     </div>
 
-                    {/* RIGHT COLUMN: Stacked Rate Options (Span 8) */}
-                    <div className="lg:col-span-8 flex flex-col divide-y divide-[#1F6F5F]/20">
-                      
-                      {/* RATE OPTION 1: Flexible / Free Cancellation */}
-                      <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-[#1F6F5F]/5 transition-colors">
-                        <div className="space-y-1 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-black text-slate-800 dark:text-white flex items-center gap-1">
-                              <Users size={13} className="text-[#2FA084]" /> Up to {room.maxAdults || room.capacity || 2} adults{Number(room.maxChildren || 0) > 0 ? ` + ${room.maxChildren} children` : ""}
-                            </span>
-                            <span className="bg-[#1F6F5F]/10 text-[#2FA084] border border-[#1F6F5F]/30 px-2 py-0.5 text-[10px] font-bold">
-                              VISION FLEX
-                            </span>
-                          </div>
-                          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <Check size={13} /> Cancel for free anytime before check-in
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            No payment required until check-in day • Free High-Speed Wi-Fi
-                          </p>
-                          <p className="text-[11px] font-bold text-[#2FA084]">
-                            VISIONPROMO - ₱100 off applied!
-                          </p>
+                    {/* Column 2: Room Specifications & Amenities */}
+                    <div className="p-4 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-lg font-sans font-black text-slate-900 dark:text-white leading-snug mb-1">
+                          {roomDisplayName}
+                        </h4>
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#2FA084]">
+                          {roomNumbersText}
+                        </p>
+                        
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-300 mb-2">
+                          <span className="inline-flex items-center gap-1 font-bold text-[#2FA084]">
+                            <Users size={13} /> Max {room.maxAdults || room.capacity || 2} adults
+                          </span>
+                          {Number(room.maxChildren || 0) > 0 ? (
+                            <span className="text-slate-500">• {room.maxChildren} children allowed</span>
+                          ) : null}
                         </div>
 
-                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                          <div className="text-right">
-                            <p className="text-[10px] text-slate-400 line-through">{php(basePrice + 150)}</p>
-                            <p className="text-2xl font-black text-[#2FA084]">{php(basePrice)}</p>
-                            <p className="text-[10px] text-slate-400">Per night before taxes</p>
+                        {room?.description ? (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">
+                            {room.description}
+                          </p>
+                        ) : null}
+
+                        {roomAmenities.length ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {roomAmenities.slice(0, 5).map((amenity, idx) => (
+                              <span key={`${amenity}-${idx}`} className="inline-flex items-center gap-1 rounded border border-[#1F6F5F]/20 bg-[#1F6F5F]/5 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:text-slate-300">
+                                <Check size={10} className="text-[#2FA084]" /> {amenity}
+                              </span>
+                            ))}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              className="h-10 w-10 border border-[#1F6F5F]/30 flex items-center justify-center text-[#2FA084] hover:bg-[#1F6F5F]/20 transition-colors"
-                              title="Save to favorites"
-                            >
-                              <Heart size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/booking?roomId=${bookableRoomId}&rate=flex${filterCheckIn ? `&from=${filterCheckIn}` : ""}`)}
-                              className="px-6 py-3 bg-[#1F6F5F] hover:bg-[#288B77] dark:bg-[#2FA084] text-white font-bold text-xs uppercase tracking-wider shadow-md transition-all"
-                            >
-                              Book Now
-                            </button>
-                          </div>
-                        </div>
+                        ) : null}
                       </div>
 
-                      {/* RATE OPTION 2: Non-refundable / Best Value */}
-                      <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-[#1F6F5F]/5 transition-colors">
-                        <div className="space-y-1 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-black text-slate-800 dark:text-white flex items-center gap-1">
-                              <Users size={13} className="text-[#2FA084]" /> Up to {room.maxAdults || room.capacity || 2} adults{Number(room.maxChildren || 0) > 0 ? ` + ${room.maxChildren} children` : ""}
-                            </span>
-                            <span className="bg-amber-500/10 text-amber-600 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold">
-                              BEST VALUE SAVER
-                            </span>
-                          </div>
-                          <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
-                            Non-refundable (Lowest price guaranteed)
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Book and pay now • Free Wi-Fi • Breakfast included
-                          </p>
-                          <p className="text-[11px] font-bold text-[#2FA084]">
-                            SPECIAL DISCOUNT - 10% OFF
-                          </p>
-                        </div>
+                      <div className="mt-3 pt-2 flex items-center gap-3 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/roomdetail/${bookableRoomId}`)}
+                          className="font-bold text-[#2FA084] hover:underline inline-flex items-center gap-1"
+                        >
+                          <ScanEye size={13} /> See details
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openTour(room)}
+                          className="font-bold text-slate-600 hover:text-[#2FA084] dark:text-slate-300"
+                        >
+                          360° View
+                        </button>
+                      </div>
+                    </div>
 
-                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                          <div className="text-right">
-                            <p className="text-[10px] text-slate-400 line-through">{php(basePrice)}</p>
-                            <p className="text-2xl font-black text-[#2FA084]">{php(promoPrice)}</p>
-                            <p className="text-[10px] text-slate-400">Per night before taxes</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              className="h-10 w-10 border border-[#1F6F5F]/30 flex items-center justify-center text-[#2FA084] hover:bg-[#1F6F5F]/20 transition-colors"
-                              title="Save to favorites"
-                            >
-                              <Heart size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/booking?roomId=${bookableRoomId}&rate=saver${filterCheckIn ? `&from=${filterCheckIn}` : ""}`)}
-                              className="px-6 py-3 bg-[#1F6F5F]/20 hover:bg-[#1F6F5F] border border-[#1F6F5F]/40 text-[#2FA084] hover:text-white font-bold text-xs uppercase tracking-wider transition-all"
-                            >
-                              Select Saver
-                            </button>
-                          </div>
-                        </div>
+                    {/* Column 3: Pricing & Action Controls */}
+                    <div className="p-4 bg-slate-50/70 dark:bg-[#0f1913] border-t lg:border-t-0 lg:border-l border-[#1F6F5F]/20 flex flex-col justify-between items-start lg:items-end text-left lg:text-right">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-slate-400">Per night before taxes</p>
+                        <p className="text-2xl font-black text-[#2FA084] mt-0.5">{php(roomPrice)}</p>
+                        <p className="text-[10px] font-semibold text-slate-500 mt-0.5">1 room</p>
                       </div>
 
+                      <div className="w-full flex lg:flex-col gap-2 mt-4">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/booking?roomId=${bookableRoomId}${filterCheckIn ? `&from=${filterCheckIn}` : ""}`)}
+                          className="flex-1 lg:w-full bg-[#1F6F5F] hover:bg-[#288B77] py-2.5 px-4 text-xs font-black uppercase tracking-wider text-white shadow transition-all text-center"
+                        >
+                          Book Now
+                        </button>
+                      </div>
                     </div>
                   </motion.article>
                 );

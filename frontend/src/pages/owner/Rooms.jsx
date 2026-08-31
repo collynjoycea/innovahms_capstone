@@ -18,11 +18,11 @@ const Rooms = () => {
   const [touchedFields, setTouchedFields] = useState({});
   const [errorMessage, setErrorMessage] = useState('');
 
-  const initialRoomData = { 
-    roomNumber: '', 
+  const initialRoomData = {
+    roomNumber: '',
     roomName: '',
-    roomType: 'Single', 
-    bedType: '1 Queen Bed',
+    roomType: '',
+    bedType: '',
     price: '',
     rate3Hours: '',
     rate6Hours: '',
@@ -31,8 +31,8 @@ const Rooms = () => {
     maxAdults: 2,
     maxChildren: 0,
     amenities: [],
-    features: ['Private bathroom', 'Air conditioning', 'Wi-Fi [free]'], // Bagong dinagdag base sa info
-    images: [] 
+    features: [],
+    images: []
   };
   const [roomData, setRoomData] = useState(initialRoomData);
   const [filters, setFilters] = useState({ roomNumber: '', roomType: 'All', maxPrice: '', status: 'All' });
@@ -350,7 +350,7 @@ const Rooms = () => {
           onChange={(e) => setFilters({...filters, roomType: e.target.value})}
         >
             <option value="All">All Types</option>
-            {['Single', 'Double', 'Suite', 'Deluxe'].map(t => <option key={t} value={t}>{t}</option>)}
+            {[...new Set(rooms.map(room => room.roomType).filter(Boolean).concat(['Single', 'Double', 'Suite', 'Deluxe']))].map(t => <option key={t} value={t}>{t}</option>)}
         </select>
         <select 
           className="rounded border border-slate-300 bg-white px-3 py-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" 
@@ -502,7 +502,7 @@ const Rooms = () => {
                           className="w-full rounded border border-slate-300 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-800" 
                           onChange={e => updateField('roomType', e.target.value)}
                         >
-                            {['Single', 'Double', 'Suite', 'Deluxe'].map(t => <option key={t} value={t}>{t}</option>)}
+                            {[...new Set(rooms.map(room => room.roomType).filter(Boolean).concat(['Single', 'Double', 'Suite', 'Deluxe']))].map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                     </div>
                     <div>
