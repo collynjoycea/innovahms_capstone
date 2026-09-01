@@ -14,6 +14,7 @@ import {
   Star,
   Users,
   X,
+  ArrowRight,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Marzipano from "marzipano";
@@ -47,7 +48,6 @@ const roomText = (room, ...fields) => {
 };
 
 const normalizeRoomText = (value) => String(value || "").replace(/\s+/g, " ").trim();
-const getRoomNumber = (room) => roomText(room, "roomNumber", "room_number", "roomNo");
 const escapeRegExp = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const getRoomGroupName = (room) => {
@@ -79,7 +79,6 @@ const getRoomGroupName = (room) => {
 
 const getRoomDisplayName = (room) => {
   const roomGroupName = room?.groupName || getRoomGroupName(room);
-  // Room number display removed per instruction ("hindi dapat ipapakita room number nya")
   return roomGroupName || normalizeRoomText(roomText(room, "type", "roomType", "room_type")) || "Room";
 };
 
@@ -245,7 +244,7 @@ function TourModal({ open, onClose, onReserve, roomName, tour, loading, notice }
 }
 
 export default function VisionSuites() {
-  const PAGE_SIZE = 6;
+  const PAGE_SIZE = 10; // Itinakda sa 10 muna bago mag-view all ng 10 uli
   const location = useLocation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -560,7 +559,6 @@ export default function VisionSuites() {
 
     const roomList = next.map((room) => {
       const groupName = getRoomGroupName(room);
-      const roomNumber = normalizeRoomText(getRoomNumber(room));
       const price = Number(room.basePricePhp ?? room.price ?? 0);
       const featureList = Array.isArray(room.features)
         ? room.features
@@ -571,7 +569,6 @@ export default function VisionSuites() {
       return {
         ...room,
         groupName,
-        roomNumbers: roomNumber ? [roomNumber] : [],
         minPrice: price,
         maxPrice: price,
         roomFeatures: featureList,
@@ -724,8 +721,8 @@ export default function VisionSuites() {
         </div>
 
         {/* STICKY SEARCH BOX */}
-        <div className="sticky top-20 z-40 w-full max-w-7xl px-4 mx-auto">
-          <div className="relative bg-white/95 dark:bg-[#121c16]/95 p-6 md:p-7 shadow-[0_25px_60px_rgba(0,0,0,0.4)] backdrop-blur-xl border border-[#1F6F5F]/30">
+        <div className="sticky top-20 z-40 w-full max-w-6xl px-4 mx-auto">
+          <div className="relative bg-white/95 dark:bg-[#121c16]/95 p-5 md:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.4)] backdrop-blur-xl border border-[#1F6F5F]/30">
             <div className="absolute -top-4 left-6">
               <div className="flex items-center gap-2 bg-white dark:bg-[#18261e] px-4 py-1.5 shadow-md border border-[#1F6F5F]/30 text-[#2FA084] font-black text-xs tracking-widest uppercase font-sans">
                 <Hotel size={14} className="text-[#2FA084]" />
@@ -733,7 +730,7 @@ export default function VisionSuites() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between border-b border-[#1F6F5F]/20 pb-3 mb-5 pt-2 gap-4 flex-wrap">
+            <div className="flex items-center justify-between border-b border-[#1F6F5F]/20 pb-3 mb-4 pt-2 gap-4 flex-wrap">
               <div className="flex items-center gap-6 flex-wrap">
                 <div className="flex items-center gap-2 rounded-full border border-[#1F6F5F]/20 bg-[#1F6F5F]/5 p-1">
                   <button
@@ -771,8 +768,8 @@ export default function VisionSuites() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 items-center">
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2.5 items-center">
+              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
                 <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Check-In</label>
                 <div className="flex items-center gap-2">
                   <Calendar size={14} className="text-[#2FA084] shrink-0" />
@@ -785,7 +782,7 @@ export default function VisionSuites() {
                 </div>
               </div>
 
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
+              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
                 <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Check-Out</label>
                 <div className="flex items-center gap-2">
                   <Calendar size={14} className="text-[#2FA084] shrink-0" />
@@ -798,7 +795,7 @@ export default function VisionSuites() {
                 </div>
               </div>
 
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
+              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
                 <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Guests</label>
                 <div className="flex items-center gap-2">
                   <Users size={14} className="text-[#2FA084] shrink-0" />
@@ -814,7 +811,7 @@ export default function VisionSuites() {
                 </div>
               </div>
 
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
+              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
                 <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Room Type</label>
                 <div className="flex items-center gap-2">
                   <Search size={14} className="text-[#2FA084] shrink-0" />
@@ -831,7 +828,7 @@ export default function VisionSuites() {
                 </div>
               </div>
 
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
+              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
                 <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Rating</label>
                 <div className="flex items-center gap-2">
                   <Star size={14} className="text-[#2FA084] fill-[#2FA084] shrink-0" />
@@ -848,7 +845,7 @@ export default function VisionSuites() {
                 </div>
               </div>
 
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-3 transition-all hover:border-[#2FA084]">
+              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
                 <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Sort</label>
                 <div className="flex items-center gap-2">
                   <ArrowUpDown size={14} className="text-[#2FA084] shrink-0" />
@@ -868,7 +865,7 @@ export default function VisionSuites() {
                 <button
                   type="button"
                   onClick={handleSearchRoomsSubmit}
-                  className="w-full py-3.5 px-3 bg-[#1F6F5F] hover:bg-[#288B77] dark:bg-[#2FA084] dark:hover:bg-[#288B77] text-white font-bold text-xs tracking-wider uppercase shadow-md transition-all hover:scale-[1.005] active:scale-[0.995] flex items-center justify-center gap-2"
+                  className="w-full py-3 px-3 bg-[#1F6F5F] hover:bg-[#288B77] dark:bg-[#2FA084] dark:hover:bg-[#288B77] text-white font-bold text-xs tracking-wider uppercase shadow-md transition-all hover:scale-[1.005] active:scale-[0.995] flex items-center justify-center gap-2"
                 >
                   <Search size={14} />
                   <span>Filter</span>
@@ -880,8 +877,37 @@ export default function VisionSuites() {
       </section>
 
       {/* COLLECTION RESULTS LIST */}
-      <section className="py-12 px-4 max-w-7xl mx-auto pt-8">
+      <section className="py-10 px-4 max-w-5xl mx-auto pt-6">
         <div className="min-w-0">
+          {/* HEADER HEADER STYLE TULAD NG SA PICTURE NA HININGI */}
+          <div className="flex items-center justify-between mb-6 pb-2 border-b border-[#1F6F5F]/20">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-black text-[#2FA084] uppercase tracking-wider">
+                {viewMode === "hotel" ? "Recommendation Hotels" : "Recommendation Rooms"}
+              </h3>
+              <ArrowRight size={16} className="text-[#2FA084]" />
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => {
+                if (hasMoreItems) {
+                  setVisibleItemCount((prev) => Math.min(prev + PAGE_SIZE, currentList.length));
+                }
+              }}
+              className="group inline-flex items-center gap-1.5 text-xs font-bold text-[#2FA084] hover:text-[#288B77] transition-colors"
+            >
+              <span>{hasMoreItems ? "View All Room" : "All Rooms Loaded"}</span>
+              <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
+            </button>
+          </div>
+
+          <div className="mb-3">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              {currentList.length} {viewMode === "hotel" ? "hotels" : "rooms"} available total
+            </p>
+          </div>
+
           {viewMode === "hotel" ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {paginatedList.map((entry, index) => (
@@ -893,12 +919,12 @@ export default function VisionSuites() {
                   transition={{ delay: index * 0.05 }}
                   className="group flex flex-col overflow-hidden border border-[#1F6F5F]/30 bg-white shadow-xl transition-all duration-300 hover:border-[#2FA084] dark:border-[#1F6F5F]/30 dark:bg-[#121c16]"
                 >
-                  <div className="relative h-44 overflow-hidden bg-zinc-900">
+                  <div className="relative w-full h-48 overflow-hidden bg-zinc-900">
                     <img
                       src={resolveImg(entry.image || entry.hotelLogo || entry.buildingImage || entry.imageUrl || "/images/signup-img.png")}
                       alt={entry.name}
                       onError={(e) => { e.currentTarget.src = "/images/signup-img.png"; }}
-                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                     <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-2.5 py-1 flex items-center gap-1 border border-white/10">
                       <Star size={12} className="fill-[#2FA084] text-[#2FA084]" />
@@ -955,9 +981,6 @@ export default function VisionSuites() {
                     : Array.isArray(room.amenities)
                       ? room.amenities
                       : [];
-                const roomNumbersText = Array.isArray(room.roomNumbers) && room.roomNumbers.length
-                  ? `Room ${room.roomNumbers.join(" / ")}`
-                  : "Room details";
                 const bookableRoomId = room.id;
 
                 return (
@@ -967,32 +990,27 @@ export default function VisionSuites() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: index * 0.03 }}
-                    className="group grid grid-cols-1 overflow-hidden border border-[#1F6F5F]/30 bg-white shadow-md transition-all duration-200 hover:border-[#2FA084] dark:border-[#1F6F5F]/30 dark:bg-[#121c16] lg:grid-cols-[240px_minmax(0,1fr)_220px]"
+                    className="group grid grid-cols-1 overflow-hidden border border-[#1F6F5F]/30 bg-white shadow-md transition-all duration-200 hover:border-[#2FA084] dark:border-[#1F6F5F]/30 dark:bg-[#121c16] lg:grid-cols-[220px_minmax(0,1fr)_200px]"
                   >
-                    {/* Column 1: Image & Basic Badge */}
-                    <div className="relative h-48 lg:h-full min-h-[170px] bg-zinc-900 overflow-hidden">
+                    <div className="relative w-full h-44 lg:h-full min-h-[160px] bg-zinc-900 overflow-hidden">
                       <img
                         src={getRoomPreviewImage(room, undefined)}
                         alt={roomDisplayName}
                         onError={(e) => { e.currentTarget.src = "/images/deluxe-room.jpg"; }}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                       <div className="absolute top-2 left-2 bg-[#1F6F5F] text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 shadow">
                         {room.hotelName || hotel?.name || "Vision Suite"}
                       </div>
                     </div>
 
-                    {/* Column 2: Room Specifications & Amenities */}
                     <div className="p-4 flex flex-col justify-between">
                       <div>
                         <h4 className="text-lg font-sans font-black text-slate-900 dark:text-white leading-snug mb-1">
                           {roomDisplayName}
                         </h4>
-                        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#2FA084]">
-                          {roomNumbersText}
-                        </p>
                         
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-300 mb-2">
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-300 mb-2 mt-2">
                           <span className="inline-flex items-center gap-1 font-bold text-[#2FA084]">
                             <Users size={13} /> Max {room.maxAdults || room.capacity || 2} adults
                           </span>
@@ -1036,7 +1054,6 @@ export default function VisionSuites() {
                       </div>
                     </div>
 
-                    {/* Column 3: Pricing & Action Controls */}
                     <div className="p-4 bg-slate-50/70 dark:bg-[#0f1913] border-t lg:border-t-0 lg:border-l border-[#1F6F5F]/20 flex flex-col justify-between items-start lg:items-end text-left lg:text-right">
                       <div>
                         <p className="text-[10px] uppercase tracking-widest text-slate-400">Per night before taxes</p>
@@ -1071,7 +1088,7 @@ export default function VisionSuites() {
                   onClick={() => setVisibleItemCount((prev) => Math.min(prev + PAGE_SIZE, currentList.length))}
                   className="border border-[#1F6F5F]/30 px-5 py-2.5 text-sm font-semibold text-[#2FA084] transition-all hover:bg-[#1F6F5F]/20"
                 >
-                  View All
+                  View All Room
                 </button>
               ) : (
                 <span className="text-sm font-semibold text-[#2FA084]">All items loaded</span>
@@ -1092,7 +1109,7 @@ export default function VisionSuites() {
       </section>
 
       {!sessionUser?.id ? (
-        <section className="py-20 px-4 max-w-7xl mx-auto">
+        <section className="py-20 px-4 max-w-5xl mx-auto">
           <div className="border border-[#1F6F5F]/30 bg-white dark:bg-[#121c16] p-10 md:p-14 shadow-2xl">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
               <div>

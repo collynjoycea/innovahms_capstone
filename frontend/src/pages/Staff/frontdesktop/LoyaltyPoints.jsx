@@ -48,7 +48,7 @@ export default function LoyaltyPoints() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         <div>
           <h1 className={`text-4xl font-black italic uppercase tracking-tighter flex items-center gap-3 ${text}`}>
-            Loyalty & <span className="text-[#b3903c]">Points</span>
+            Loyalty & <span className="text-[#2FA084]">Points</span>
           </h1>
           <p className={`text-[10px] font-black uppercase tracking-[0.4em] mt-2 ${sub}`}>{stats.total || 0} registered members</p>
         </div>
@@ -87,10 +87,10 @@ export default function LoyaltyPoints() {
         {/* TOP MEMBERS */}
         <div className={`lg:col-span-7 p-8 rounded-[2.5rem] border ${card}`}>
           <h2 className={`text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-6 ${text}`}>
-            <Award size={18} className="text-[#b3903c]" /> Loyalty Members
+            <Award size={18} className="text-[#2FA084]" /> Loyalty Members
           </h2>
           {loading ? (
-            <div className="flex justify-center py-10"><Loader2 size={32} className="animate-spin text-[#b3903c]" /></div>
+            <div className="flex justify-center py-10"><Loader2 size={32} className="animate-spin text-[#2FA084]" /></div>
           ) : (
             <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
               {filtered.map(m => {
@@ -109,7 +109,7 @@ export default function LoyaltyPoints() {
                     <div className="hidden md:block w-28">
                       <p className={`text-[9px] font-black uppercase mb-1 ${sub}`}>Progress</p>
                       <div className={`h-1.5 w-full rounded-full overflow-hidden ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-                        <div className="h-full bg-[#b3903c]" style={{ width: `${m.progress}%` }} />
+                        <div className="h-full bg-[#2FA084]" style={{ width: `${m.progress}%` }} />
                       </div>
                     </div>
                     <div className="text-right">
@@ -127,8 +127,8 @@ export default function LoyaltyPoints() {
         {/* RULES & REWARDS */}
         <div className="lg:col-span-5 flex flex-col gap-6">
           <div className={`p-8 rounded-[2.5rem] border ${card}`}>
-            <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-6 text-[#b3903c]">
-              <Zap size={18} fill="#b3903c" /> Auto-Apply Rules
+            <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-6 text-[#2FA084]">
+              <Zap size={18} fill="#2FA084" /> Auto-Apply Rules
             </h2>
             <div className="space-y-4">
               {Object.entries(TIER_STYLES).filter(([k]) => k !== 'STANDARD').map(([tier, ts]) => (
@@ -142,13 +142,13 @@ export default function LoyaltyPoints() {
 
           <div className={`p-8 rounded-[2.5rem] border ${card}`}>
             <h2 className={`text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-6 ${text}`}>
-              <Gift size={18} className="text-[#b3903c]" /> Redeemable Rewards
+              <Gift size={18} className="text-[#2FA084]" /> Redeemable Rewards
             </h2>
             <div className="space-y-3">
               {REWARDS.map((r, i) => (
                 <div key={i} className={`p-4 rounded-2xl flex items-center justify-between border ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-zinc-100 bg-zinc-50'}`}>
                   <p className={`text-[10px] font-black uppercase tracking-tight ${sub}`}>{r.title}</p>
-                  <span className="text-[10px] font-black text-[#b3903c] bg-[#b3903c]/10 px-3 py-1 rounded-lg border border-[#b3903c]/20">{r.cost}</span>
+                  <span className="text-[10px] font-black text-[#2FA084] bg-[#2FA084]/10 px-3 py-1 rounded-lg border border-[#2FA084]/20">{r.cost}</span>
                 </div>
               ))}
             </div>

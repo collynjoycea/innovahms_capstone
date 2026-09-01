@@ -98,14 +98,34 @@ export default function HotelDetail() {
 
   const currentHotelImage = imgError ? FALLBACKS[0] : hotelImage;
 
+  const isRoomAvailable = (room) => {
+    const status = String(room?.status || room?.roomStatus || room?.room_status || "Available").trim().toLowerCase();
+    return ["available", "vacant", "ready", "open", ""].includes(status);
+  };
+
+  const availableRoomCount = rooms.filter(isRoomAvailable).length;
+
   const amenities = useMemo(() => {
     const items = toList(hotel?.amenities || hotel?.features || []).map((item) => String(item).trim());
     return items.length ? items : ["Wi‑Fi", "Breakfast", "Pool", "Concierge", "Parking", "24/7 Support"];
   }, [hotel]);
 
-  const avgRoomPrice = rooms.length
-    ? rooms.reduce((sum, room) => sum + Number(room.price || room.base_price_php || room.price_per_night || 0), 0) / rooms.length
-    : 0;
+  const roomPrices = rooms
+    .map((room) => Number(room.price ?? room.base_price_php ?? room.price_per_night ?? room.basePricePhp ?? 0))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  const minRoomPrice = roomPrices.length
+    ? Math.min(...roomPrices)
+    : Number(hotel?.minPrice ?? hotel?.startingPrice ?? 0);
+
+  const maxRoomPrice = roomPrices.length
+    ? Math.max(...roomPrices)
+    : Number(hotel?.maxPrice ?? hotel?.startingPrice ?? minRoomPrice ?? 0);
+
+  const roomPriceLabel =
+    minRoomPrice === maxRoomPrice
+      ? `PHP ${minRoomPrice.toLocaleString()}`
+      : `PHP ${minRoomPrice.toLocaleString()} - PHP ${maxRoomPrice.toLocaleString()}`;
 
   const handleGetDirections = () => {
     setRouteLoading(true);
@@ -225,7 +245,7 @@ export default function HotelDetail() {
 
                 <div className="flex items-center gap-2">
                   <Building2 size={14} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
-                  <span>{rooms.length} rooms available</span>
+                  <span>{availableRoomCount} rooms available</span>
                 </div>
               </div>
 
@@ -244,9 +264,9 @@ export default function HotelDetail() {
             <div className="pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
               <div>
                 <div className="text-lg font-bold text-[#1F6F5F] dark:text-[#2FA084]">
-                  {rooms.length ? `PHP ${avgRoomPrice.toLocaleString()}` : "PHP 0"}
+                  {roomPriceLabel}
                 </div>
-                <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-wide">Average Room Rate</div>
+                <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-wide">Room Price Range</div>
               </div>
               <button
                 onClick={() => navigate(`/vision-suites?viewMode=room&hotel_id=${hotel.id}`)}
@@ -344,7 +364,7 @@ export default function HotelDetail() {
           <section className="mt-8">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">Rooms at {hotel.name}</h2>
-              <span className="text-xs text-[#1F6F5F] dark:text-[#2FA084] font-medium">{rooms.length} available</span>
+              <span className="text-xs text-[#1F6F5F] dark:text-[#2FA084] font-medium">{availableRoomCount} available</span>
             </div>
 
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">

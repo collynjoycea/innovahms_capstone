@@ -158,6 +158,8 @@ export default function LandingPage() {
             const rawImg = (Array.isArray(room.images) && room.images[0]) || "";
             const image = resolveImg(rawImg);
             const roomName = room.roomName || room.room_name || room.name || roomType || "Innova Suite";
+            const priceVal = room.basePricePhp || room.price || room.base_price || 0;
+
             return {
               id: room.id,
               name: roomName,
@@ -167,6 +169,7 @@ export default function LandingPage() {
               status: String(room.status || "Available").toUpperCase() === "AVAILABLE" ? "OPEN" : String(room.status || "CLOSED").toUpperCase(),
               schedule: "24/7 Guest Service",
               roomType,
+              price: priceVal,
               amenities: Array.isArray(room.amenities) ? room.amenities : [],
               avgRating: Number(room.avgRating || room.averageRating || 0),
               reviewCount: Number(room.reviewCount || room.review_count || 0),
@@ -596,7 +599,7 @@ export default function LandingPage() {
               onClick={() => navigate("/recommendations")}
               className="text-xs font-medium text-[#1F6F5F] dark:text-[#6FCF97] hover:underline flex items-center gap-1.5"
             >
-              Recommendation Rooms <ArrowRight size={13} />
+              {/* Recommendation Rooms <ArrowRight size={13} />*/}
             </button>
             <button
               type="button"
@@ -643,8 +646,9 @@ export default function LandingPage() {
                   <h3 className="text-base font-medium text-[#111C18] dark:text-white">
                     {hotel.name}
                   </h3>
-                  <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                    {hotel.reviewCount ? `${hotel.reviewCount} reviews` : "New listing"}
+                  {/* Pinalitan ang 'New listing' ng Presyo */}
+                  <p className="mt-2 text-xs font-semibold text-[#1F6F5F] dark:text-[#6FCF97]">
+                    {hotel.price ? `PHP ${Number(hotel.price).toLocaleString()} / night` : "Contact for Pricing"}
                   </p>
                 </div>
               </div>

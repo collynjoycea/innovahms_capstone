@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Mail, Lock, Key, Eye, EyeOff, ArrowRight, AlertCircle, ShieldCheck } from "lucide-react";
+import { 
+  Mail, Lock, Key, Eye, EyeOff, ArrowRight, 
+  Globe, AlertCircle, CheckCircle2 
+} from "lucide-react";
 import ForgotPasswordModal from "../../components/ForgotPasswordModal";
 import { isValidEmail, isValidHotelCode, normalizeEmail } from "../../utils/authValidation";
 
@@ -10,36 +13,105 @@ const StaffLogin = () => {
   const [isVerified, setIsVerified] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [touchedFields, setTouchedFields] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "", hotelCode: "" });
 
-  // --- LOGIC HANDLERS ---
+  // --- SINGLE FIELD VALIDATION LOGIC ---
+  const validateSingleField = (key, value) => {
+    let err = null;
+
+    if (key === "email") {
+      if (!value.trim()) err = "Employee email is required.";
+      else if (!isValidEmail(value)) err = "Enter a valid staff email address.";
+    }
+
+    if (key === "password") {
+      if (!value) err = "Security key password is required.";
+      else if (value.length < 6) err = "Password must be at least 6 characters.";
+    }
+
+    if (key === "hotelCode") {
+      if (!value.trim()) err = "Hotel verification code is required.";
+      else if (!isValidHotelCode(value)) err = "Hotel code must follow the INNOVAHMS-123 format.";
+    }
+
+    return err;
+  };
+
+  const updateField = (key, value) => {
+    let sanitizedValue = value;
+    if (key === "hotelCode") {
+      sanitizedValue = value.replace(/[^a-zA-Z0-9-]/g, "").toUpperCase();
+      // Kung binago ang hotel code matapos ma-verify, i-reset ang verification status
+      if (sanitizedValue !== formData.hotelCode) {
+        setIsVerified(false);
+      }
+    }
+
+    const updatedForm = { ...formData, [key]: sanitizedValue };
+    setFormData(updatedForm);
+
+    if (touchedFields[key]) {
+      const err = validateSingleField(key, sanitizedValue);
+      setFieldErrors((prev) => ({ ...prev, [key]: err }));
+    }
+  };
+
+  const handleBlur = (key) => {
+    setTouchedFields((prev) => ({ ...prev, [key]: true }));
+    const err = validateSingleField(key, formData[key]);
+    setFieldErrors((prev) => ({ ...prev, [key]: err }));
+  };
+
   const handleVerifyCode = () => {
+    const err = validateSingleField("hotelCode", formData.hotelCode);
+    setTouchedFields((prev) => ({ ...prev, hotelCode: true }));
+    
+    if (err) {
+      setFieldErrors((prev) => ({ ...prev, hotelCode: err }));
+      setIsVerified(false);
+      return;
+    }
+
     if (isValidHotelCode(formData.hotelCode)) {
       setIsVerified(true);
+      setFieldErrors((prev) => ({ ...prev, hotelCode: null }));
       setError("");
     } else {
-      setError("Hotel code must strictly follow format: INNOVAHMS-123.");
+      setFieldErrors((prev) => ({ ...prev, hotelCode: "Invalid format (e.g. INNOVAHMS-123)." }));
       setIsVerified(false);
     }
+  };
+
+  const validateAllFields = () => {
+    const errors = {};
+    const allTouched = {};
+    const keys = ["email", "password", "hotelCode"];
+
+    keys.forEach((key) => {
+      allTouched[key] = true;
+      const err = validateSingleField(key, formData[key]);
+      if (err) errors[key] = err;
+    });
+
+    setTouchedFields(allTouched);
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setSuccessMessage("");
+
+    if (!validateAllFields()) {
+      setError("Please fix all highlighted input errors.");
+      return;
+    }
     
     if (!isVerified) {
-      setError("Please verify your Hotel Owner Code first.");
-      return;
-    }
-    if (!isValidEmail(formData.email)) {
-      setError("Enter a valid staff email address.");
-      return;
-    }
-    if (!formData.password) {
-      setError("Password is required.");
+      setError("Please verify your Hotel Affiliation Code first.");
       return;
     }
 
@@ -80,7 +152,7 @@ const StaffLogin = () => {
       } else {
         setError(result.error || "Login failed");
       }
-    } catch {
+    } catch (err) {
       setError("Server connection error. Ensure Flask is running.");
     } finally {
       setIsLoading(false);
@@ -88,24 +160,22 @@ const StaffLogin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans">
+    <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans flex flex-col justify-between">
       
-      {/* MAIN CONTAINER (Katulad ng StaffSignUp structure) */}
-      <main className="max-w-xl mx-auto px-4 py-12">
+      {/* MAIN LOGIN AREA (Wala nang naka-box na fixed container sa gitna) */}
+      <main className="max-w-md mx-auto px-4 py-12 w-full my-auto">
         
-        {/* TITLE HEADER */}
-        <div className="mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
-          <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-400 mb-1">
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Staff Member Sign In
+        {/* Title Header */}
+        <div className="mb-6 border-b border-slate-200 dark:border-slate-800 pb-4 text-center">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">
+            Staff <span className="text-[#2FA084]">Access</span>
           </h2>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-            Provide your verified credentials and hotel code to initialize your shift session.
+            Identity verification required to initialize staff shift.
           </p>
         </div>
 
-        {/* ERROR ALERT */}
+        {/* Global Error Banner */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border-l-4 border-red-600 rounded-r text-red-800 dark:text-red-200 text-xs flex items-start gap-3">
             <AlertCircle size={18} className="shrink-0 mt-0.5" />
@@ -116,132 +186,145 @@ const StaffLogin = () => {
           </div>
         )}
 
-        {/* SUCCESS ALERT */}
-        {successMessage && (
-          <div className="mb-6 p-4 bg-emerald-50 dark:bg-emerald-950/40 border-l-4 border-emerald-600 rounded-r text-emerald-800 dark:text-emerald-200 text-xs flex items-start gap-3">
-            <ShieldCheck size={18} className="shrink-0 mt-0.5" />
-            <div>
-              <strong className="font-bold block mb-0.5">Success</strong>
-              <span>{successMessage}</span>
-            </div>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-6" noValidate>
           
-          {/* CARD CONTAINER */}
-          <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
-            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                <span className="w-5 h-5 bg-emerald-800 text-white rounded-full inline-flex items-center justify-center text-[11px] font-bold">1</span>
-                Security Authentication
-              </h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Enter your registered business email, security password, and hotel code.
-              </p>
+          {/* Main Card Container with Full Validation */}
+          <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm space-y-4">
+            
+            {/* Employee Email */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Employee Email <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Mail size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="email"
+                  placeholder="staff@gmail.com"
+                  value={formData.email}
+                  onChange={(e) => updateField('email', e.target.value)}
+                  onBlur={() => handleBlur('email')}
+                  className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                    touchedFields.email && fieldErrors.email
+                      ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                      : "border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-slate-800 dark:text-white"
+                  }`}
+                />
+              </div>
+              {touchedFields.email && fieldErrors.email && (
+                <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                  {fieldErrors.email}
+                </span>
+              )}
             </div>
 
-            <div className="space-y-4">
-              
-              {/* Hotel Code Verification Section */}
-              <div className={`p-4 rounded border transition-all ${isVerified ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800' : 'bg-slate-50 border-slate-200 dark:bg-slate-800/50 dark:border-slate-700'}`}>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Key size={14} className={isVerified ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'} />
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Hotel Code <span className="text-red-500">*</span>
-                  </label>
-                </div>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    className="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs font-mono font-bold uppercase outline-none focus:border-emerald-700"
-                    placeholder="INNOVAHMS-123"
-                    value={formData.hotelCode}
-                    onChange={(e) => setFormData({...formData, hotelCode: e.target.value.toUpperCase()})}
-                  />
-                  <button 
-                    type="button" 
-                    onClick={handleVerifyCode} 
-                    className={`px-4 rounded text-xs font-bold uppercase transition-all ${isVerified ? 'bg-emerald-600 text-white' : 'bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-700 dark:hover:bg-slate-600'}`}
-                  >
-                    {isVerified ? 'Verified' : 'Verify'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Email Input */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Employee Business Email <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Mail size={15} className="absolute left-3 top-2.5 text-slate-400" />
-                  <input
-                    type="email"
-                    required
-                    className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none focus:border-emerald-700 transition-colors"
-                    placeholder="staff@gmail.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              {/* Password Input */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Password <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Lock size={15} className="absolute left-3 top-2.5 text-slate-400" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    className="w-full pl-9 pr-10 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none focus:border-emerald-700 transition-colors"
-                    placeholder="••••••••"
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)} 
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                  >
-                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Forgot Password Trigger */}
-              <div className="flex justify-end pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowForgotPassword(true)}
-                  className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 hover:underline"
+            {/* Security Key / Password */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Password <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Lock size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={formData.password}
+                  onChange={(e) => updateField('password', e.target.value)}
+                  onBlur={() => handleBlur('password')}
+                  className={`w-full pl-9 pr-10 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                    touchedFields.password && fieldErrors.password
+                      ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                      : "border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-slate-800 dark:text-white"
+                  }`}
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)} 
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
-                  Forgot your password?
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-
+              {touchedFields.password && fieldErrors.password && (
+                <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                  {fieldErrors.password}
+                </span>
+              )}
             </div>
+
+            {/* Hotel Code Verification Section */}
+            <div className={`p-4 rounded border transition-all ${isVerified ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800' : 'bg-slate-50 border-slate-200 dark:bg-slate-800/50 dark:border-slate-700'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Key size={14} className={isVerified ? 'text-emerald-600' : 'text-[#2FA084]'} />
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Hotel Affiliation Code</span>
+                </div>
+                {isVerified && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">
+                    <CheckCircle2 size={13} /> Verified
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  className={`flex-1 px-3 py-2 bg-white dark:bg-slate-800 border text-xs font-mono uppercase rounded outline-none transition-colors ${
+                    touchedFields.hotelCode && fieldErrors.hotelCode
+                      ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                      : "border-slate-300 dark:border-slate-700 text-slate-800 dark:text-white"
+                  }`}
+                  placeholder="INNOVAHMS-123"
+                  value={formData.hotelCode}
+                  onChange={(e) => updateField('hotelCode', e.target.value)}
+                  onBlur={() => handleBlur('hotelCode')}
+                />
+                <button 
+                  type="button" 
+                  onClick={handleVerifyCode} 
+                  className={`px-4 py-2 rounded text-xs font-bold uppercase transition-all ${isVerified ? 'bg-emerald-600 text-white' : 'bg-[#1F6F5F] text-white hover:bg-[#173F35]'}`}
+                >
+                  {isVerified ? 'Re-Verify' : 'Verify'}
+                </button>
+              </div>
+              {touchedFields.hotelCode && fieldErrors.hotelCode && (
+                <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
+                  {fieldErrors.hotelCode}
+                </span>
+              )}
+            </div>
+
           </section>
 
-          {/* ACTION CONTROLS */}
-          <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-6">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              No account yet?{' '}
-              <Link to="/staff/signup" className="font-bold text-emerald-800 dark:text-emerald-400 hover:underline">
-                Request access
-              </Link>
-            </p>
-
+          {/* Form Bottom Action Controls */}
+          <div className="space-y-4 pt-2">
             <button 
               type="submit"
               disabled={isLoading}
-              className="px-6 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+              className="w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white rounded text-xs font-bold uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 transition-colors"
             >
               {isLoading ? "Validating..." : "Sign In"} <ArrowRight size={14} />
             </button>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(true)}
+                className="font-semibold text-slate-600 dark:text-slate-400 hover:text-[#2FA084] transition-colors"
+              >
+                Forgot Password?
+              </button>
+              <button 
+                type="button" 
+                onClick={() => navigate('/')} 
+                className="font-semibold text-slate-500 dark:text-slate-500 hover:text-[#2FA084] transition-colors flex items-center gap-1"
+              >
+                <Globe size={13} /> Public Terminal
+              </button>
+            </div>
+
+            <div className="text-center text-xs text-slate-500 dark:text-slate-400 pt-2">
+              No account? <Link to="/staff/signup" className="font-bold text-emerald-800 dark:text-emerald-400 hover:underline">Request Access</Link>
+            </div>
           </div>
 
         </form>

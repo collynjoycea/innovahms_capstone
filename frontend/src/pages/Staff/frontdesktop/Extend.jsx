@@ -64,14 +64,14 @@ export default function Extend() {
   const text = isDarkMode ? 'text-white' : 'text-zinc-900';
   const sub  = isDarkMode ? 'text-zinc-500' : 'text-zinc-400';
 
-  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#b3903c]" size={40} /></div>;
+  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#2FA084]" size={40} /></div>;
 
   return (
     <div className={`p-8 min-h-screen transition-colors duration-300 ${isDarkMode ? 'bg-[#050505] text-white' : 'bg-[#f4f7f6] text-zinc-900'}`}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-4xl font-black italic uppercase tracking-tighter">
-            Extend Stay <span className="text-[#b3903c]">/ Transfer</span>
+            Extend Stay <span className="text-[#2FA084]">/ Transfer</span>
           </h1>
           <p className={`text-[10px] font-black uppercase tracking-[0.4em] italic mt-1 ${sub}`}>
             {stays.length} guest(s) currently in-house
@@ -102,13 +102,13 @@ export default function Extend() {
                 <tbody className={`divide-y ${isDarkMode ? 'divide-zinc-800/30' : 'divide-zinc-100'}`}>
                   {stays.map(s => (
                     <tr key={s.id} onClick={() => { setSelected(s); setMsg({ text: '', type: '' }); }}
-                      className={`cursor-pointer transition-all ${selected?.id === s.id ? 'bg-[#b3903c]/10' : isDarkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-zinc-50'}`}>
+                      className={`cursor-pointer transition-all ${selected?.id === s.id ? 'bg-[#2FA084]/10' : isDarkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-zinc-50'}`}>
                       <td className={`px-6 py-4 text-[11px] font-black uppercase ${text}`}>{s.guestName}</td>
                       <td className={`px-6 py-4 text-[10px] font-bold ${sub}`}>Room {s.roomNumber}</td>
                       <td className={`px-6 py-4 text-[11px] font-bold ${text}`}>{s.checkOut}</td>
                       <td className={`px-6 py-4 text-[11px] font-black ${s.balance > 0 ? 'text-red-500' : 'text-emerald-500'}`}>₱{Number(s.balance).toLocaleString()}</td>
                       <td className="px-6 py-4 text-right">
-                        <ChevronRight size={16} className={selected?.id === s.id ? 'text-[#b3903c]' : sub} />
+                        <ChevronRight size={16} className={selected?.id === s.id ? 'text-[#2FA084]' : sub} />
                       </td>
                     </tr>
                   ))}
@@ -121,7 +121,7 @@ export default function Extend() {
         {/* FORMS */}
         <div className="lg:col-span-5 space-y-6">
           {selected && (
-            <div className={`p-5 rounded-2xl border ${isDarkMode ? 'bg-[#b3903c]/5 border-[#b3903c]/10' : 'bg-amber-50 border-amber-100'}`}>
+            <div className={`p-5 rounded-2xl border ${isDarkMode ? 'bg-[#2FA084]/5 border-[#2FA084]/10' : 'bg-amber-50 border-amber-100'}`}>
               <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${sub}`}>Selected Guest</p>
               <p className={`text-sm font-black uppercase ${text}`}>{selected.guestName}</p>
               <p className={`text-[10px] ${sub}`}>{selected.bookingNumber} · Room {selected.roomNumber} · Out: {selected.checkOut}</p>
@@ -129,17 +129,17 @@ export default function Extend() {
           )}
 
           <div className={`p-8 rounded-[2.5rem] border ${cardBg}`}>
-            <h3 className="text-xs font-black uppercase tracking-widest text-[#b3903c] mb-5 flex items-center gap-2">
+            <h3 className="text-xs font-black uppercase tracking-widest text-[#2FA084] mb-5 flex items-center gap-2">
               <CalendarClock size={16} /> Extension Control
             </h3>
             <div className="space-y-4">
               <div>
                 <label className={`text-[9px] font-black uppercase tracking-widest block mb-2 ${sub}`}>New Check-Out Date</label>
                 <input type="date" value={newDate} min={selected?.checkOut || ''} onChange={e => setNewDate(e.target.value)}
-                  className={`w-full p-4 rounded-2xl border outline-none focus:border-[#b3903c] transition-all ${inputBg}`} />
+                  className={`w-full p-4 rounded-2xl border outline-none focus:border-[#2FA084] transition-all ${inputBg}`} />
               </div>
               <button onClick={doExtend} disabled={processing || !selected}
-                className="w-full py-5 bg-[#b3903c] text-black rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-[#b3903c]/20 hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                className="w-full py-5 bg-[#2FA084] text-black rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-[#2FA084]/20 hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                 {processing ? <Loader2 size={16} className="animate-spin" /> : <CalendarClock size={16} />}
                 Confirm Extension
               </button>

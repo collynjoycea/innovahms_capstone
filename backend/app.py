@@ -5,6 +5,8 @@ from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 import os
 import json
 import requests
@@ -39,6 +41,7 @@ except Exception:
     PROPHET_AVAILABLE = False
 
 app = Flask(__name__, static_folder='static')
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '519451068503-3omfa4t653eigfp4gcajjiuioq5je5mj.apps.googleusercontent.com')
 
 # --- GMAIL SMTP CONFIGURATION ---
 # Keep the credentials in backend/.env; do not hard-code them in source control.
@@ -1055,6 +1058,27 @@ def _normalize_room_status(value):
     if raw in {"available", "vacant", "ready"}:
         return "vacant"
     return "vacant"
+
+
+def _normalize_room_type(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return "Single"
+
+    lowered = raw.lower().replace("_", " ").replace("-", " ")
+    if "deluxe" in lowered:
+        return "Deluxe"
+    if "suite" in lowered or "presidential" in lowered or "executive" in lowered:
+        return "Suite"
+    if "double" in lowered:
+        return "Double"
+    if "single" in lowered:
+        return "Single"
+
+    if raw in {"Single", "Double", "Suite", "Deluxe"}:
+        return raw
+
+    return "Single"
 
 
 def _is_truthy(value):
@@ -7618,7 +7642,7 @@ def add_room():
         hotel_id = _to_int(request.form.get('hotelId'), 0)
         room_num = request.form.get('roomNumber')
         room_name = request.form.get('roomName', '')
-        room_type = request.form.get('roomType', 'Single')
+        room_type = _normalize_room_type(request.form.get('roomType', 'Single'))
         price = float(request.form.get('price') or 0)
         rate_3 = float(request.form.get('rate3Hours') or 0)
         rate_6 = float(request.form.get('rate6Hours') or 0)
@@ -7676,7 +7700,7 @@ def update_room(room_id):
         hotel_id = _to_int(request.form.get('hotelId'), 0)
         room_num = request.form.get('roomNumber')
         room_name = request.form.get('roomName', '')
-        room_type = request.form.get('roomType', 'Single')
+        room_type = _normalize_room_type(request.form.get('roomType', 'Single'))
         price = float(request.form.get('price') or 0)
         rate_3 = float(request.form.get('rate3Hours') or 0)
         rate_6 = float(request.form.get('rate6Hours') or 0)

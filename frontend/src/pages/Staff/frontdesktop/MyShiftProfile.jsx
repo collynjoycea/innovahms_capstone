@@ -94,7 +94,7 @@ export default function MyShiftProfile() {
         {/* Header */}
         <div>
           <h1 className={`text-3xl font-black uppercase tracking-tighter ${text}`}>
-            My <span className="text-[#b3903c]">Shift</span>
+            My <span className="text-[#2FA084]">Shift</span>
           </h1>
           <p className={`text-[10px] font-bold uppercase tracking-[0.3em] mt-1 ${sub}`}>
             {now.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -108,7 +108,7 @@ export default function MyShiftProfile() {
             {now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </p>
           {isIn && elapsed && (
-            <p className="mt-3 text-[#b3903c] font-black text-sm tracking-widest">
+            <p className="mt-3 text-[#2FA084] font-black text-sm tracking-widest">
               ⏱ {elapsed} on shift
             </p>
           )}
@@ -117,7 +117,7 @@ export default function MyShiftProfile() {
         {/* Staff Info */}
         {!loading && shift && (
           <div className={`rounded-[2rem] border p-6 flex items-center gap-5 ${card}`}>
-            <div className="w-14 h-14 rounded-2xl bg-[#b3903c]/10 flex items-center justify-center text-[#b3903c]">
+            <div className="w-14 h-14 rounded-2xl bg-[#2FA084]/10 flex items-center justify-center text-[#2FA084]">
               <User size={28} />
             </div>
             <div>
@@ -194,7 +194,7 @@ export default function MyShiftProfile() {
 
         {loading && (
           <div className="flex items-center justify-center py-10">
-            <Loader2 size={32} className="animate-spin text-[#b3903c]" />
+            <Loader2 size={32} className="animate-spin text-[#2FA084]" />
           </div>
         )}
       </div>

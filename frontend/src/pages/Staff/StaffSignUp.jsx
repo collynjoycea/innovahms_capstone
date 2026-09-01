@@ -51,8 +51,6 @@ export default function StaffSignUp() {
   const [touchedFields, setTouchedFields] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
 
   const validateSingleField = (key, value, currentFormData = formData) => {
     let error = null;
@@ -115,7 +113,7 @@ export default function StaffSignUp() {
     let sanitizedValue = value;
 
     if (key === 'firstName' || key === 'lastName') {
-      sanitizedValue = value.replace(/[^a-zA-Z\sÃ±Ã‘-]/g, '');
+      sanitizedValue = value.replace(/[^a-zA-Z\sñÑ-]/g, '');
     } else if (key === 'contactNumber') {
       sanitizedValue = value.replace(/[^0-9]/g, '').slice(0, 11);
     } else if (key === 'hotelCode') {
@@ -172,29 +170,9 @@ export default function StaffSignUp() {
       ...formData,
       email: normalizeEmail(formData.email),
       hotelCode: formData.hotelCode.trim().toUpperCase(),
-      otpCode,
     };
 
     try {
-      if (!otpSent) {
-        const otpResponse = await fetch('/api/auth/send-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userType: 'staff', email: normalizedForm.email }),
-        });
-        const otpResult = await otpResponse.json().catch(() => ({}));
-        if (!otpResponse.ok) {
-          setErrorMessage(otpResult.error || 'Unable to send Gmail verification OTP.');
-          return;
-        }
-        setOtpSent(true);
-        setErrorMessage('OTP sent to your Gmail. Enter it below, then submit again.');
-        return;
-      }
-      if (!/^\d{6}$/.test(otpCode)) {
-        setErrorMessage('Enter the 6-digit Gmail verification OTP.');
-        return;
-      }
       const response = await fetch('/api/staff/register', {
         method: 'POST',
         headers: {
@@ -451,22 +429,6 @@ export default function StaffSignUp() {
                   </span>
                 )}
               </div>
-
-              {otpSent && (
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Gmail Verification OTP</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={otpCode}
-                    onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, ''))}
-                    className="w-full rounded border border-emerald-500 bg-emerald-50 px-3 py-2 text-center text-sm font-black tracking-[0.35em] outline-none dark:bg-emerald-950/30"
-                    placeholder="123456"
-                  />
-                  <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Check your Gmail inbox for the 6-digit code.</p>
-                </div>
-              )}
 
               {/* Password */}
               <div>
