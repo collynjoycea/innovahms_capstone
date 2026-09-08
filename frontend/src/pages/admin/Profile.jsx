@@ -26,7 +26,7 @@ export default function Profile() {
   const [notice, setNotice] = useState('');
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0F2B25]' : 'bg-[#EEEEEE]',
+    bg: isDarkMode ? 'bg-[#0F2B25]' : 'bg-[#F4F5F7]',
     card: isDarkMode ? 'bg-[#163C34]/80 backdrop-blur-md' : 'bg-white',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
     textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
@@ -172,9 +172,6 @@ export default function Profile() {
         <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
           My <span className="text-[#2FA084]">Profile</span>
         </h1>
-        <p className={`text-[9px] font-bold uppercase tracking-[0.22em] ${theme.textSub}`}>
-          Your administrator account details
-        </p>
       </div>
 
       <div className={`max-w-2xl rounded-2xl border p-8 ${theme.card} ${theme.border} ${theme.shadow}`}>

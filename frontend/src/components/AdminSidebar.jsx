@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Settings as SettingsIcon, History, LogOut, 
   Users, Laptop, FileBarChart, ShieldCheck, Globe, Star, 
-  Hotel, Zap, UserCheck, IdCard, KeyRound
+  Hotel, KeyRound
 } from 'lucide-react';
 
 const parseStoredAdmin = () => {
@@ -49,23 +49,20 @@ const AdminSidebar = ({ isDarkMode }) => {
       items: [
         { name: 'Dashboard', path: '/admin', icon: <LayoutDashboard /> },
         { name: 'Reports & Analytics', path: '/admin/reports', icon: <FileBarChart /> },
-        { name: 'Guest Reviews', path: '/admin/reviews', icon: <Star />, badge: "NEW" }
+        { name: 'Reviews', path: '/admin/reviews', icon: <Star />, badge: "NEW" }
       ]
     },
     {
       title: "Management",
       items: [
         { name: 'Hotel Owners', path: '/admin/owners', icon: <Hotel /> },
-        { name: 'Staff', path: '/admin/staff', icon: <IdCard /> },
-        { name: 'Customers', path: '/admin/customers', icon: <UserCheck /> },
         { name: 'Member Packages', path: '/admin/packages', icon: <ShieldCheck /> },
       ]
     },
     {
       title: "Administration",
       items: [
-        { name: 'System Logs', path: '/admin/logs', icon: <History /> },
-        { name: 'Notifications', path: '/admin/notifications', icon: <Zap /> }
+        { name: 'System Logs', path: '/admin/logs', icon: <History /> }
       ]
     }
   ];
@@ -73,7 +70,7 @@ const AdminSidebar = ({ isDarkMode }) => {
   // Background shifts with mode: vibrant gradient in light mode, deep solid green
   // (matching the header) in dark mode. Text/labels are black in light mode
   // (per request) while dark mode keeps the light-on-green treatment.
-  const bgClass = isDarkMode ? 'bg-[#163C34]' : 'bg-gradient-to-b from-[#1F6F5F] to-[#2FA084]';
+  const bgClass = isDarkMode ? 'bg-[#163C34]' : 'bg-white';
 
   const t = isDarkMode ? {
     border: 'border-white/10',
@@ -96,25 +93,25 @@ const AdminSidebar = ({ isDarkMode }) => {
     scrollThumb: '#2FA084',
     scrollThumbHover: '#6FCF97',
   } : {
-    border: 'border-black/10',
-    sectionTitle: 'text-black/60',
-    divider: 'bg-black/10',
-    navInactive: 'text-black/70 hover:text-black hover:bg-white/20',
-    navActive: 'bg-white/25 text-black',
-    iconInactive: 'text-black/60 group-hover:text-[#173F35]',
-    iconActive: 'text-[#173F35]',
-    activeBar: 'bg-black shadow-[0_0_12px_rgba(0,0,0,0.4)]',
-    profileCard: 'bg-white/15 border-black/10 hover:bg-white/25',
-    profileCardActive: 'bg-white/30 border-black/20',
+    border: 'border-black/[0.06]',
+    sectionTitle: 'text-black/35',
+    divider: 'bg-black/[0.06]',
+    navInactive: 'text-black/55 hover:text-black hover:bg-black/[0.03]',
+    navActive: 'bg-[#EAF7F1] text-[#173F35]',
+    iconInactive: 'text-black/40 group-hover:text-[#2FA084]',
+    iconActive: 'text-[#2FA084]',
+    activeBar: 'bg-[#2FA084] shadow-[0_0_10px_#6FCF97]',
+    profileCard: 'bg-transparent border-transparent hover:bg-black/[0.03]',
+    profileCardActive: 'bg-[#EAF7F1] border-transparent',
     profileName: 'text-black',
-    profileRole: 'text-black/70',
-    onlineBadge: 'border-[#2FA084] bg-[#6FCF97] text-[#0A2E24]',
-    offlineBadge: 'border-red-700/30 bg-red-700/10 text-red-800',
-    settingsInactive: 'bg-white/15 text-black border-black/10 hover:bg-black hover:text-white',
-    settingsActive: 'bg-black text-white border-black shadow-lg shadow-black/20',
-    logout: 'text-black/70 border-black/10 hover:text-red-700 hover:bg-red-700/10',
-    scrollThumb: '#173F35',
-    scrollThumbHover: '#0F2B25',
+    profileRole: 'text-black/45',
+    onlineBadge: 'border-[#2FA084]/50 bg-white text-[#173F35]',
+    offlineBadge: 'border-red-700/20 bg-red-700/5 text-red-700',
+    settingsInactive: 'bg-white text-[#173F35] border-black/10 hover:bg-[#173F35] hover:text-white',
+    settingsActive: 'bg-[#173F35] text-white border-[#173F35] shadow-lg shadow-black/10',
+    logout: 'text-black/55 border-black/10 hover:text-red-700 hover:bg-red-700/5',
+    scrollThumb: '#CBD5D1',
+    scrollThumbHover: '#173F35',
   };
 
   const adminName = admin?.name || 'Admin';

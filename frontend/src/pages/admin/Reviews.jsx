@@ -11,7 +11,7 @@ export default function Reviews() {
   const [activeTab, setActiveTab] = useState('all');
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#EEEEEE]',
+    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#F4F5F7]',
     card: isDarkMode ? 'bg-[#111111]/80 backdrop-blur-md' : 'bg-white',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
     textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
@@ -59,9 +59,6 @@ export default function Reviews() {
           <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
             System <span className="text-[#2FA084]">Reviews</span>
           </h1>
-          <p className={`text-[9px] font-bold ${theme.textSub} uppercase tracking-widest mt-1`}>
-            {stats.total ?? 0} total · avg {stats.avgRating ?? 0} ★
-          </p>
         </div>
         <div className={`flex p-1 rounded-xl border ${theme.border} ${isDarkMode ? 'bg-white/5' : 'bg-gray-200/50'} mt-4 md:mt-0`}>
           {['all', 'flagged', 'hidden'].map(tab => (

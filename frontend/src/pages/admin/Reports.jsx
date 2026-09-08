@@ -8,7 +8,7 @@ export default function Analytics() {
   const [loading, setLoading] = useState(true);
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#EEEEEE]',
+    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#F4F5F7]',
     card: isDarkMode ? 'bg-[#111111]/80 backdrop-blur-md' : 'bg-white',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
     textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
@@ -40,9 +40,6 @@ export default function Analytics() {
           <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
             Reports & <span className="text-[#2FA084]">Analytics</span>
           </h1>
-          <p className={`text-[9px] font-bold ${theme.textSub} uppercase tracking-widest mt-1`}>
-            Live platform performance
-          </p>
         </div>
         <button className="flex items-center gap-2 px-6 py-2 rounded-lg bg-[#2FA084] text-black font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all">
           <Download size={16} strokeWidth={3} /> Export

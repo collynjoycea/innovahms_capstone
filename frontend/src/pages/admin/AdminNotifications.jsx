@@ -176,9 +176,6 @@ export default function AdminNotifications() {
           <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
             Notification <span className="text-[#2FA084]">Management</span>
           </h1>
-          <p className={`text-[9px] font-bold ${theme.textSub} uppercase tracking-widest mt-1`}>
-            Manage system notifications for all users
-          </p>
         </div>
         <button
           onClick={() => setShowCreateForm(true)}

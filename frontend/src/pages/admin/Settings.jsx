@@ -21,7 +21,7 @@ const Settings = () => {
   });
 
   // Theme Configurations
-  const bgMain = isDarkMode ? "bg-[#09090b]" : "bg-[#EEEEEE]";
+  const bgMain = isDarkMode ? "bg-[#09090b]" : "bg-[#F4F5F7]";
   const cardBg = isDarkMode ? "bg-[#111111]" : "bg-white";
   const borderColor = isDarkMode ? "border-white/10" : "border-gray-200";
   const textColor = isDarkMode ? "text-white" : "text-gray-900";
@@ -76,9 +76,6 @@ const Settings = () => {
           <h1 className={`text-2xl font-black uppercase tracking-tighter ${textColor}`}>
             System <span className="text-[#2FA084]">Settings</span>
           </h1>
-          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-[0.2em] mt-1 italic">
-            Global platform configuration and security
-          </p>
         </div>
         <button 
           onClick={handleSave}

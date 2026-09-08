@@ -33,7 +33,7 @@ const RolesPermissions = () => {
   const [notice, setNotice] = useState('');
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0F2B25]' : 'bg-[#EEEEEE]',
+    bg: isDarkMode ? 'bg-[#0F2B25]' : 'bg-[#F4F5F7]',
     card: isDarkMode ? 'bg-[#163C34]/80 backdrop-blur-md' : 'bg-white',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
     textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
@@ -126,9 +126,6 @@ const RolesPermissions = () => {
         <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
           Roles & <span className="text-[#2FA084]">Permissions</span>
         </h1>
-        <p className={`text-[9px] font-bold uppercase tracking-[0.22em] ${theme.textSub}`}>
-          Control which modules each staff role can access
-        </p>
       </div>
 
       {error ? (
