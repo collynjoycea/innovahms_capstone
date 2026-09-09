@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { 
   Mail, Lock, Key, Eye, EyeOff, ArrowRight, 
   Globe, AlertCircle, CheckCircle2 
@@ -322,9 +322,6 @@ const StaffLogin = () => {
               </button>
             </div>
 
-            <div className="text-center text-xs text-slate-500 dark:text-slate-400 pt-2">
-              No account? <Link to="/staff/signup" className="font-bold text-emerald-800 dark:text-emerald-400 hover:underline">Request Access</Link>
-            </div>
           </div>
 
         </form>

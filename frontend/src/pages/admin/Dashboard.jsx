@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Download, Hotel, Calendar, Banknote, Star, ArrowUpRight } from 'lucide-react';
+import { Download, Hotel, Banknote, ArrowUpRight } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination';
 
 export default function Dashboard() {
@@ -31,10 +31,8 @@ export default function Dashboard() {
   const { paged: pagedBookings, page: bPage, totalPages: bTotal, setPage: setBPage } = usePagination(recentBookings);
 
   const statCards = [
-    { label: 'Occupancy Rate', value: `${kpis.occupancyRate ?? 0}%`, change: `${kpis.occupiedRooms ?? 0} occupied`, icon: <Hotel size={20} />, color: 'text-green-500' },
-    { label: "Check-ins Today", value: kpis.todayCheckins ?? 0, change: `${kpis.pendingReservations ?? 0} Pending`, icon: <Calendar size={20} />, color: 'text-[#2FA084]' },
     { label: 'Total Revenue', value: `₱${((kpis.totalRevenue ?? 0) / 1000).toFixed(0)}k`, change: `${kpis.totalRooms ?? 0} rooms`, icon: <Banknote size={20} />, color: 'text-green-500' },
-    { label: 'Total Customers', value: kpis.totalCustomers ?? 0, change: `${kpis.totalOwners ?? 0} owners`, icon: <Star size={20} />, color: 'text-[#2FA084]' },
+    { label: 'Hotel Partners', value: kpis.totalOwners ?? 0, change: `${kpis.totalRooms ?? 0} rooms managed`, icon: <Hotel size={20} />, color: 'text-[#2FA084]' },
   ];
 
   if (loading) return (
@@ -57,7 +55,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {statCards.map((stat, i) => (
           <div key={i} className={`p-6 rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow} transition-all`}>
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-6 border ${theme.border} ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'} text-[#2FA084]`}>
