@@ -296,9 +296,6 @@ const MemPackage = () => {
           <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
             Membership <span className="text-[#2FA084]">Packages</span>
           </h1>
-          <p className={`mt-1 text-[9px] font-bold uppercase tracking-[0.2em] ${theme.textSub}`}>
-            View fixed package tiers and live hotel-owner subscriptions
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button

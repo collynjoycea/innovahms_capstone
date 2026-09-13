@@ -90,15 +90,12 @@ export default function Staff() {
   const hasSelection = viewMode === 'hotel' ? Boolean(selectedHotel) : Boolean(selectedRole);
 
   return (
-    <div className={`p-6 space-y-8 transition-colors duration-300 ${isDarkMode ? 'bg-[#0F2B25]' : 'bg-[#EEEEEE]'}`}>
+    <div className={`p-6 space-y-8 transition-colors duration-300 ${isDarkMode ? 'bg-[#0F2B25]' : 'bg-[#F4F5F7]'}`}>
       <div className={`flex flex-col md:flex-row justify-between items-center gap-4 border-b ${borderStyle} pb-6`}>
         <div className="text-left">
           <h1 className={`text-2xl font-black uppercase tracking-tighter ${textMain}`}>
             Staff <span className="text-[#2FA084]">Management</span>
           </h1>
-          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">
-            {total} total staff across all hotels
-          </p>
         </div>
       </div>
 

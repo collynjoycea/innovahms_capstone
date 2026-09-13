@@ -12,7 +12,7 @@ export default function SystemLogs() {
   const { paged: pagedLogs, page, totalPages, setPage } = usePagination(logs);
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#EEEEEE]',
+    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#F4F5F7]',
     card: isDarkMode ? 'bg-[#111111]/80 backdrop-blur-md' : 'bg-white/90 backdrop-blur-md',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
     textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
@@ -59,9 +59,6 @@ export default function SystemLogs() {
           <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
             System <span className="text-[#2FA084]">Logs</span>
           </h1>
-          <p className={`text-[9px] font-bold ${theme.textSub} uppercase tracking-widest mt-1`}>
-            All platform events and activity
-          </p>
         </div>
         <div className="flex gap-3">
           <button onClick={() => { load(); showToast('Logs refreshed.'); }}

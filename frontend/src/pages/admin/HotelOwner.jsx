@@ -13,7 +13,7 @@ export default function HotelOwners() {
   const [actionLoading, setActionLoading] = useState('');
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#EEEEEE]',
+    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#F4F5F7]',
     card: isDarkMode ? 'bg-[#111111]/80 backdrop-blur-md' : 'bg-white',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
     textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
@@ -73,6 +73,47 @@ export default function HotelOwners() {
     return 'bg-amber-100 text-amber-700';
   };
 
+  const escapeCsvCell = (value) => {
+    const str = String(value ?? '');
+    if (/[",\n]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const handleExport = () => {
+    if (filtered.length === 0) {
+      window.alert('No owners to export.');
+      return;
+    }
+
+    const headers = ['Owner', 'Email', 'Contact', 'Hotel', 'Hotel Code', 'Status', 'Rooms', 'Joined'];
+    const rows = filtered.map((o) => [
+      `${o.firstName || ''} ${o.lastName || ''}`.trim(),
+      o.email || '',
+      o.contactNumber || '',
+      o.hotelName || '',
+      o.hotelCode || '',
+      o.approvalStatus || 'APPROVED',
+      o.totalRooms ?? 0,
+      o.createdAt ? new Date(o.createdAt).toLocaleDateString() : '',
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map(escapeCsvCell).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `hotel-owners-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className={`p-6 space-y-8 min-h-screen transition-all duration-500 ${theme.bg}`}>
       <div className={`flex flex-col md:flex-row justify-between items-end border-b pb-5 ${theme.border}`}>
@@ -80,11 +121,12 @@ export default function HotelOwners() {
           <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
             Hotel <span className="text-[#2FA084]">Owners</span>
           </h1>
-          <p className={`text-[9px] font-bold ${theme.textSub} uppercase tracking-widest mt-1`}>
-            {total} registered hotel partners
-          </p>
         </div>
-        <button className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${theme.border} ${theme.card} text-[10px] font-bold uppercase ${theme.textMain} hover:border-[#2FA084] transition-all`}>
+        <button
+          type="button"
+          onClick={handleExport}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${theme.border} ${theme.card} text-[10px] font-bold uppercase ${theme.textMain} hover:border-[#2FA084] transition-all`}
+        >
           <Download size={14} /> Export
         </button>
       </div>

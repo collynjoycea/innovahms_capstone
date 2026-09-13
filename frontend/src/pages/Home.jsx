@@ -80,7 +80,8 @@ export default function LandingPage() {
     nextDay.setDate(nextDay.getDate() + 1);
     return toInputDate(nextDay);
   });
-  const [heroGuests, setHeroGuests] = useState(2);
+  const [heroAdults, setHeroAdults] = useState(2);
+  const [heroKids, setHeroKids] = useState(0);
   const [heroRoomType, setHeroRoomType] = useState("Any");
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem("theme");
@@ -286,15 +287,15 @@ export default function LandingPage() {
     const params = new URLSearchParams();
     if (heroCheckIn) params.set("from", heroCheckIn);
     if (heroCheckOut) params.set("to", heroCheckOut);
-    if (heroGuests) params.set("guests", String(heroGuests));
+    if (heroAdults) params.set("adults", String(heroAdults));
+    if (heroKids) params.set("children", String(heroKids));
+    if (heroAdults || heroKids) params.set("guests", String(Number(heroAdults || 0) + Number(heroKids || 0)));
     if (heroRoomType && heroRoomType !== "Any") params.set("view", heroRoomType);
     params.set("viewMode", "room");
     navigate(`/vision-suites?${params.toString()}`);
   };
 
-  const roomTypeOptions = Array.from(
-    new Set(hotelCards.map((room) => room.roomType).filter(Boolean))
-  );
+  const roomTypeOptions = ["Single", "Double", "Suite", "Deluxe"];
 
   const ITEMS_PER_VIEW = 4;
   const totalHotels = featuredHotels.length;
@@ -402,7 +403,7 @@ export default function LandingPage() {
             </div>
 
             {/* Main Search Panel Box */}
-            <div className="relative z-10 rounded-2xl bg-white dark:bg-[#121E1A] p-4 sm:p-5 shadow-[0_15px_40px_rgba(0,0,0,0.25)] border border-gray-100 dark:border-[#243B33] text-left">
+            <div className="relative z-10 rounded-2xl bg-white/80 dark:bg-[#121E1A]/80 backdrop-blur-md p-4 sm:p-5 shadow-[0_15px_40px_rgba(0,0,0,0.25)] border border-gray-100/80 dark:border-[#243B33] text-left">
               
               {/* Input Row 1: Room Type Dropdown */}
               <div className="mb-2.5">
@@ -470,11 +471,22 @@ export default function LandingPage() {
                         type="number"
                         min="1"
                         max="12"
-                        value={heroGuests}
-                        onChange={(e) => setHeroGuests(Math.max(1, Number(e.target.value) || 1))}
-                        className="w-14 bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none"
+                        value={heroAdults}
+                        onChange={(e) => setHeroAdults(Math.max(1, Number(e.target.value) || 1))}
+                        className="w-12 bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none"
+                        aria-label="Adults"
                       />
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Adults / Guests</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">adults</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="12"
+                        value={heroKids}
+                        onChange={(e) => setHeroKids(Math.max(0, Number(e.target.value) || 0))}
+                        className="w-12 bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none"
+                        aria-label="Kids"
+                      />
+                      <span className="text-xs text-gray-500 dark:text-gray-400">kids</span>
                     </div>
                   </div>
                 </div>

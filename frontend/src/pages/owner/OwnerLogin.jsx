@@ -214,7 +214,8 @@ export default function OwnerLogin() {
                 onChange={handlePasswordChange}
                 onBlur={() => handleBlur('password')}
                 placeholder="••••••••"
-                className={`w-full rounded border py-2.5 pl-10 pr-10 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition-colors ${
+                style={{ WebkitTextSecurity: showPassword ? "none" : "disc" }}
+                className={`w-full rounded border py-2.5 pl-10 pr-10 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition-colors [&::-ms-reveal]:hidden [&::-ms-clear]:hidden ${
                   touched.password && fieldErrors.password
                     ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
                     : "border-slate-300 dark:border-slate-700 dark:bg-slate-800 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"

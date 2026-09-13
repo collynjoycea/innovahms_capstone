@@ -61,7 +61,7 @@ const MapServices = () => {
   }, []);
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#EEEEEE]',
+    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#F4F5F7]',
     card: isDarkMode ? 'bg-[#111111]/80' : 'bg-white',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
     textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
@@ -77,9 +77,6 @@ const MapServices = () => {
           <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
             Map <span className="text-[#2FA084]">Services</span>
           </h1>
-          <p className={`text-[9px] font-bold ${theme.textSub} uppercase tracking-widest mt-1`}>
-            Geospatial tracking · Hotel distribution · Place search
-          </p>
         </div>
         <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${theme.border} ${mapEnabled ? theme.textSub : 'text-red-500'}`}>
           <span className={`inline-block h-1.5 w-1.5 rounded-full ${mapEnabled ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />

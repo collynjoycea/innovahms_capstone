@@ -112,6 +112,9 @@ const ViewRecommendations = ({ isLoggedIn, userType }) => {
   const [addOns, setAddOns] = useState([]);
   const [customerProfile, setCustomerProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [minRating, setMinRating] = useState("");
 
   useEffect(() => {
     setCategories([
@@ -177,8 +180,11 @@ const ViewRecommendations = ({ isLoggedIn, userType }) => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        let queryParam = selectedCategory ? `category=${selectedCategory.title}` : `type=${activeFilter}`;
-        const response = await fetch(`/api/recommendations?${queryParam}`);
+        const params = new URLSearchParams(selectedCategory ? { category: selectedCategory.title } : { type: activeFilter });
+        if (minPrice) params.set("min_price", minPrice);
+        if (maxPrice) params.set("max_price", maxPrice);
+        if (minRating) params.set("min_rating", minRating);
+        const response = await fetch(`/api/recommendations?${params.toString()}`);
         if (!response.ok) throw new Error('Failed to fetch rooms');
         const roomsData = await response.json();
         if (isMounted) setRecommendedRooms(roomsData);
@@ -190,7 +196,7 @@ const ViewRecommendations = ({ isLoggedIn, userType }) => {
     };
     fetchData();
     return () => { isMounted = false; };
-  }, [activeFilter, selectedCategory]);
+  }, [activeFilter, selectedCategory, minPrice, maxPrice, minRating]);
 
   const handleAskAI = (room) => {
     const roomName = room?.name || "this room";
@@ -289,6 +295,33 @@ const ViewRecommendations = ({ isLoggedIn, userType }) => {
                   {filter}
                 </button>
               ))}
+              <input
+                type="number"
+                min="0"
+                placeholder="Min PHP"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                className="w-20 px-2 py-1.5 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0f1a17] text-[9px]"
+                aria-label="Minimum price"
+              />
+              <input
+                type="number"
+                min="0"
+                placeholder="Max PHP"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                className="w-20 px-2 py-1.5 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0f1a17] text-[9px]"
+                aria-label="Maximum price"
+              />
+              <select
+                value={minRating}
+                onChange={(e) => setMinRating(e.target.value)}
+                className="px-2 py-1.5 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0f1a17] text-[9px]"
+                aria-label="Minimum hotel rating"
+              >
+                <option value="">Any stars</option>
+                {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating}+ stars</option>)}
+              </select>
             </div>
           </div>
 

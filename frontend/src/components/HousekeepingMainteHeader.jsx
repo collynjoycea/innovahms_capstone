@@ -50,7 +50,7 @@ const HousekeepingMainteHeader = ({ isDarkMode, toggleTheme }) => {
           </div>
           <div>
             <h1 className={`text-sm font-black uppercase tracking-[0.2em] italic ${theme.textMain}`}>
-              Operations <span className="text-[#2FA084]">Hub</span>
+              INNOVA- <span className="text-[#2FA084]">HMS</span>
             </h1>
             <p className={`text-[9px] font-bold ${theme.textSub} uppercase tracking-widest`}>
               Housekeeping & Maintenance Â· {new Date().toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}

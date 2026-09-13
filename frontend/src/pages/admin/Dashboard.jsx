@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Download, Hotel, Calendar, Banknote, Star, ArrowUpRight } from 'lucide-react';
+import { Download, Hotel, Banknote, ArrowUpRight } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination';
 
 export default function Dashboard() {
@@ -16,7 +16,7 @@ export default function Dashboard() {
   }, []);
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#EEEEEE]',
+    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#F4F5F7]',
     card: isDarkMode ? 'bg-[#111111]/80 backdrop-blur-md' : 'bg-white',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
     textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
@@ -31,10 +31,8 @@ export default function Dashboard() {
   const { paged: pagedBookings, page: bPage, totalPages: bTotal, setPage: setBPage } = usePagination(recentBookings);
 
   const statCards = [
-    { label: 'Occupancy Rate', value: `${kpis.occupancyRate ?? 0}%`, change: `${kpis.occupiedRooms ?? 0} occupied`, icon: <Hotel size={20} />, color: 'text-green-500' },
-    { label: "Check-ins Today", value: kpis.todayCheckins ?? 0, change: `${kpis.pendingReservations ?? 0} Pending`, icon: <Calendar size={20} />, color: 'text-[#2FA084]' },
     { label: 'Total Revenue', value: `₱${((kpis.totalRevenue ?? 0) / 1000).toFixed(0)}k`, change: `${kpis.totalRooms ?? 0} rooms`, icon: <Banknote size={20} />, color: 'text-green-500' },
-    { label: 'Total Customers', value: kpis.totalCustomers ?? 0, change: `${kpis.totalOwners ?? 0} owners`, icon: <Star size={20} />, color: 'text-[#2FA084]' },
+    { label: 'Hotel Partners', value: kpis.totalOwners ?? 0, change: `${kpis.totalRooms ?? 0} rooms managed`, icon: <Hotel size={20} />, color: 'text-[#2FA084]' },
   ];
 
   if (loading) return (
@@ -50,9 +48,6 @@ export default function Dashboard() {
           <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
             System <span className="text-[#2FA084]">Dashboard</span>
           </h1>
-          <p className={`text-[9px] font-bold ${theme.textSub} uppercase tracking-widest mt-1`}>
-            Live data from database
-          </p>
         </div>
         <button className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${theme.border} ${theme.card} text-[10px] font-bold uppercase ${theme.textMain} hover:border-[#2FA084] transition-all`}>
           <Download size={14} /> Export
@@ -60,7 +55,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {statCards.map((stat, i) => (
           <div key={i} className={`p-6 rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow} transition-all`}>
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-6 border ${theme.border} ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'} text-[#2FA084]`}>

@@ -1,0 +1,9 @@
+Flask
+Flask-Cors
+psycopg2-binary
+Werkzeug
+requests
+google-auth
+python-dotenv
+prophet
+pandas

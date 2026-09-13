@@ -48,8 +48,9 @@ function FlyTo({ center, zoom = 14 }) {
 }
 
 // ─── Nominatim place search (free, no API key) ───────────────────────────────
-async function searchPlace(query) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}`;
+async function searchPlace(query, scope = "") {
+  const scopedQuery = scope ? `${query}, ${scope}` : query;
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(scopedQuery)}`;
   const res = await fetch(url, { headers: { "Accept-Language": "en" } });
   if (!res.ok) throw new Error("Search failed");
   return res.json();
@@ -70,6 +71,7 @@ export default function NeighborhoodMap({
   landmarks = [],
   hotelCenter = { lat: 10.3247, lng: 123.9091 },
   focusedHotelId = null,
+  searchScope = "",
   isDarkMode = false,
   className = "",
 }) {
@@ -129,9 +131,12 @@ export default function NeighborhoodMap({
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const results = await searchPlace(val);
-        setSearchResults(results);
-        if (results.length === 0) setSearchError("No places found.");
+        const results = await searchPlace(val, searchScope);
+        const scopedResults = searchScope
+          ? results.filter((result) => result.display_name.toLowerCase().includes(searchScope.toLowerCase().split(",")[0]))
+          : results;
+        setSearchResults(scopedResults);
+        if (scopedResults.length === 0) setSearchError(`No places found in ${searchScope}.`);
       } catch {
         setSearchError("Search unavailable. Check your connection.");
       } finally {

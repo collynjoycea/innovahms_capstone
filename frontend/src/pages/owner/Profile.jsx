@@ -113,7 +113,7 @@ const documentItems = [
   { key: "validIdPath", label: "Valid ID", code: "GOV-ID" },
 ];
 
-export default function OwnerProfile() {
+export default function OwnerProfile({ section = "owner" }) {
   const navigate = useNavigate();
   const ownerProfilePictureInputRef = useRef(null);
   const hotelProfilePictureInputRef = useRef(null);
@@ -126,6 +126,8 @@ export default function OwnerProfile() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const ownerId = session?.id;
+  const showOwnerSection = section === "owner";
+  const showPropertySection = section === "property";
 
   useEffect(() => {
     const sync = () => setSession(parseOwnerSession());
@@ -280,9 +282,13 @@ export default function OwnerProfile() {
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
           <div>
             <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">Owner Portal</span>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">Profile & Property Management</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
+              {showPropertySection ? "Property Details" : "Owner Profile"}
+            </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Manage your hotel details, payout preferences, stay policies, and compliance records.
+              {showPropertySection
+                ? "Manage your hotel information, property media, and guest stay policies."
+                : "Manage your personal details, payout preferences, and compliance records."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -338,7 +344,7 @@ export default function OwnerProfile() {
             <div className="grid gap-6 md:grid-cols-2">
               
               {/* Hotel Overview Card */}
-              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              {showPropertySection && <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
                   <div className="flex items-center gap-2">
                     <Building2 size={16} className="text-emerald-700 dark:text-emerald-400" />
@@ -360,10 +366,10 @@ export default function OwnerProfile() {
                   <StatCard label="Reservations" value={profile.stats.reservationCount} />
                   <StatCard label="Revenue" value={formatPhp(profile.stats.revenue)} />
                 </div>
-              </section>
+              </section>}
 
               {/* Owner Account Summary Card */}
-              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              {showOwnerSection && <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
                   <User size={16} className="text-emerald-700 dark:text-emerald-400" />
                   <h3 className="font-bold text-sm text-slate-900 dark:text-white">Administrator Account</h3>
@@ -387,7 +393,7 @@ export default function OwnerProfile() {
                   <SummaryStrip icon={Mail} label="Email Address" value={ownerEmail} />
                   <SummaryStrip icon={Phone} label="Contact Number" value={ownerContactNumber} />
                 </div>
-              </section>
+              </section>}
 
             </div>
 
@@ -395,7 +401,7 @@ export default function OwnerProfile() {
             <div className="grid gap-6 md:grid-cols-2">
               
               {/* Personal Details */}
-              <SectionShell icon={ShieldCheck} title="Personal Details">
+              {showOwnerSection && <SectionShell icon={ShieldCheck} title="Personal Details">
                 <div className="grid gap-3">
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="First Name"><input value={draft.owner.firstName} onChange={(e) => onFieldChange("owner", "firstName", e.target.value)} readOnly={readOnly} className={inputBase} /></Field>
@@ -415,10 +421,10 @@ export default function OwnerProfile() {
                     placeholder={initials}
                   />
                 </div>
-              </SectionShell>
+              </SectionShell>}
 
               {/* Payout Bank Details */}
-              <SectionShell icon={Banknote} title="Payout Setup">
+              {showOwnerSection && <SectionShell icon={Banknote} title="Payout Setup">
                 <div className="grid gap-3">
                   <Field label="Bank Name"><input value={draft.owner.bankName} onChange={(e) => onFieldChange("owner", "bankName", e.target.value)} readOnly={readOnly} className={inputBase} /></Field>
                   <Field label="Account Name"><input value={draft.owner.bankAccountName} onChange={(e) => onFieldChange("owner", "bankAccountName", e.target.value)} readOnly={readOnly} className={inputBase} /></Field>
@@ -427,10 +433,10 @@ export default function OwnerProfile() {
                     Bank accounts are securely registered for automated booking payouts.
                   </div>
                 </div>
-              </SectionShell>
+              </SectionShell>}
 
               {/* Property and Media */}
-              <SectionShell icon={Building2} title="Property & Media Info">
+              {showPropertySection && <SectionShell icon={Building2} title="Property & Media Info">
                 <div className="grid gap-3">
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Hotel Name"><input value={draft.hotel.hotelName} onChange={(e) => onFieldChange("hotel", "hotelName", e.target.value)} readOnly={readOnly} className={inputBase} /></Field>
@@ -466,33 +472,20 @@ export default function OwnerProfile() {
 
                   <Field label="Hotel Description"><textarea value={draft.hotel.hotelDescription} onChange={(e) => onFieldChange("hotel", "hotelDescription", e.target.value)} readOnly={readOnly} className={textareaBase} /></Field>
                 </div>
-              </SectionShell>
+              </SectionShell>}
 
               {/* Guest Stay Rules */}
-              <SectionShell icon={MapPin} title="Guest Stay Rules & Policies">
+              {showPropertySection && <SectionShell icon={MapPin} title="Guest Stay Rules & Policies">
                 <div className="grid gap-3">
                   <Field label="Check-in Policy"><textarea value={draft.hotel.checkInPolicy} onChange={(e) => onFieldChange("hotel", "checkInPolicy", e.target.value)} readOnly={readOnly} className={textareaBase} /></Field>
                   <Field label="Check-out Policy"><textarea value={draft.hotel.checkOutPolicy} onChange={(e) => onFieldChange("hotel", "checkOutPolicy", e.target.value)} readOnly={readOnly} className={textareaBase} /></Field>
                   <Field label="Cancellation Policy"><textarea value={draft.hotel.cancellationPolicy} onChange={(e) => onFieldChange("hotel", "cancellationPolicy", e.target.value)} readOnly={readOnly} className={textareaBase} /></Field>
                 </div>
-              </SectionShell>
+              </SectionShell>}
 
             </div>
 
-            {/* Compliance Documents Section */}
-            <SectionShell icon={FileCheck2} title="Submitted Compliance Documents">
-              <div className="grid gap-3 md:grid-cols-2">
-                {documentItems.map((item) => (
-                  <DocumentCard key={item.key} code={item.code} label={item.label} href={draft.owner[item.key]} />
-                ))}
-              </div>
-              {draft.owner.reviewNotes ? (
-                <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-950/40 dark:text-amber-200">
-                  <span className="font-bold block mb-1">Administrative Review Notes:</span>
-                  <p className="leading-relaxed">{draft.owner.reviewNotes}</p>
-                </div>
-              ) : null}
-            </SectionShell>
+         
 
           </div>
         )}

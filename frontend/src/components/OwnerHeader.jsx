@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Building2, ChevronDown, CreditCard, LogOut, MapPin, Moon, Sun, X } from 'lucide-react';
+import { Bell, Building2, ChevronDown, CreditCard, FileText, LogOut, MapPin, Menu, Moon, Sun, User, X } from 'lucide-react';
 import { clearOwnerSession, readOwnerSession } from '../utils/ownerSession';
 
 const emptyOwnerState = {
@@ -128,7 +128,7 @@ const formatTimeAgo = (dateString, nowValue = Date.now()) => {
   });
 };
 
-const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
+const OwnerHeader = ({ isDarkMode = false, toggleTheme, isSidebarOpen, toggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -287,13 +287,23 @@ const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
 
   return (
     <header className={`sticky top-0 z-40 flex h-20 items-center justify-between border-b px-10 backdrop-blur-md transition-colors duration-300 ${isDarkMode ? 'border-white/10 bg-[#0b0f16]/85' : 'border-black/5 bg-white/80'}`}>
-      <div className="flex min-w-0 flex-1 items-center gap-4">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label={isSidebarOpen ? 'Close owner sidebar' : 'Open owner sidebar'}
+          aria-expanded={isSidebarOpen}
+          className={`rounded-2xl border px-3 py-3 transition-all ${isDarkMode ? 'border-white/10 bg-white/5 text-slate-200 hover:text-[#2FA084]' : 'border-black/5 bg-white text-slate-600 hover:text-[#2FA084]'}`}
+          title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+        >
+          {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
         <div className="h-10 w-1 shrink-0 rounded-full bg-gradient-to-b from-[#2FA084] to-[#1F6F5F] opacity-80" />
 
         <div className="flex min-w-0 flex-col overflow-hidden">
           <div className="flex items-center gap-2">
             <span className="whitespace-nowrap text-[9px] font-black uppercase tracking-[0.3em] text-[#2FA084]">
-              Management Portal
+              INNOVA HMS
             </span>
           </div>
 
@@ -433,7 +443,20 @@ const OwnerHeader = ({ isDarkMode = false, toggleTheme }) => {
                 className={`w-full rounded-xl px-3 py-2.5 text-left text-xs transition-all hover:bg-[#2FA084]/10 hover:text-[#2FA084] ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}
               >
                 <span className="flex items-center gap-3">
-                  <Building2 size={15} /> My Profile
+                  <User size={15} /> Owner Profile
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMenu(false);
+                  navigate('/owner/property-details');
+                }}
+                className={`w-full rounded-xl px-3 py-2.5 text-left text-xs transition-all hover:bg-[#2FA084]/10 hover:text-[#2FA084] ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}
+              >
+                <span className="flex items-center gap-3">
+                  <FileText size={15} /> Property Details
                 </span>
               </button>
 

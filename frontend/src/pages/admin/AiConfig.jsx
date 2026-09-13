@@ -46,7 +46,7 @@ const AiConfig = () => {
   const [notice, setNotice] = useState('');
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#EEEEEE]',
+    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#F4F5F7]',
     card: isDarkMode ? 'bg-[#111111]/80 backdrop-blur-md' : 'bg-white',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
     textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
@@ -171,9 +171,6 @@ const AiConfig = () => {
             <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
               AI & API <span className="text-[#2FA084]">Configuration</span>
             </h1>
-            <p className={`mt-1 text-[9px] font-bold uppercase tracking-[0.22em] ${theme.textSub}`}>
-              Admin kill switch for unstable or degraded external services
-            </p>
           </div>
 
           <button

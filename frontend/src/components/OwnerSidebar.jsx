@@ -1,14 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { 
+  LayoutDashboard, CreditCard, Building2, Calendar, 
+  Users, Sparkles, Package, Shield, BarChart3, Star 
+} from 'lucide-react';
 
-const OwnerSidebar = () => {
+const OwnerSidebar = ({ isExpanded = false }) => {
   const location = useLocation();
+
+  // Subscription plan features configuration
   const planFeatures = {
     starter: ['dashboard', 'rooms', 'reservations', 'customers', 'reviews'],
     pro: ['dashboard', 'rooms', 'reservations', 'customers', 'reviews', 'housekeeping', 'inventory', 'staff'],
     enterprise: ['dashboard', 'rooms', 'reservations', 'customers', 'reviews', 'housekeeping', 'inventory', 'staff', 'reports', 'promotions'],
   };
-  const [session, setSession] = React.useState(() => {
+
+  // Owner session state
+  const [session, setSession] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('ownerSession') || '{}');
     } catch {
@@ -16,7 +24,7 @@ const OwnerSidebar = () => {
     }
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     const sync = () => {
       try {
         setSession(JSON.parse(localStorage.getItem('ownerSession') || '{}'));
@@ -25,21 +33,32 @@ const OwnerSidebar = () => {
       }
     };
     window.addEventListener('ownerSessionUpdated', sync);
-    return () => window.removeEventListener('ownerSessionUpdated', sync);
+    window.addEventListener('storage', sync);
+    
+    return () => {
+      window.removeEventListener('ownerSessionUpdated', sync);
+      window.removeEventListener('storage', sync);
+    };
   }, []);
-  
+
+  // Format Owner details from session
+  const fullName = `${session?.firstName || ''} ${session?.lastName || ''}`.trim() || 'Hotel Owner';
+  const hotelName = session?.hotelName || (session?.subscriptionActive ? 'Hotel Setup Required' : 'Subscription Required');
+  const profileImage = session?.profileImage || '';
+
   const navItems = [
-    { name: 'Dashboard', path: '/owner', feature: 'dashboard', requiredPlan: 'Starter', icon: <><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22" /></> },
-    { name: 'Subscription', path: '/owner/subscription', feature: 'subscription', requiredPlan: null, icon: <><rect x="3" y="5" width="18" height="14" rx="2" ry="2"/><path d="M7 9h10"/><path d="M7 13h6"/></> },
-    { name: 'Rooms', path: '/owner/rooms', feature: 'rooms', requiredPlan: 'Starter', icon: <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></> },
-    { name: 'Reservations', path: '/owner/reservations', feature: 'reservations', requiredPlan: 'Starter', icon: <><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></> },
-    { name: 'Customers', path: '/owner/customers', feature: 'customers', requiredPlan: 'Starter', icon: <><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></> },
-    { name: 'Housekeeping', path: '/owner/housekeeping', feature: 'housekeeping', requiredPlan: 'Pro', icon: <><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></> },
-    { name: 'Inventory', path: '/owner/inventory', feature: 'inventory', requiredPlan: 'Pro', icon: <><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></> },
-    { name: 'Staff', path: '/owner/staff', feature: 'staff', requiredPlan: 'Pro', icon: <><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></> },
-    { name: 'Reports', path: '/owner/reports', feature: 'reports', requiredPlan: 'Enterprise', icon: <><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></> },
-    { name: 'Reviews', path: '/owner/reviews', feature: 'reviews', requiredPlan: 'Starter', icon: <><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 11-7.6-11.7 8.38 8.38 0 013.8.9L21 3z"/></> },
+    { name: 'Dashboard', path: '/owner', feature: 'dashboard', requiredPlan: 'Starter', icon: <LayoutDashboard size={18} /> },
+    { name: 'Subscription', path: '/owner/subscription', feature: 'subscription', requiredPlan: null, icon: <CreditCard size={18} /> },
+    { name: 'Rooms', path: '/owner/rooms', feature: 'rooms', requiredPlan: 'Starter', icon: <Building2 size={18} /> },
+    { name: 'Reservations', path: '/owner/reservations', feature: 'reservations', requiredPlan: 'Starter', icon: <Calendar size={18} /> },
+    { name: 'Customers', path: '/owner/customers', feature: 'customers', requiredPlan: 'Starter', icon: <Users size={18} /> },
+    { name: 'Housekeeping', path: '/owner/housekeeping', feature: 'housekeeping', requiredPlan: 'Pro', icon: <Sparkles size={18} /> },
+    { name: 'Inventory', path: '/owner/inventory', feature: 'inventory', requiredPlan: 'Pro', icon: <Package size={18} /> },
+    { name: 'Staff', path: '/owner/staff', feature: 'staff', requiredPlan: 'Pro', icon: <Shield size={18} /> },
+    { name: 'Reports', path: '/owner/reports', feature: 'reports', requiredPlan: 'Enterprise', icon: <BarChart3 size={18} /> },
+    { name: 'Reviews', path: '/owner/reviews', feature: 'reviews', requiredPlan: 'Starter', icon: <Star size={18} /> },
   ];
+
   const allowedFeatures = new Set(
     Array.isArray(session?.allowedOwnerFeatures) && session.allowedOwnerFeatures.length > 0
       ? session.allowedOwnerFeatures
@@ -47,68 +66,98 @@ const OwnerSidebar = () => {
   );
 
   return (
-    <aside className="w-72 bg-[#faf9f6] border-r border-slate-200/60 flex flex-col h-screen sticky top-0 overflow-hidden dark:bg-[#11151d] dark:border-white/10">
-      {/* Brand Header */}
-      <div className="px-8 pt-8 pb-4">
-        <img src="/images/logo.png" alt="Innova Logo" className="w-full max-w-[160px] drop-shadow-sm" />
-        <div className="mt-4 h-px bg-gradient-to-r from-emerald-600/40 to-transparent w-full dark:from-emerald-500/30" />
+    <aside className={`${isExpanded ? 'w-[260px]' : 'w-[76px]'} bg-white border-r border-black/5 flex flex-col h-screen sticky top-0 font-sans transition-all duration-300 ease-in-out dark:bg-[#0b0f16] dark:border-white/15 overflow-hidden`}>
+      <div className="h-full overflow-y-auto no-scrollbar flex flex-col text-left">
+        
+        {/* BRAND LOGO */}
+        <div className={`py-6 flex items-center shrink-0 ${isExpanded ? 'px-7 justify-between' : 'justify-center'}`}>
+          <Link to="/owner" className="transition-transform hover:scale-105 text-left">
+            <img src="/images/logo.png" alt="Innova HMS" className="h-8 w-auto object-contain drop-shadow-sm" />
+          </Link>
+        </div>
+
+        {/* OWNER PROFILE MINI-CARD */}
+        <div className={`mb-6 shrink-0 ${isExpanded ? 'px-4' : 'flex justify-center'}`}>
+          <Link
+            to="/owner/profile"
+            className={`${isExpanded ? 'flex items-center gap-3 p-3 w-full' : 'flex items-center justify-center p-2'} rounded-xl border border-black/5 bg-white shadow-sm transition-colors hover:border-[#2FA084]/40 hover:bg-[#2FA084]/5 dark:border-[#2FA084]/15 dark:bg-[#2FA084]/5 dark:hover:bg-[#2FA084]/10 ${location.pathname === '/owner/profile' ? 'ring-1 ring-[#2FA084]/40' : ''}`}
+            title="Open Owner Profile"
+          >
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#2FA084] to-[#1F6F5F] flex items-center justify-center text-white text-sm shadow-md overflow-hidden shrink-0">
+              {profileImage ? (
+                <img src={profileImage} alt={fullName} className="w-full h-full object-cover" />
+              ) : (
+                <span className="font-black text-xs">{fullName.split(' ').map(n => n[0]).join('').slice(0, 2)}</span>
+              )}
+            </div>
+            <div className={`${isExpanded ? 'block' : 'hidden'} overflow-hidden min-w-0`}>
+              <h4 className="text-[11px] font-black uppercase tracking-tight leading-none text-slate-800 truncate dark:text-white" title={fullName}>
+                {fullName}
+              </h4>
+              <p className="text-[8px] font-bold text-[#2FA084] uppercase tracking-widest mt-1.5 opacity-90 truncate" title={hotelName}>
+                {session?.subscriptionActive ? 'Verified Owner' : 'Owner Portal'}
+              </p>
+            </div>
+          </Link>
+        </div>
+
+        {/* NAVIGATION MENU */}
+        <div className={`flex-1 space-y-1.5 pb-6 overflow-y-auto no-scrollbar ${isExpanded ? 'px-3' : 'px-2'}`}>
+          <p className={`${isExpanded ? 'block' : 'hidden'} text-[9px] font-black tracking-[0.25em] uppercase px-4 mb-2 text-slate-400 dark:text-slate-500`}>
+            Management Portal
+          </p>
+          
+          {navItems.map((item) => {
+            const active = location.pathname === item.path;
+            const lockedByPlan = Boolean(
+              session?.subscriptionActive &&
+              item.feature !== 'subscription' &&
+              !allowedFeatures.has(item.feature)
+            );
+            
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                title={lockedByPlan ? `Upgrade to ${item.requiredPlan} to unlock ${item.name}` : item.name}
+                className={`group flex items-center py-2.5 rounded-lg transition-all duration-200 relative ${isExpanded ? 'gap-3 px-4' : 'justify-center'} ${
+                  active 
+                    ? "bg-[#2FA084]/10 text-[#2FA084] dark:bg-[#121824] dark:text-[#2FA084]" 
+                    : lockedByPlan
+                      ? "text-slate-400 hover:bg-slate-50 hover:text-[#2FA084] dark:text-slate-500 dark:hover:bg-white/5 dark:hover:text-[#2FA084]"
+                      : "text-slate-600 hover:text-[#2FA084] hover:bg-slate-50 dark:text-slate-300 dark:hover:text-[#2FA084] dark:hover:bg-white/5"
+                }`}
+              >
+                <span className={`${active ? "text-[#2FA084]" : "text-slate-400 group-hover:text-[#2FA084]"} transition-colors`}>
+                  {React.cloneElement(item.icon, { strokeWidth: active ? 2.5 : 2 })}
+                </span>
+                <span className={`${isExpanded ? 'block' : 'hidden'} text-[11px] uppercase tracking-wide flex-1 ${active ? 'font-black' : 'font-semibold'}`}>
+                  {item.name}
+                </span>
+                {lockedByPlan && isExpanded && (
+                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider bg-[#2FA084]/10 text-[#2FA084]">
+                    {item.requiredPlan}
+                  </span>
+                )}
+                {active && (
+                  <div className="absolute left-0 w-1 h-4 bg-[#2FA084] rounded-r-full shadow-[0_0_12px_#2FA084]" />
+                )}
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Navigation Menu */}
-      <nav className="flex-1 px-6 space-y-1.5 overflow-y-auto">
-        <p className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase mb-2 px-2 dark:text-slate-500">Owner Portal</p>
-        
-        {navItems.map((item) => {
-          const active = location.pathname === item.path;
-          const lockedByPlan = Boolean(
-            session?.subscriptionActive &&
-            item.feature !== 'subscription' &&
-            !allowedFeatures.has(item.feature)
-          );
-          const classes = `group flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 relative ${
-            active 
-              ? "bg-white text-emerald-800 shadow-[0_10px_20px_rgba(16,185,129,0.08)] ring-1 ring-emerald-600/15 dark:bg-[#0d1118] dark:text-emerald-300 dark:ring-emerald-500/25" 
-              : lockedByPlan
-                ? "text-slate-400 hover:bg-emerald-50/80 hover:text-emerald-700 dark:text-slate-500 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
-                : "text-slate-600 hover:text-emerald-700 hover:bg-white/60 dark:text-slate-300 dark:hover:text-emerald-300 dark:hover:bg-white/5"
-          }`;
-
-          const content = (
-            <>
-              <svg 
-                className={`w-5 h-5 transition-colors ${active ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 group-hover:text-emerald-600 dark:text-slate-400 dark:group-hover:text-emerald-400"}`} 
-                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              >
-                {item.icon}
-              </svg>
-              <span className={`text-[13px] tracking-wide ${active ? "font-bold" : "font-semibold"}`}>
-                {item.name}
-              </span>
-              {lockedByPlan && (
-                <span className="ml-auto rounded-full bg-emerald-100 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">
-                  {item.requiredPlan}
-                </span>
-              )}
-              {active && (
-                <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-emerald-600 shadow-[0_0_8px_rgba(16,185,129,0.6)] dark:bg-emerald-400" />
-              )}
-            </>
-          );
-
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={classes}
-              title={lockedByPlan ? `Upgrade to ${item.requiredPlan} to unlock ${item.name}` : item.name}
-            >
-              {content}
-            </Link>
-          );
-        })}
-      </nav>
-      
-      <div className="h-6" />
+      <style>{`
+        /* Tinanggal ang nakikitang scrollbar habang pwede pa ring mag-scroll */
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </aside>
   );
 };

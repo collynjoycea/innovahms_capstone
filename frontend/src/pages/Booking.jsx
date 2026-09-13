@@ -4,13 +4,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Loader2, MapPin, QrCode, Sparkles, Star, X } from 'lucide-react';
 import resolveImg from '../utils/resolveImg';
 
-const prefs = ['High Floor', 'Quiet Zone', 'Near Elevator', 'City View', 'Sun-facing', 'Work-friendly', 'Away from Stairs'];
 const peso = (v) => `PHP ${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 const VAT_PERCENT = 12;
-const TAX_PERCENT = 5;
-const weekLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
-const buttonDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 const getSession = () => {
   try {
@@ -22,6 +17,10 @@ const getSession = () => {
     return null;
   }
 };
+
+const weekLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
+const buttonDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 const parseDateValue = (value) => {
   if (!value) return null;
@@ -273,7 +272,6 @@ function SuccessModal({ open, booking, hasReviewed, onReview, onClose }) {
               <div className="flex justify-between"><span className="text-slate-400">Privilege savings</span><span className="font-medium text-emerald-400">-{peso(booking?.privilegeDiscountAmount || 0)}</span></div>
             )}
             <div className="flex justify-between"><span className="text-slate-400">VAT ({booking?.vatPercent || VAT_PERCENT}%)</span><span className="font-medium">{peso(booking?.vatAmount || 0)}</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">Tax ({booking?.taxPercent || TAX_PERCENT}%)</span><span className="font-medium">{peso(booking?.taxAmount || 0)}</span></div>
             <div className="flex justify-between border-t border-slate-700/60 pt-2 font-bold"><span className="text-slate-300">Total</span><span className="text-slate-100">{peso(booking?.totalAmount || 0)}</span></div>
           </div>
           <div className="flex flex-col gap-2.5">
@@ -298,6 +296,106 @@ function SuccessModal({ open, booking, hasReviewed, onReview, onClose }) {
               Back to Home
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Shared Content UI para sa Booking Summary (Ginagamit pareho sa Modal at datihan sa Card)
+function BookingSummaryContent({ room, checkIn, checkOut, checkInTime, checkOutTime, durationHours, nights, adults, children, paymentMethod, baseTotal, pointsRedeemed, pointsDiscountAmount, subtotalAfterDiscount, total }) {
+  return (
+    <>
+      <div className="mb-4 space-y-2.5 text-xs">
+        {[
+          { label: 'Room', value: room?.roomName || '--' },
+          { label: 'Check-in', value: checkIn ? `${checkIn} at ${checkInTime}` : '--' },
+          { label: 'Check-out', value: checkOut ? `${checkOut} at ${checkOutTime}` : '--' },
+          { label: 'Duration', value: durationHours ? `${durationHours} hours` : nights > 0 ? `${nights} night${nights > 1 ? 's' : ''}` : '--' },
+          { label: 'Guests', value: `${adults} adult${adults === 1 ? '' : 's'}${children ? `, ${children} child${children === 1 ? '' : 'ren'}` : ''}` },
+          { label: 'Payment', value: paymentMethod },
+        ].map((item) => (
+          <div key={item.label} className="flex justify-between">
+            <span className="text-slate-500 dark:text-slate-400">{item.label}</span>
+            <span className="font-medium text-slate-800 dark:text-slate-200">{item.value}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-slate-200 pt-4 text-xs dark:border-slate-800">
+        <div className="mb-2 flex justify-between">
+          <span className="text-slate-500 dark:text-slate-400">Base total</span>
+          <span className="text-slate-800 dark:text-slate-200">{baseTotal > 0 ? peso(baseTotal) : '--'}</span>
+        </div>
+        {pointsRedeemed > 0 && (
+          <div className="mb-2 flex justify-between text-emerald-600 dark:text-emerald-400">
+            <span>Points discount ({pointsRedeemed.toLocaleString()} pts)</span>
+            <span>-{peso(pointsDiscountAmount)}</span>
+          </div>
+        )}
+        <div className="mb-2 flex justify-between">
+          <span className="text-slate-500 dark:text-slate-400">Subtotal</span>
+          <span className="text-slate-800 dark:text-slate-200">{subtotalAfterDiscount > 0 ? peso(subtotalAfterDiscount) : '--'}</span>
+        </div>
+        <div className="mb-2 flex justify-between">
+          <span className="text-slate-500 dark:text-slate-400">VAT ({VAT_PERCENT}%)</span>
+          <span className="text-slate-800 dark:text-slate-200">{subtotalAfterDiscount > 0 ? peso(vatAmountCalc(subtotalAfterDiscount)) : '--'}</span>
+        </div>
+        <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 text-base font-bold dark:border-slate-800">
+          <span>Total</span>
+          <span className="text-emerald-600 dark:text-emerald-400">{total > 0 ? peso(total) : '--'}</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+const vatAmountCalc = (sub) => Number((sub * (VAT_PERCENT / 100)).toFixed(2));
+
+function BookingConfirmationModal({ open, room, checkIn, checkOut, checkInTime, checkOutTime, durationHours, nights, adults, children, paymentMethod, paymentPlan, total, baseTotal, pointsRedeemed, pointsDiscountAmount, subtotalAfterDiscount, onClose, onConfirm, submitting }) {
+  if (!open) return null;
+  const paymentAmount = paymentPlan === 'deposit' ? total * 0.5 : total;
+  const paymentLabel = paymentMethod === 'cash' ? 'Cash on Arrival' : paymentMethod.toUpperCase();
+
+  return (
+    <div className="fixed inset-0 z-[1800] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-700">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Review booking</p>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Confirm Booking Summary</h2>
+          </div>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-white" aria-label="Close summary"><X size={18} /></button>
+        </div>
+
+        <BookingSummaryContent
+          room={room}
+          checkIn={checkIn}
+          checkOut={checkOut}
+          checkInTime={checkInTime}
+          checkOutTime={checkOutTime}
+          durationHours={durationHours}
+          nights={nights}
+          adults={adults}
+          children={children}
+          paymentMethod={paymentLabel}
+          baseTotal={baseTotal}
+          pointsRedeemed={pointsRedeemed}
+          pointsDiscountAmount={pointsDiscountAmount}
+          subtotalAfterDiscount={subtotalAfterDiscount}
+          total={total}
+        />
+
+        {paymentPlan === 'deposit' && (
+          <div className="mt-3 rounded-lg bg-emerald-50/60 p-2.5 text-xs text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+            <span>Downpayment (50%): </span><strong>{peso(paymentAmount)}</strong>
+          </div>
+        )}
+
+        <div className="mt-5 flex gap-2">
+          <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-slate-300 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Edit Booking</button>
+          <button type="button" onClick={onConfirm} disabled={submitting} className="flex-1 rounded-lg bg-emerald-600 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50">{submitting ? 'Processing...' : paymentMethod === 'cash' ? 'Confirm Booking' : 'Confirm & Pay'}</button>
         </div>
       </div>
     </div>
@@ -466,14 +564,15 @@ export default function Booking() {
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentPlan, setPaymentPlan] = useState('full');
   const [useAllPoints, setUseAllPoints] = useState(false);
   const [pointsToUse, setPointsToUse] = useState('');
-  const [preferences, setPreferences] = useState([]);
   const [specialRequests, setSpecialRequests] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [booking, setBooking] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showBookingSummary, setShowBookingSummary] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [qrData, setQrData] = useState(null);
   const [hasReviewed, setHasReviewed] = useState(false);
@@ -505,12 +604,23 @@ export default function Booking() {
     let dead = false;
     setLoadingRoom(true);
     fetch(`/api/rooms?room_id=${encodeURIComponent(roomId)}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (!dead) setRoom((d.rooms || []).find((x) => String(x.id) === String(roomId)) || null);
+      .then(async (r) => {
+        const contentType = r.headers.get('content-type') || '';
+        if (!r.ok || !contentType.includes('application/json')) {
+          throw new Error('Unable to load this room. Please start the backend server and try again.');
+        }
+        return r.json();
       })
-      .catch(() => {
-        if (!dead) setRoom(null);
+      .then((d) => {
+        const selectedRoom = (d.rooms || []).find((x) => String(x.id) === String(roomId));
+        if (!selectedRoom) throw new Error('This room is no longer available. Please return to the room list and choose another room.');
+        if (!dead) setRoom(selectedRoom);
+      })
+      .catch((err) => {
+        if (!dead) {
+          setRoom(null);
+          setError(err.message || 'Unable to load room details.');
+        }
       })
       .finally(() => {
         if (!dead) setLoadingRoom(false);
@@ -636,23 +746,20 @@ export default function Booking() {
   const availablePoints = Math.max(0, Number(pointsBalance?.points ?? pointsBalance?.pointsBalance?.total ?? 0));
   const subtotalAfterDiscount = Number(baseTotal.toFixed(2));
   const vatAmount = Number((subtotalAfterDiscount * (VAT_PERCENT / 100)).toFixed(2));
-  const taxAmount = Number((subtotalAfterDiscount * (TAX_PERCENT / 100)).toFixed(2));
-  const totalBeforePoints = Number((subtotalAfterDiscount + vatAmount + taxAmount).toFixed(2));
+  const totalBeforePoints = Number((subtotalAfterDiscount + vatAmount).toFixed(2));
   const requestedPoints = useAllPoints ? availablePoints : Math.max(0, Math.floor(Number(pointsToUse) || 0));
   const pointsRedeemed = Math.min(availablePoints, requestedPoints, Math.floor(totalBeforePoints));
   const pointsDiscountAmount = Number(pointsRedeemed.toFixed(2));
   const total = Number(Math.max(0, totalBeforePoints - pointsDiscountAmount).toFixed(2));
 
-  const togglePref = (value) => setPreferences((prev) => prev.includes(value) ? prev.filter((x) => x !== value) : [...prev, value]);
-
-  const inputCls = 'w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 placeholder:text-slate-400';
-  const selectCls = 'w-full appearance-none rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
+  const inputCls = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 placeholder:text-slate-400';
+  const selectCls = 'w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
 
   const nextOpenDate = findNextAvailableCheckIn(today);
   const shownBlockedRanges = blockedRanges.slice(0, 3);
 
   const submit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     setError('');
     if (!sessionUser?.id) {
       sessionStorage.setItem('returnTo', window.location.pathname + window.location.search);
@@ -684,7 +791,7 @@ export default function Booking() {
           paymentMethod,
           pointsToUse: pointsRedeemed,
           useAllPoints,
-          specialRequests: [preferences.join(', '), specialRequests].filter(Boolean).join(' | '),
+          specialRequests,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -695,7 +802,7 @@ export default function Booking() {
         const payRes = await fetch('/api/payment/create-link', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reservationId: body.bookingId, paymentMethod }),
+          body: JSON.stringify({ reservationId: body.bookingId, paymentMethod, paymentPlan }),
         });
         const pay = await payRes.json().catch(() => ({}));
         if (payRes.status === 503) {
@@ -714,12 +821,33 @@ export default function Booking() {
         return;
       }
       setShowSuccess(true);
+      window.setTimeout(() => navigate('/customer/bookings'), 700);
     } catch (err) {
       setError(err.message || 'Booking failed.');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const reviewBooking = (e) => {
+    e.preventDefault();
+    setError('');
+    if (!sessionUser?.id) {
+      sessionStorage.setItem('returnTo', window.location.pathname + window.location.search);
+      navigate('/login');
+      return;
+    }
+    if (!room) { setError('No room selected.'); return; }
+    if (!durationHours && nights < 1) { setError('Check-out must be after check-in.'); return; }
+    if (durationHours && selectedHourlyRate <= 0) { setError(`The ${durationHours}-hour rate is not configured for this room.`); return; }
+    if (isCheckInDateDisabled(parseDateValue(checkIn)) || (!durationHours && isCheckOutDateDisabled(parseDateValue(checkOut), checkIn))) {
+      setError('Selected dates are no longer available.');
+      return;
+    }
+    setShowBookingSummary(true);
+  };
+
+  const paymentLabelDisplay = paymentMethod === 'cash' ? 'Cash on Arrival' : paymentMethod.toUpperCase();
 
   return (
     <>
@@ -730,6 +858,28 @@ export default function Booking() {
         onReview={() => { setShowSuccess(false); setShowReview(true); }}
         onClose={() => { setShowSuccess(false); navigate('/'); }}
       />
+      <BookingConfirmationModal
+        open={showBookingSummary}
+        room={room}
+        checkIn={checkIn}
+        checkOut={checkOut}
+        checkInTime={checkInTime}
+        checkOutTime={checkOutTime}
+        durationHours={durationHours}
+        nights={nights}
+        adults={adults}
+        children={children}
+        paymentMethod={paymentLabelDisplay}
+        paymentPlan={paymentPlan}
+        total={total}
+        baseTotal={baseTotal}
+        pointsRedeemed={pointsRedeemed}
+        pointsDiscountAmount={pointsDiscountAmount}
+        subtotalAfterDiscount={subtotalAfterDiscount}
+        submitting={submitting}
+        onClose={() => setShowBookingSummary(false)}
+        onConfirm={() => { setShowBookingSummary(false); submit(); }}
+      />
       <ReviewModal
         open={showReview}
         booking={booking}
@@ -739,279 +889,183 @@ export default function Booking() {
       <QrModal
         open={!!qrData}
         data={qrData}
-        onPaid={() => { setQrData(null); setShowSuccess(true); }}
+        onPaid={() => { setQrData(null); navigate('/customer/bookings'); }}
         onClose={() => setQrData(null)}
       />
 
       <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
-        <div className="mx-auto max-w-5xl px-4 py-12">
-          <div className="mb-8 text-center">
+        <div className="mx-auto max-w-3xl px-4 py-7">
+          <div className="mb-5 text-center">
             <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Innova HMS</span>
             <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">Room Reservation</h1>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Select dates, manage preferences, and complete your booking.</p>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Select your dates, payment mode, and click confirm to review your booking.</p>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-            <div className="space-y-6 lg:col-span-2">
-              {loadingRoom ? (
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                  <Loader2 size={20} className="animate-spin text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-sm text-slate-500">Loading room details...</span>
-                </div>
-              ) : room ? (
-                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                  <div className="flex gap-4 p-5">
-                    <img
-                      src={resolveImg(room.images?.[0])}
-                      alt={room.roomName}
-                      onError={(e) => { e.currentTarget.src = '/images/room1.jpg'; }}
-                      className="h-20 w-24 rounded-lg object-cover"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">{room.roomType}</span>
-                      <h3 className="truncate text-lg font-bold text-slate-900 dark:text-slate-100">{room.roomName}</h3>
-                      <p className="mt-1 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                        <MapPin size={12} className="text-emerald-600 dark:text-emerald-400" />
-                        {room.location_description || 'Innova HMS'}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{peso(durationHours ? selectedHourlyRate : room.price || 0)}</p>
-                      <p className="text-xs text-slate-400">/ {durationHours ? `${durationHours} hours` : 'night'}</p>
-                    </div>
+          <div className="space-y-4">
+            {loadingRoom ? (
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <Loader2 size={20} className="animate-spin text-emerald-600 dark:text-emerald-400" />
+                <span className="text-sm text-slate-500">Loading room details...</span>
+              </div>
+            ) : room ? (
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex gap-4 p-5">
+                  <img
+                    src={resolveImg(room.images?.[0])}
+                    alt={room.roomName}
+                    onError={(e) => { e.currentTarget.src = '/images/room1.jpg'; }}
+                    className="h-20 w-24 rounded-lg object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">{room.roomType}</span>
+                    <h3 className="truncate text-lg font-bold text-slate-900 dark:text-slate-100">{room.roomName}</h3>
+                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                      <MapPin size={12} className="text-emerald-600 dark:text-emerald-400" />
+                      {room.location_description || 'Innova HMS'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{peso(durationHours ? selectedHourlyRate : room.price || 0)}</p>
+                    <p className="text-xs text-slate-400">/ {durationHours ? `${durationHours} hours` : 'night'}</p>
                   </div>
                 </div>
-              ) : (
-                <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                  No room selected.{' '}
-                  <button type="button" onClick={() => navigate('/vision-suites?viewMode=room')} className="text-emerald-600 hover:underline dark:text-emerald-400">
-                    Browse rooms
-                  </button>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                No room selected.{' '}
+                <button type="button" onClick={() => navigate('/vision-suites?viewMode=room')} className="text-emerald-600 hover:underline dark:text-emerald-400">
+                  Browse rooms
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={reviewBooking} className="space-y-6">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="mb-4 flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">1</span>
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Dates & Times</h2>
+                </div>
+
+                <div className="mb-5">
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Stay Duration</label>
+                  <select value={durationHours} onChange={(e) => setDurationHours(Number(e.target.value))} className={selectCls}>
+                    <option value={0}>Overnight — {peso(room?.price || 0)} / night</option>
+                    {[3, 6, 12].map((hours) => {
+                      const rate = Number(room?.[`rate${hours}Hours`] || 0);
+                      return <option key={hours} value={hours} disabled={rate <= 0}>{hours} hours — {rate > 0 ? peso(rate) : 'Not available'}</option>;
+                    })}
+                  </select>
+                </div>
+
+                <div className="mb-5 rounded-lg bg-emerald-50/60 p-3.5 text-xs text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  <p className="font-semibold">{availabilityLoading ? 'Checking room availability...' : 'Calendar Availability'}</p>
+                  <p className="mt-0.5 leading-relaxed text-emerald-700/80 dark:text-emerald-400/80">
+                    Unavailable dates are automatically disabled.{nextOpenDate ? ` Next open check-in is ${dateButtonLabel(nextOpenDate)}.` : ''}
+                  </p>
+                  {shownBlockedRanges.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {shownBlockedRanges.map((range) => (
+                        <span key={`${range.bookingNumber}-${range.checkIn}`} className="rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                          {dateButtonLabel(range.checkIn)} to {dateButtonLabel(addDays(range.checkOut, -1) || range.checkOut)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <DatePickerField label="Check-In Date" value={checkIn} onChange={setCheckIn} minMonthValue={today} isDateDisabled={isCheckInDateDisabled} helperText="Unavailable dates are disabled." />
+                  <DatePickerField label="Check-Out Date" value={checkOut} onChange={setCheckOut} minMonthValue={checkIn || today} isDateDisabled={(date) => !durationHours && isCheckOutDateDisabled(date, checkIn)} helperText={durationHours ? 'Calculated from check-in time.' : 'Valid stay durations only.'} disabled={!checkIn || Boolean(durationHours)} />
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Check-In Time</label>
+                    <input type="time" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Check-Out Time</label>
+                    <input type="time" value={checkOutTime} onChange={(e) => setCheckOutTime(e.target.value)} disabled={Boolean(durationHours)} className={inputCls} />
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">Use booking points</p>
+                      <p className="mt-0.5 text-[11px] text-emerald-700 dark:text-emerald-400">Points are earned from reservations.</p>
+                    </div>
+                    <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Available: {availablePoints.toLocaleString()} pts</span>
+                  </div>
+                  <label className="mt-3 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                    <input type="checkbox" checked={useAllPoints} onChange={(e) => setUseAllPoints(e.target.checked)} disabled={availablePoints <= 0} className="h-4 w-4 accent-emerald-600" />
+                    Use all points
+                  </label>
+                  {!useAllPoints ? (
+                    <input type="number" min="0" max={Math.min(availablePoints, Math.floor(totalBeforePoints))} step="1" value={pointsToUse} onChange={(e) => setPointsToUse(e.target.value)} placeholder="Enter points to use" disabled={availablePoints <= 0} className={`${inputCls} mt-3`} />
+                  ) : null}
+                  {pointsRedeemed > 0 ? <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">Discount applied: -{peso(pointsDiscountAmount)}</p> : null}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="mb-4 flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">2</span>
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Guests & Payment</h2>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Adults (max {room?.maxAdults ?? 0})</label>
+                    <div className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
+                      <button type="button" onClick={() => setAdults((v) => Math.max(1, v - 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">-</button>
+                      <span className="flex-1 text-center text-sm font-semibold text-slate-800 dark:text-slate-100">{adults}</span>
+                      <button type="button" onClick={() => setAdults((v) => Math.min(Number(room?.maxAdults || 10), v + 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">+</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Children (max {room?.maxChildren ?? 0})</label>
+                    <div className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
+                      <button type="button" onClick={() => setChildren((v) => Math.max(0, v - 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">-</button>
+                      <span className="flex-1 text-center text-sm font-semibold text-slate-800 dark:text-slate-100">{children}</span>
+                      <button type="button" onClick={() => setChildren((v) => Math.min(Number(room?.maxChildren || 0), v + 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">+</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Payment Method</label>
+                    <div className="relative">
+                      <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={selectCls}>
+                        <option value="cash">Cash on Arrival</option>
+                        <option value="qrph">QR Ph (QR Code Payment)</option>
+                        <option value="card">Credit / Debit Card</option>
+                        <option value="gcash">GCash</option>
+                        <option value="maya">Maya</option>
+                      </select>
+                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M6 8L1 3h10z" /></svg>
+                      </div>
+                    </div>
+                    <label className="mt-3 block text-xs font-medium text-slate-700 dark:text-slate-300">Payment Plan</label>
+                    <select value={paymentPlan} onChange={(e) => setPaymentPlan(e.target.value)} className={`${selectCls} mt-1`}>
+                      <option value="full">Full Payment</option>
+                      <option value="deposit">Downpayment (50%)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
+                  {error}
                 </div>
               )}
 
-              <form onSubmit={submit} className="space-y-6">
-                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                  <div className="mb-4 flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">1</span>
-                    <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Dates & Times</h2>
-                  </div>
-
-                  <div className="mb-5">
-                    <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Stay Duration</label>
-                    <select value={durationHours} onChange={(e) => setDurationHours(Number(e.target.value))} className={selectCls}>
-                      <option value={0}>Overnight — {peso(room?.price || 0)} / night</option>
-                      {[3, 6, 12].map((hours) => {
-                        const rate = Number(room?.[`rate${hours}Hours`] || 0);
-                        return <option key={hours} value={hours} disabled={rate <= 0}>{hours} hours — {rate > 0 ? peso(rate) : 'Not available'}</option>;
-                      })}
-                    </select>
-                  </div>
-
-                  <div className="mb-5 rounded-lg bg-emerald-50/60 p-3.5 text-xs text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
-                    <p className="font-semibold">{availabilityLoading ? 'Checking room availability...' : 'Calendar Availability'}</p>
-                    <p className="mt-0.5 leading-relaxed text-emerald-700/80 dark:text-emerald-400/80">
-                      Unavailable dates are automatically disabled.{nextOpenDate ? ` Next open check-in is ${dateButtonLabel(nextOpenDate)}.` : ''}
-                    </p>
-                    {shownBlockedRanges.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {shownBlockedRanges.map((range) => (
-                          <span key={`${range.bookingNumber}-${range.checkIn}`} className="rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                            {dateButtonLabel(range.checkIn)} to {dateButtonLabel(addDays(range.checkOut, -1) || range.checkOut)}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <DatePickerField label="Check-In Date" value={checkIn} onChange={setCheckIn} minMonthValue={today} isDateDisabled={isCheckInDateDisabled} helperText="Unavailable dates are disabled." />
-                    <DatePickerField label="Check-Out Date" value={checkOut} onChange={setCheckOut} minMonthValue={checkIn || today} isDateDisabled={(date) => !durationHours && isCheckOutDateDisabled(date, checkIn)} helperText={durationHours ? 'Calculated from check-in time.' : 'Valid stay durations only.'} disabled={!checkIn || Boolean(durationHours)} />
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Check-In Time</label>
-                      <input type="time" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} className={inputCls} />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Check-Out Time</label>
-                      <input type="time" value={checkOutTime} onChange={(e) => setCheckOutTime(e.target.value)} disabled={Boolean(durationHours)} className={inputCls} />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-300">Use booking points</p>
-                        <p className="mt-0.5 text-[11px] text-emerald-700 dark:text-emerald-400">Points are earned from reservations.</p>
-                      </div>
-                      <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Available: {availablePoints.toLocaleString()} pts</span>
-                    </div>
-                    <label className="mt-3 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
-                      <input type="checkbox" checked={useAllPoints} onChange={(e) => setUseAllPoints(e.target.checked)} disabled={availablePoints <= 0} className="h-4 w-4 accent-emerald-600" />
-                      Use all points
-                    </label>
-                    {!useAllPoints ? (
-                      <input type="number" min="0" max={Math.min(availablePoints, Math.floor(totalBeforePoints))} step="1" value={pointsToUse} onChange={(e) => setPointsToUse(e.target.value)} placeholder="Enter points to use" disabled={availablePoints <= 0} className={`${inputCls} mt-3`} />
-                    ) : null}
-                    {pointsRedeemed > 0 ? <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">Discount applied: -{peso(pointsDiscountAmount)}</p> : null}
-                  </div>
-
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                  <div className="mb-4 flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">2</span>
-                    <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Guests & Payment</h2>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Adults (max {room?.maxAdults ?? 0})</label>
-                      <div className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
-                        <button type="button" onClick={() => setAdults((v) => Math.max(1, v - 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">-</button>
-                        <span className="flex-1 text-center text-sm font-semibold text-slate-800 dark:text-slate-100">{adults}</span>
-                        <button type="button" onClick={() => setAdults((v) => Math.min(Number(room?.maxAdults || 10), v + 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">+</button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Children (max {room?.maxChildren ?? 0})</label>
-                      <div className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
-                        <button type="button" onClick={() => setChildren((v) => Math.max(0, v - 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">-</button>
-                        <span className="flex-1 text-center text-sm font-semibold text-slate-800 dark:text-slate-100">{children}</span>
-                        <button type="button" onClick={() => setChildren((v) => Math.min(Number(room?.maxChildren || 0), v + 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">+</button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Payment Method</label>
-                      <div className="relative">
-                        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={selectCls}>
-                          <option value="cash">Cash on Arrival</option>
-                          <option value="qrph">QR Ph (QR Code Payment)</option>
-                          <option value="card">Credit / Debit Card</option>
-                          <option value="gcash">GCash</option>
-                          <option value="maya">Maya</option>
-                        </select>
-                        <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M6 8L1 3h10z" /></svg>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                  <div className="mb-4 flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">3</span>
-                    <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Preferences</h2>
-                  </div>
-
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    {prefs.map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => togglePref(item)}
-                        className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
-                          preferences.includes(item)
-                            ? 'border-emerald-600 bg-emerald-600 text-white'
-                            : 'border-slate-300 bg-slate-50 text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                        }`}
-                      >
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                  <textarea
-                    rows={3}
-                    value={specialRequests}
-                    onChange={(e) => setSpecialRequests(e.target.value)}
-                    placeholder="Additional requests (e.g. accessibility needs, quiet room)..."
-                    className={`${inputCls} resize-none`}
-                  />
-                </div>
-
-                {error && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={submitting || !room || availabilityLoading}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:opacity-50"
-                >
-                  {submitting ? 'Processing...' : sessionUser?.id ? 'Confirm Reservation' : 'Sign In to Reserve'}
-                  {!submitting && <ArrowRight size={16} />}
-                </button>
-              </form>
-            </div>
-
-            <div className="space-y-6">
-              <div className="sticky top-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <h3 className="mb-4 text-base font-semibold text-slate-900 dark:text-slate-100">Booking Summary</h3>
-
-                <div className="mb-4 space-y-2.5 text-xs">
-                  {[
-                    { label: 'Room', value: room?.roomName || '--' },
-                    { label: 'Check-in', value: checkIn ? `${checkIn} at ${checkInTime}` : '--' },
-                    { label: 'Check-out', value: checkOut ? `${checkOut} at ${checkOutTime}` : '--' },
-                    { label: 'Duration', value: nights > 0 ? `${nights} night${nights > 1 ? 's' : ''}` : '--' },
-                    { label: 'Guests', value: `${adults} adult${adults === 1 ? '' : 's'}${children ? `, ${children} child${children === 1 ? '' : 'ren'}` : ''}` },
-                    { label: 'Payment', value: paymentMethod },
-                  ].map((item) => (
-                    <div key={item.label} className="flex justify-between">
-                      <span className="text-slate-500 dark:text-slate-400">{item.label}</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="border-t border-slate-200 pt-4 text-xs dark:border-slate-800">
-                  <div className="mb-2 flex justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">Base total</span>
-                    <span className="text-slate-800 dark:text-slate-200">{baseTotal > 0 ? peso(baseTotal) : '--'}</span>
-                  </div>
-                  {pointsRedeemed > 0 && (
-                    <div className="mb-2 flex justify-between text-emerald-600 dark:text-emerald-400">
-                      <span>Points discount ({pointsRedeemed.toLocaleString()} pts)</span>
-                      <span>-{peso(pointsDiscountAmount)}</span>
-                    </div>
-                  )}
-                  <div className="mb-2 flex justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">Subtotal</span>
-                    <span className="text-slate-800 dark:text-slate-200">{subtotalAfterDiscount > 0 ? peso(subtotalAfterDiscount) : '--'}</span>
-                  </div>
-                  <div className="mb-2 flex justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">VAT ({VAT_PERCENT}%)</span>
-                    <span className="text-slate-800 dark:text-slate-200">{subtotalAfterDiscount > 0 ? peso(vatAmount) : '--'}</span>
-                  </div>
-                  <div className="mb-2 flex justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">Tax ({TAX_PERCENT}%)</span>
-                    <span className="text-slate-800 dark:text-slate-200">{subtotalAfterDiscount > 0 ? peso(taxAmount) : '--'}</span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 text-base font-bold dark:border-slate-800">
-                    <span>Total</span>
-                    <span className="text-emerald-600 dark:text-emerald-400">{total > 0 ? peso(total) : '--'}</span>
-                  </div>
-                </div>
-
-                {!sessionUser?.id && (
-                  <div className="mt-4 rounded-lg bg-slate-50 p-3 text-center text-xs dark:bg-slate-800">
-                    <p className="text-slate-500 dark:text-slate-400">Sign in to complete your booking</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        sessionStorage.setItem('returnTo', window.location.pathname + window.location.search);
-                        navigate('/login');
-                      }}
-                      className="mt-1 font-semibold text-emerald-600 hover:underline dark:text-emerald-400"
-                    >
-                      Sign In
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
+              <button
+                type="submit"
+                disabled={submitting || !room || availabilityLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {sessionUser?.id ? 'Confirm Booking' : 'Sign In to Reserve'}
+                {!submitting && <ArrowRight size={16} />}
+              </button>
+            </form>
           </div>
         </div>
       </div>

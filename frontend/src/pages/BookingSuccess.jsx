@@ -36,7 +36,7 @@ export default function BookingSuccess() {
     }
 
     if (status === 'paid') {
-      const redirectTimer = setTimeout(() => navigate('/customer/bookings'), 1500);
+      const redirectTimer = setTimeout(() => navigate('/customer/bookings'), 700);
       return () => clearTimeout(redirectTimer);
     }
 

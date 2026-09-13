@@ -92,6 +92,14 @@ def ensure_admin_feature_tables(cur):
         _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="admin_feature_alter")
     cur.execute("UPDATE admins SET first_name = COALESCE(first_name, split_part(name, ' ', 1)), last_name = COALESCE(last_name, NULLIF(trim(substring(name from position(' ' in name) + 1)), '')) WHERE first_name IS NULL OR last_name IS NULL")
 
+def ensure_owner_registration_fields(cur):
+    for statement in [
+        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS middle_name VARCHAR(50)",
+        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS suffix VARCHAR(20)",
+        "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS address_category VARCHAR(50)",
+    ]:
+        _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="owner_registration_fields")
+
 def ensure_api_integrations_table(cur):
     cur.execute(
         """

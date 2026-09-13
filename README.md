@@ -5,6 +5,43 @@ Hotel management school project with:
 - `backend/` for the Flask API and database setup
 - `rasa/` for the chatbot configuration
 
+## Technology Stack
+
+### Core application
+
+- **Frontend:** React 18, Vite, React Router, Axios, and JavaScript.
+- **Backend:** Python, Flask, Flask-CORS, and REST API endpoints.
+- **Database:** PostgreSQL through `psycopg2-binary`.
+- **Authentication and password security:** Google OAuth verification and Werkzeug password hashing. JWT is not implemented in the current codebase.
+
+### Implemented integrations and modules
+
+- **Email notifications:** Gmail SMTP is the primary email delivery path. SendGrid REST API is also implemented as an optional fallback/configuration-based provider; it is not a frontend package or a required Python dependency.
+- **SMS notifications:** Twilio SMS delivery is implemented in the backend when Twilio credentials are configured. There is no separate SMS replacement provider currently implemented.
+- **Payments:** PayMongo API integration for booking and subscription payment flows.
+- **Maps and location services:** Leaflet and React-Leaflet, using OpenStreetMap tiles and Nominatim search/geocoding.
+- **Analytics and forecasting:** Python pandas and Prophet, with a linear-forecast fallback. Plotly is not currently installed or used.
+- **AI chatbot:** Rasa project and Rasa SDK, accessed through the backend chatbot endpoint with built-in fallback replies.
+- **360-degree room viewer:** Marzipano for panorama/virtual-tour rendering.
+- **QR-related features:** QR key/payment-related flows and QR icons exist in the application. The `qrcode` npm dependency is present, but a confirmed runtime QR-code generation call is not currently documented in the source.
+
+### Frontend support libraries
+
+- Framer Motion for animations.
+- Lucide React for icons.
+- SweetAlert2 and React Hot Toast for alerts and feedback.
+- jsPDF and jsPDF AutoTable for PDF reports.
+
+### Not currently implemented
+
+- Plotly visualization library.
+- JWT authentication.
+- Browser Geolocation API usage (`navigator.geolocation`).
+- Android CameraX.
+- Android Geofencing API.
+
+CameraX and Android Geofencing would require a separate Android application/module; this repository currently contains a web frontend, Flask backend, PostgreSQL setup, and Rasa project only.
+
 ## Main Folder Guide
 
 ### `frontend/src`

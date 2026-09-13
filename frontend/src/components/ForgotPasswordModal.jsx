@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { AlertCircle, KeyRound, Mail, ShieldCheck, X, ArrowRight, ArrowLeft } from "lucide-react";
+import { AlertCircle, KeyRound, Mail, ShieldCheck, X, ArrowRight, ArrowLeft, Lock } from "lucide-react";
 import { getPasswordStrengthMessage, isValidEmail, isValidHotelCode } from "../utils/authValidation";
 
 const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = "", initialHotelCode = "" }) => {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(1); // Step 1: Request OTP, Step 2: Verify OTP, Step 3: New Password
   const [email, setEmail] = useState(initialEmail);
   const [hotelCode, setHotelCode] = useState(initialHotelCode);
   const channel = "email";
@@ -11,7 +11,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Validation & Error States (similar to OwnerSignUp)
+  // Validation & Error States
   const [fieldErrors, setFieldErrors] = useState({});
   const [touchedFields, setTouchedFields] = useState({});
   const [error, setError] = useState("");
@@ -72,6 +72,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
     setFieldErrors((prev) => ({ ...prev, [key]: err }));
   };
 
+  // Step 1: Request OTP
   const submitRequest = async (event) => {
     event.preventDefault();
     setError("");
@@ -105,7 +106,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
       }
       setDevOtp(data.devOtp || "");
       setSuccess(data.message || "OTP sent successfully.");
-      setStep(2);
+      setStep(2); // Lipat sa OTP verification step
       setResendSeconds(30);
     } catch {
       setError("Unable to reach the server right now.");
@@ -114,20 +115,58 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
     }
   };
 
+  // Step 2: Confirm / Verify OTP muna
+  const submitVerifyOtp = async (event) => {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+
+    const errors = { otp: validateField("otp", otp) };
+    setFieldErrors(errors);
+    setTouchedFields({ otp: true });
+
+    if (errors.otp) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/auth/forgot-password/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userType,
+          email,
+          hotelCode: hotelCode.trim().toUpperCase(),
+          otp,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(data.error || "Invalid or expired OTP code.");
+        return;
+      }
+      setSuccess("OTP confirmed successfully! Please enter your new password.");
+      setStep(3); // Kapag kumpirmado na ang OTP, saka pa lang papasok sa New Password step
+    } catch {
+      setError("Unable to reach the server right now.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 3: Reset Password
   const submitReset = async (event) => {
     event.preventDefault();
     setError("");
     setSuccess("");
 
     const errors = {
-      otp: validateField("otp", otp),
       newPassword: validateField("newPassword", newPassword),
       confirmPassword: validateField("confirmPassword", confirmPassword),
     };
     setFieldErrors(errors);
-    setTouchedFields({ otp: true, newPassword: true, confirmPassword: true });
+    setTouchedFields({ newPassword: true, confirmPassword: true });
 
-    if (errors.otp || errors.newPassword || errors.confirmPassword) return;
+    if (errors.newPassword || errors.confirmPassword) return;
 
     setLoading(true);
     try {
@@ -157,7 +196,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-slate-900/65 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-xl text-slate-800 dark:text-slate-100 font-sans">
 
         {/* HEADER */}
@@ -166,7 +205,9 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
             <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Account Recovery</span>
             <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">{title || "Forgot Password"}</h3>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              {step === 1 ? "Request a secure one-time verification password." : "Enter the OTP code and your new credentials."}
+              {step === 1 && "Request a secure one-time verification password."}
+              {step === 2 && "Enter the 6-digit OTP code sent to your email."}
+              {step === 3 && "Create your new secure password."}
             </p>
           </div>
           <button
@@ -192,12 +233,12 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
             <ShieldCheck size={16} className="shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">{success}</p>
-              {devOtp ? <p className="mt-1 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-300">Dev OTP: {devOtp}</p> : null}
+              {devOtp && step === 2 ? <p className="mt-1 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-300">Dev OTP: {devOtp}</p> : null}
             </div>
           </div>
         )}
 
-        {/* STEP 1 FORM */}
+        {/* STEP 1 FORM: Request Email & Hotel Code */}
         {step === 1 ? (
           <form onSubmit={submitRequest} className="mt-5 space-y-4">
             <div>
@@ -267,12 +308,12 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
               <ArrowRight size={14} />
             </button>
           </form>
-        ) : (
-          /* STEP 2 FORM */
-          <form onSubmit={submitReset} className="mt-5 space-y-4">
+        ) : step === 2 ? (
+          /* STEP 2 FORM: Enter & Confirm OTP Only */
+          <form onSubmit={submitVerifyOtp} className="mt-5 space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                OTP Code <span className="text-red-500">*</span>
+                Enter 6-Digit OTP Code <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <KeyRound size={15} className="absolute left-3 top-2.5 text-slate-400" />
@@ -309,27 +350,52 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
               </button>
             </div>
 
+            <div className="space-y-2 pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                <span>{loading ? "Verifying OTP..." : "Confirm OTP"}</span>
+                <ArrowRight size={14} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="w-full py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-center gap-1.5"
+              >
+                <ArrowLeft size={14} /> Back to Email Input
+              </button>
+            </div>
+          </form>
+        ) : (
+          /* STEP 3 FORM: Change New Password (Awtomatikong magpapakita kapag kumpirmado na ang OTP) */
+          <form onSubmit={submitReset} className="mt-5 space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 New Password <span className="text-red-500">*</span>
               </label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => {
-                  setNewPassword(e.target.value);
-                  if (touchedFields.newPassword) {
-                    setFieldErrors(prev => ({ ...prev, newPassword: validateField("newPassword", e.target.value) }));
-                  }
-                }}
-                onBlur={() => handleBlur("newPassword", newPassword)}
-                className={`w-full px-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
-                  touchedFields.newPassword && fieldErrors.newPassword
-                    ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
-                    : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
-                }`}
-                placeholder="Create stronger password"
-              />
+              <div className="relative">
+                <Lock size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    if (touchedFields.newPassword) {
+                      setFieldErrors(prev => ({ ...prev, newPassword: validateField("newPassword", e.target.value) }));
+                    }
+                  }}
+                  onBlur={() => handleBlur("newPassword", newPassword)}
+                  className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                    touchedFields.newPassword && fieldErrors.newPassword
+                      ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                      : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                  }`}
+                  placeholder="Create stronger password"
+                />
+              </div>
               {touchedFields.newPassword && fieldErrors.newPassword && (
                 <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">{fieldErrors.newPassword}</span>
               )}
@@ -339,23 +405,26 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Confirm Password <span className="text-red-500">*</span>
               </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  if (touchedFields.confirmPassword) {
-                    setFieldErrors(prev => ({ ...prev, confirmPassword: validateField("confirmPassword", e.target.value) }));
-                  }
-                }}
-                onBlur={() => handleBlur("confirmPassword", confirmPassword)}
-                className={`w-full px-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
-                  touchedFields.confirmPassword && fieldErrors.confirmPassword
-                    ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
-                    : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
-                }`}
-                placeholder="Repeat new password"
-              />
+              <div className="relative">
+                <Lock size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    if (touchedFields.confirmPassword) {
+                      setFieldErrors(prev => ({ ...prev, confirmPassword: validateField("confirmPassword", e.target.value) }));
+                    }
+                  }}
+                  onBlur={() => handleBlur("confirmPassword", confirmPassword)}
+                  className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                    touchedFields.confirmPassword && fieldErrors.confirmPassword
+                      ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
+                      : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                  }`}
+                  placeholder="Repeat new password"
+                />
+              </div>
               {touchedFields.confirmPassword && fieldErrors.confirmPassword && (
                 <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">{fieldErrors.confirmPassword}</span>
               )}
@@ -372,10 +441,10 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
 
               <button
                 type="button"
-                onClick={() => setStep(1)}
+                onClick={() => setStep(2)}
                 className="w-full py-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-center gap-1.5"
               >
-                <ArrowLeft size={14} /> Request New OTP Code
+                <ArrowLeft size={14} /> Back to OTP Verification
               </button>
             </div>
           </form>

@@ -234,13 +234,7 @@ export default function HotelDetail() {
                     <MapPin size={14} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
                     <span className="truncate">{hotel.location || "Innova Smart Hotel"}</span>
                   </div>
-                  <button
-                    onClick={handleGetDirections}
-                    disabled={routeLoading}
-                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#1F6F5F] dark:text-[#2FA084] hover:underline shrink-0"
-                  >
-                    <Navigation size={12} /> {routeLoading ? "Locating..." : "Get Directions"}
-                  </button>
+                  
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -268,12 +262,13 @@ export default function HotelDetail() {
                 </div>
                 <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-wide">Room Price Range</div>
               </div>
-              <button
+              {/* <button
                 onClick={() => navigate(`/vision-suites?viewMode=room&hotel_id=${hotel.id}`)}
                 className="px-4 py-2 rounded-lg bg-[#1F6F5F] hover:bg-[#2FA084] text-white text-xs font-semibold transition-colors shadow-sm"
               >
                 Browse Rooms
               </button>
+              */}
             </div>
           </div>
         </div>

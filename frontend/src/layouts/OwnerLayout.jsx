@@ -31,6 +31,8 @@ const formatDateLabel = (value) => {
 };
 
 const OWNER_ROUTE_FEATURES = [
+  { path: '/owner/profile', feature: null, label: 'Owner Profile', requiredPlan: null },
+  { path: '/owner/property-details', feature: null, label: 'Property Details', requiredPlan: null },
   { path: '/owner/subscription', feature: 'subscription', label: 'Subscription', requiredPlan: null },
   { path: '/owner/rooms', feature: 'rooms', label: 'Room Management', requiredPlan: 'Starter' },
   { path: '/owner/reservations', feature: 'reservations', label: 'Reservations', requiredPlan: 'Starter' },
@@ -52,6 +54,7 @@ const PLAN_FEATURES = {
 const OwnerLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('ownerDarkMode') || 'false');
@@ -186,6 +189,7 @@ const OwnerLayout = () => {
   const planLocked = Boolean(
     session?.subscriptionActive &&
     currentRouteFeature &&
+    currentRouteFeature.feature &&
     currentRouteFeature.feature !== 'subscription' &&
     !allowedFeatures.has(currentRouteFeature.feature)
   );
@@ -193,10 +197,15 @@ const OwnerLayout = () => {
 
   return (
     <div className={`flex h-screen transition-colors duration-300 ${isDarkMode ? 'bg-[#090b10] text-white' : 'bg-gray-50 text-slate-900'}`}>
-      <OwnerSidebar isDarkMode={isDarkMode} />
+      <OwnerSidebar isDarkMode={isDarkMode} isExpanded={isSidebarOpen} />
       
       <div className="flex-1 flex flex-col overflow-hidden">
-        <OwnerHeader isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+        <OwnerHeader
+          isDarkMode={isDarkMode}
+          toggleTheme={toggleTheme}
+          isSidebarOpen={isSidebarOpen}
+          toggleSidebar={() => setIsSidebarOpen((open) => !open)}
+        />
 
         <main className={`flex-1 overflow-y-auto transition-colors duration-300 ${isDarkMode ? 'bg-[#0f1117]' : 'bg-slate-50'}`}>
           {showExpiryReminder && (

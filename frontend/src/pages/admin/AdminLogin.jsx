@@ -67,7 +67,7 @@ const AdminLogin = () => {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans">
       
-      {/* MAIN CONTAINER (Katulad ng OwnerSignUp layout structure) */}
+      {/* MAIN CONTAINER */}
       <main className="max-w-xl mx-auto px-4 py-12">
         
         {/* TITLE HEADER */}
@@ -75,9 +75,9 @@ const AdminLogin = () => {
           <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-400 mb-1">
           </div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-            System Administration Sign In
+            Administration Sign In
           </h2>
-                </div>
+        </div>
 
         {/* ERROR ALERT */}
         {feedback && (
@@ -134,7 +134,8 @@ const AdminLogin = () => {
                   <input
                     type={showPassword ? "text" : "password"}
                     required
-                    className="w-full pl-9 pr-10 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none focus:border-emerald-700 transition-colors"
+                    style={{ WebkitTextSecurity: showPassword ? "none" : "disc" }}
+                    className="w-full pl-9 pr-10 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none focus:border-emerald-700 transition-colors [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
                     placeholder="••••••••••••"
                     value={formData.password}
                     onChange={(e) => setFormData({...formData, password: e.target.value})}
@@ -169,8 +170,6 @@ const AdminLogin = () => {
               to="/"
               className="group inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-emerald-800 dark:hover:text-emerald-400 transition-colors"
             >
-              <Globe size={14} className="group-hover:rotate-180 transition-transform duration-700" /> 
-              Exit to Public Terminal
             </Link>
 
             <button 
