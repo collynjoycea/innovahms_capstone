@@ -338,69 +338,7 @@ export default function OwnerSubscription() {
           )}
         </div>
 
-        {/* HOTEL SETUP SECTION */}
-        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Registered Property Details</h3>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">
-            {session?.hasHotel ? 'Your establishment is linked to this owner account.' : 'Provide property details to finalize configuration.'}
-          </p>
-
-          {session?.hasHotel ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded">
-                <span className="text-slate-400 block mb-0.5">Hotel Name</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">{session?.hotelName || 'N/A'}</span>
-              </div>
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded">
-                <span className="text-slate-400 block mb-0.5">Hotel Code</span>
-                <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-sm">{session?.hotelCode || 'N/A'}</span>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={submitHotelSetup} className="space-y-4 max-w-xl">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Hotel Code (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="INNOVAHMS-123"
-                  value={hotelForm.hotelCode}
-                  disabled={!isSubscribed}
-                  onChange={(e) => setHotelForm((curr) => ({ ...curr, hotelCode: e.target.value.toUpperCase() }))}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded text-xs bg-slate-50 dark:bg-slate-800 outline-none disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Hotel Name *</label>
-                <input
-                  type="text"
-                  placeholder="Grand Vista Hotel"
-                  value={hotelForm.hotelName}
-                  disabled={!isSubscribed}
-                  onChange={(e) => setHotelForm((curr) => ({ ...curr, hotelName: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded text-xs bg-slate-50 dark:bg-slate-800 outline-none disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Hotel Address *</label>
-                <input
-                  type="text"
-                  placeholder="Complete Address"
-                  value={hotelForm.hotelAddress}
-                  disabled={!isSubscribed}
-                  onChange={(e) => setHotelForm((curr) => ({ ...curr, hotelAddress: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded text-xs bg-slate-50 dark:bg-slate-800 outline-none disabled:opacity-50"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={!isSubscribed || hotelSaving}
-                className="px-4 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-white text-xs font-bold rounded transition-colors disabled:opacity-50"
-              >
-                {hotelSaving ? 'Saving...' : 'Save Property Details'}
-              </button>
-            </form>
-          )}
-        </section>
+       
 
       </div>
     </div>

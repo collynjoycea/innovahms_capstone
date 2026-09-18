@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Sun, Moon, Bell } from 'lucide-react';
+import { Sun, Moon, Bell, Menu, X } from 'lucide-react';
 
 const priorityColor = (priority) => {
   if (priority === 'CRITICAL') return 'text-red-500';
@@ -7,7 +7,7 @@ const priorityColor = (priority) => {
   return 'text-[#2FA084]';
 };
 
-const AdminHeader = ({ isDarkMode, toggleTheme }) => {
+const AdminHeader = ({ isDarkMode, toggleTheme, isSidebarOpen, toggleSidebar }) => {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,8 +46,17 @@ const AdminHeader = ({ isDarkMode, toggleTheme }) => {
     <header className={`h-20 border-b flex items-center justify-between px-10 sticky top-0 z-40 transition-all duration-300 
       ${isDarkMode ? 'bg-[#163C34] border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
       
-      {/* LEFT: TITLE */}
-      <div className="flex flex-col text-left">
+      {/* LEFT: MENU + TITLE */}
+      <div className="flex items-center gap-3 text-left">
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label={isSidebarOpen ? 'Close admin sidebar' : 'Open admin sidebar'}
+          aria-expanded={isSidebarOpen}
+          className={`p-2.5 rounded-xl transition-all ${isDarkMode ? 'hover:bg-white/5 text-gray-400 hover:text-[#2FA084]' : 'hover:bg-gray-100 text-gray-500 hover:text-[#2FA084]'}`}
+        >
+          {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
         <h2 className={`text-xl font-black tracking-tight uppercase ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
           Welcome <span className="text-[#2FA084]">Admin</span>
         </h2>

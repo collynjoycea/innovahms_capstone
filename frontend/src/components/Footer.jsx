@@ -73,18 +73,18 @@ export default function Footer() {
             </h3>
             <ul className="space-y-2.5 text-xs font-medium">
               <li>
-                <a href="tel:+18005550199" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
-                  +1 (800) 555-0199
+                <a href="tel:+639605736024" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
+                  +63 960 573 6024
                 </a>
               </li>
               <li>
-                <a href="sms:+18005550199" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
+                <a href="sms:+639605736024" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
                   SMS Support
                 </a>
               </li>
               <li>
-                <a href="mailto:support@innova-hms.com" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
-                  support@innova-hms.com
+                <a href="mailto:fernandezcollynjoyce@gmail.com" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
+                  fernandezcollynjoyce@gmail.com
                 </a>
               </li>
               <li className="pt-1 text-slate-500 dark:text-slate-400 font-semibold">

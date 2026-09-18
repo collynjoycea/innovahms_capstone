@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import psycopg2
 from psycopg2 import sql
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from google.oauth2 import id_token
@@ -21,6 +21,13 @@ from html import escape
 from datetime import date, datetime, timedelta, timezone
 from collections import Counter, defaultdict
 
+# Philippine timezone — used for staff attendance (time-in/time-out/shift-status)
+# so "today" always matches Manila's calendar day, regardless of the server's
+# own OS/system timezone (e.g. if the host runs on UTC). Fixed +8 offset —
+# the Philippines has no daylight saving time — so this needs no tzdata
+# package (unlike zoneinfo.ZoneInfo, which fails on Windows without it).
+PH_TZ = timezone(timedelta(hours=8))
+
 try:
     from .database import bootstrap as db_bootstrap
 except ImportError:
@@ -35,22 +42,21 @@ except ImportError:
 
 try:
     from prophet import Prophet  # type: ignore
+    import pandas as pd  # type: ignore
     PROPHET_AVAILABLE = True
 except Exception:
     Prophet = None
+    pd = None
     PROPHET_AVAILABLE = False
 
 app = Flask(__name__, static_folder='static')
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '519451068503-3omfa4t653eigfp4gcajjiuioq5je5mj.apps.googleusercontent.com')
-
-# --- GMAIL SMTP CONFIGURATION ---
-# Keep the credentials in backend/.env; do not hard-code them in source control.
-app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
-app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', '465'))
-app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME') or os.getenv('SMTP_EMAIL', 'innovahms2026@gmail.com')
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD') or os.getenv('SMTP_PASSWORD', 'meqijkpojslacoaw')
-app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'False').lower() == 'true'
-app.config['MAIL_USE_SSL'] = os.getenv('MAIL_USE_SSL', 'True').lower() == 'true'
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 465
+app.config['MAIL_USERNAME'] = 'fernandezcollynjoycea@gmail.com'
+app.config['MAIL_PASSWORD'] = 'pyidtzjetthdvqnz'
+app.config['MAIL_USE_TLS'] = False
+app.config['MAIL_USE_SSL'] = True
 app.config['MAIL_DEFAULT_SENDER'] = app.config['MAIL_USERNAME']
 
 CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174", "http://localhost:3000"]}})
@@ -183,6 +189,22 @@ def _table_columns(cur, table_name):
 def _allowed_owner_document(filename):
     ext = str(filename or '').rsplit('.', 1)[-1].lower()
     return ext in OWNER_DOCUMENT_ALLOWED_EXTENSIONS
+
+def _duplicate_owner_documents(owner_documents):
+    seen = set()
+    for file_storage in owner_documents.values():
+        stream = getattr(file_storage, 'stream', None)
+        size = getattr(file_storage, 'content_length', None)
+        if size is None and stream is not None:
+            current_position = stream.tell()
+            stream.seek(0, os.SEEK_END)
+            size = stream.tell()
+            stream.seek(current_position)
+        identity = (str(getattr(file_storage, 'filename', '')).strip().lower(), size)
+        if identity in seen:
+            return True
+        seen.add(identity)
+    return False
 
 
 def _parse_text_array(value):
@@ -407,7 +429,7 @@ def _send_signup_otp(email, user_type):
     subject = "Your Innova HMS email verification OTP"
     plain_text = (
         f"Your Innova HMS {user_type} signup verification code is {otp_code}. "
-        "This code expires in 10 minutes."
+        "This code expires in 1 minute."
     )
     html_content = (
         "<div style=\"margin:0;background:#f0fdf4;padding:32px 16px;font-family:Arial,sans-serif;color:#16352d;\">"
@@ -416,7 +438,7 @@ def _send_signup_otp(email, user_type):
         "<div style=\"font-size:22px;font-weight:bold;margin-top:10px;\">Email Verification</div></div>"
         "<div style=\"padding:28px;line-height:1.6;\"><p style=\"margin-top:0;\">Use this code to confirm your signup:</p>"
         f"<div style=\"margin:24px 0;padding:18px;text-align:center;border:1px dashed #22c55e;border-radius:12px;background:#f0fdf4;color:#166534;font-size:30px;font-weight:bold;letter-spacing:8px;\">{otp_code}</div>"
-        "<p style=\"font-size:13px;color:#64748b;\">This code expires in 10 minutes. If you did not request this, you can safely ignore this email.</p>"
+        "<p style=\"font-size:13px;color:#64748b;\">This code expires in 1 minute. If you did not request this, you can safely ignore this email.</p>"
         "<p style=\"margin-bottom:0;font-size:13px;color:#64748b;\">Thank you,<br><strong style=\"color:#166534;\">Innova HMS Team</strong></p></div></div></div>"
     )
     delivered = bool(recipient and _send_sendgrid_email(recipient, subject, html_content, plain_text))
@@ -474,7 +496,7 @@ def _send_password_reset_otp(user, user_type, otp_code, channel):
     subject = "Your Innova HMS password reset OTP"
     plain_text = (
         f"Hello {recipient_name},\n\n"
-        f"Your password reset OTP is {otp_code}. This code expires in 10 minutes.\n\n"
+        f"Your password reset OTP is {otp_code}. This code expires in 1 minute.\n\n"
         "If you did not request this, please ignore this message.\n\n"
         "Innova HMS"
     )
@@ -485,7 +507,7 @@ def _send_password_reset_otp(user, user_type, otp_code, channel):
         "<div style=\"font-size:22px;font-weight:bold;margin-top:10px;\">Password Reset</div></div>"
         f"<div style=\"padding:28px;line-height:1.6;\"><p style=\"margin-top:0;\">Hello {escape(recipient_name)}, use this code to reset your password:</p>"
         f"<div style=\"margin:24px 0;padding:18px;text-align:center;border:1px dashed #22c55e;border-radius:12px;background:#f0fdf4;color:#166534;font-size:30px;font-weight:bold;letter-spacing:8px;\">{escape(otp_code)}</div>"
-        "<p style=\"font-size:13px;color:#64748b;\">This code expires in 10 minutes. If you did not request this, you can safely ignore this email.</p>"
+        "<p style=\"font-size:13px;color:#64748b;\">This code expires in 1 minute. If you did not request this, you can safely ignore this email.</p>"
         "<p style=\"margin-bottom:0;font-size:13px;color:#64748b;\">Thank you,<br><strong style=\"color:#166534;\">Innova HMS Team</strong></p></div></div></div>"
     )
 
@@ -499,7 +521,7 @@ def _send_password_reset_otp(user, user_type, otp_code, channel):
                     from twilio.rest import Client
                     client = Client(twilio_sid, twilio_token)
                     client.messages.create(
-                        body=f"Innova HMS OTP: {otp_code}. Expires in 10 minutes.",
+                        body=f"Innova HMS OTP: {otp_code}. Expires in 1 minute.",
                         from_=twilio_phone,
                         to=recipient_phone,
                     )
@@ -1183,6 +1205,30 @@ def _linear_project(values, horizon):
     return projected
 
 
+def _prophet_project(labels, values, period, horizon):
+    """Forecast a numeric series with Prophet when the optional ML stack is installed."""
+    if not PROPHET_AVAILABLE or len(labels) < 2:
+        return None
+
+    try:
+        dates = [
+            datetime.strptime(str(label), "%Y-%m-%d" if period == "daily" else "%Y-%m")
+            for label in labels
+        ]
+        frame = pd.DataFrame({"ds": dates, "y": [float(value or 0) for value in values]})
+        model = Prophet(
+            daily_seasonality=False,
+            weekly_seasonality=period == "daily",
+            yearly_seasonality=len(frame) >= (14 if period == "daily" else 24),
+        )
+        model.fit(frame)
+        future = model.make_future_dataframe(periods=horizon, freq="D" if period == "daily" else "MS")
+        forecast = model.predict(future).tail(horizon)
+        return [max(0.0, float(value)) for value in forecast["yhat"].tolist()]
+    except Exception:
+        return None
+
+
 def _slugify(value):
     return re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower()).strip("-")
 
@@ -1313,7 +1359,7 @@ CUSTOMER_PRIVILEGE_BOOKING_DISCOUNTS = {
 }
 
 CUSTOMER_BOOKING_VAT_PERCENT = 12
-CUSTOMER_BOOKING_TAX_PERCENT = 5
+CUSTOMER_BOOKING_TAX_PERCENT = 0
 
 
 ABOUT_PAGE_DEFAULT = {
@@ -1451,7 +1497,7 @@ def _seed_membership_packages(cur):
                 package["monthly_price"],
                 package["annual_price"],
                 package["max_rooms"],
-                package["features"],
+                Json(package["features"]),
                 package["is_popular"],
                 package["display_order"],
             ),
@@ -1784,8 +1830,8 @@ def _build_customer_booking_pricing(cur, customer_id, base_amount, requested_poi
     discount_amount = 0.0
     subtotal_amount = round(max(normalized_base - discount_amount, 0), 2)
     vat_amount = round(subtotal_amount * (CUSTOMER_BOOKING_VAT_PERCENT / 100), 2)
-    tax_amount = round(subtotal_amount * (CUSTOMER_BOOKING_TAX_PERCENT / 100), 2)
-    total_before_points = round(subtotal_amount + vat_amount + tax_amount, 2)
+    tax_amount = 0.0
+    total_before_points = round(subtotal_amount + vat_amount, 2)
     available_points = _customer_redeemable_points(cur, customer_id)
     requested_points = available_points if use_all_points else max(0, _to_int(requested_points, 0))
     points_redeemed = min(available_points, requested_points, int(total_before_points))
@@ -1836,13 +1882,19 @@ def _build_about_page_payload(cur):
         select_cols = ["id", "hotel_name"]
         if _table_has_column(cur, "hotels", "hotel_address"):
             select_cols.append("hotel_address")
-        query = f"SELECT {', '.join(select_cols)} FROM hotels ORDER BY id DESC LIMIT 4"
+        if _table_has_column(cur, "hotels", "latitude"):
+            select_cols.append("latitude")
+        if _table_has_column(cur, "hotels", "longitude"):
+            select_cols.append("longitude")
+        query = f"SELECT {', '.join(select_cols)} FROM hotels ORDER BY id DESC"
         cur.execute(query)
         for row in cur.fetchall() or []:
             featured_hotels.append({
                 "id": row.get("id"),
                 "name": row.get("hotel_name") or "Innova Property",
                 "address": row.get("hotel_address") or "",
+                "lat": _to_float(row.get("latitude"), 14.753889),
+                "lng": _to_float(row.get("longitude"), 121.031389),
             })
 
     if _table_exists(cur, "rooms"):
@@ -2816,7 +2868,10 @@ def _send_email_notification(notification):
                 'to': [{'email': user_email}],
                 'subject': notification['title']
             }],
-            'from': {'email': 'noreply@innovahms.com', 'name': 'Innova HMS'},
+            'from': {
+                'email': os.getenv('SENDGRID_FROM_EMAIL', 'noreply@innovahms.com'),
+                'name': os.getenv('SENDGRID_FROM_NAME', 'Innova HMS'),
+            },
             'content': [{
                 'type': 'text/html',
                 'value': f"<p>{notification['message']}</p>"
@@ -2848,7 +2903,7 @@ def _send_sendgrid_email(recipient_email, subject, html_content, plain_text=None
             message['To'] = recipient_email
             message.set_content(plain_text or 'Please view this message in an HTML-capable email client.')
             message.add_alternative(html_content, subtype='html')
-            smtp_host = app.config.get('MAIL_SERVER', 'innovahms2026@gmail.com')
+            smtp_host = app.config.get('MAIL_SERVER', 'smtp.gmail.com')
             smtp_port = app.config.get('MAIL_PORT', 465)
             smtp_class = smtplib.SMTP_SSL if app.config.get('MAIL_USE_SSL') else smtplib.SMTP
             with smtp_class(smtp_host, smtp_port, timeout=15) as server:
@@ -2882,7 +2937,7 @@ def _send_sendgrid_email(recipient_email, subject, html_content, plain_text=None
             'to': [{'email': recipient_email}],
             'subject': subject,
         }],
-        'from': {'email': 'noreply@innovahms.com', 'name': 'Innova HMS'},
+        'from': {'email': 'collynfernandez957@gmail.com', 'name': 'Innova HMS'},
         'content': content,
     }
 
@@ -4223,6 +4278,7 @@ def get_reviews():
     cur = None
     try:
         hotel_id = request.args.get('hotel_id', type=int)
+        room_id = request.args.get('room_id', type=int)
         limit = min(request.args.get('limit', 20, type=int), 100)
 
         conn = get_db_connection()
@@ -4743,13 +4799,13 @@ def send_signup_otp():
         )
         delivered, otp_code = _send_signup_otp(email, user_type)
         if not delivered:
-            return jsonify({'error': 'Unable to send OTP to Gmail. Configure SENDGRID_API_KEY and a verified sender email first.'}), 503
+            return jsonify({'error': 'Unable to send OTP. Check the Gmail SMTP username and app password in backend/.env.'}), 503
         cur.execute(
             "INSERT INTO signup_otps (user_type, email, otp_hash, expires_at) VALUES (%s, %s, %s, %s)",
-            (user_type, email, generate_password_hash(otp_code), datetime.utcnow() + timedelta(minutes=10)),
+            (user_type, email, generate_password_hash(otp_code), datetime.utcnow() + timedelta(minutes=1)),
         )
         conn.commit()
-        return jsonify({'message': f'OTP sent to {_mask_email(email)}. Check your Gmail inbox.', 'expiresInMinutes': 10}), 200
+        return jsonify({'message': f'OTP sent to {_mask_email(email)}. Check your Gmail inbox.', 'expiresInMinutes': 1}), 200
     except Exception as e:
         if conn:
             conn.rollback()
@@ -4988,7 +5044,7 @@ def request_password_reset_otp():
         )
 
         otp_code = _generate_otp_code()
-        expires_at = datetime.utcnow() + timedelta(minutes=10)
+        expires_at = datetime.utcnow() + timedelta(minutes=1)
         cur.execute(
             """
             INSERT INTO password_reset_otps (
@@ -5010,18 +5066,72 @@ def request_password_reset_otp():
 
         delivered, _ = _send_password_reset_otp(user, user_type, otp_code, channel)
         if not delivered:
-            return jsonify({"error": "Unable to send OTP to Gmail. Configure the Gmail SMTP app password first."}), 503
+            return jsonify({"error": "Unable to send OTP. Check the Gmail SMTP username and app password in backend/.env."}), 503
         destination = _mask_phone(user.get("contact_number")) if channel == "sms" else _mask_email(email)
 
         return jsonify({
             "message": f"OTP sent to {destination}.",
             "channel": channel,
             "destination": destination,
-            "expiresInMinutes": 10,
+            "expiresInMinutes": 1,
         }), 200
     except Exception as e:
         if conn:
             conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/auth/forgot-password/verify-otp', methods=['POST'])
+def verify_password_reset_otp():
+    conn = None
+    cur = None
+    try:
+        payload = request.get_json(silent=True) or {}
+        user_type = str(payload.get("userType") or "").strip().lower()
+        email = _normalize_email(payload.get("email"))
+        hotel_code = str(payload.get("hotelCode") or "").strip().upper()
+        otp_code = str(payload.get("otp") or "").strip()
+
+        if user_type not in AUTH_USER_MAP:
+            return jsonify({"error": "Unsupported account type."}), 400
+        if not _is_valid_email(email):
+            return jsonify({"error": "Enter a valid email address."}), 400
+        if AUTH_USER_MAP[user_type]["requires_hotel_code"] and not _is_valid_hotel_code(hotel_code):
+            return jsonify({"error": "Enter a valid hotel code."}), 400
+        if not re.fullmatch(r"\d{6}", otp_code):
+            return jsonify({"error": "OTP must be 6 digits."}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_password_reset_tables(cur)
+        user = _fetch_auth_user(cur, user_type, email, hotel_code)
+        if not user:
+            return jsonify({"error": "No account matched the provided details."}), 404
+
+        cur.execute(
+            """
+            SELECT otp_hash, expires_at
+            FROM password_reset_otps
+            WHERE user_type = %s
+              AND user_id = %s
+              AND consumed_at IS NULL
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (user_type, user.get("id")),
+        )
+        otp_row = cur.fetchone()
+        if not otp_row:
+            return jsonify({"error": "No active OTP found. Request a new OTP first."}), 400
+        if otp_row.get("expires_at") and otp_row["expires_at"] < datetime.utcnow():
+            return jsonify({"error": "OTP has expired. Request a new OTP."}), 400
+        if not check_password_hash(otp_row.get("otp_hash") or "", otp_code):
+            return jsonify({"error": "Invalid OTP."}), 400
+
+        return jsonify({"message": "OTP verified successfully."}), 200
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
         _safe_close(conn, cur)
@@ -5134,7 +5244,9 @@ def get_user_profile(customer_id):
 def owner_signup():
     data = request.form if request.files else (request.get_json(silent=True) or {})
     f_name = (data.get('firstName') or '').strip()
+    middle_name = (data.get('middleName') or '').strip()
     l_name = (data.get('lastName') or '').strip()
+    name_suffix = (data.get('suffix') or '').strip()
     email = _normalize_email(data.get('email'))
     contact = (data.get('contactNumber') or '').strip()
     password = data.get('password') or ''
@@ -5142,6 +5254,9 @@ def owner_signup():
     hotel_code = (data.get('hotelCode') or '').strip().upper()
     hotel_name = (data.get('hotelName') or '').strip()
     hotel_address = (data.get('hotelAddress') or '').strip()
+    address_category = (data.get('addressCategory') or '').strip()
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
     hotel_description = (data.get('hotelDescription') or '').strip()
     business_image = (data.get('businessImage') or '').strip()
     building_image = (data.get('buildingImage') or '').strip()
@@ -5153,6 +5268,11 @@ def owner_signup():
     bank_account_number = (data.get('bankAccountNumber') or '').strip()
     owner_documents = {field: request.files.get(field) for field in OWNER_DOCUMENT_FIELDS}
     hotel_coordinates = _geocode_hotel_address(hotel_address, hotel_name)
+    if latitude not in (None, '') and longitude not in (None, ''):
+        try:
+            hotel_coordinates = {'latitude': float(latitude), 'longitude': float(longitude)}
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Map pin coordinates must be valid numbers.'}), 400
 
     if not all([f_name, l_name, email, contact, password]):
         return jsonify({'error': 'Please complete all required fields.'}), 400
@@ -5166,6 +5286,8 @@ def owner_signup():
     missing_documents = [field for field, file_storage in owner_documents.items() if not file_storage or not getattr(file_storage, 'filename', '')]
     if missing_documents:
         return jsonify({'error': 'Business Permit, BIR Certificate, Fire Safety Certificate, and Valid ID are required.'}), 400
+    if _duplicate_owner_documents(owner_documents):
+        return jsonify({'error': 'Each compliance document must be a different attachment.'}), 400
 
     for file_storage in owner_documents.values():
         if not _allowed_owner_document(getattr(file_storage, 'filename', '')):
@@ -5189,6 +5311,7 @@ def owner_signup():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         _ensure_profile_media_columns(cur)
+        db_bootstrap.ensure_owner_registration_fields(cur)
         db_bootstrap.ensure_signup_otp_table(cur)
         otp_error = _consume_signup_otp(cur, 'owner', email, otp_code)
         if otp_error:
@@ -5234,8 +5357,8 @@ def owner_signup():
                 resolved_hotel_name = hotel.get('hotel_name') or hotel_name or 'Hotel'
                 claimed_coordinates = _geocode_hotel_address(hotel_address, resolved_hotel_name) if hotel_address else None
                 cur2.execute(
-                    'INSERT INTO owners (first_name, last_name, email, contact_number, password_hash) VALUES (%s, %s, %s, %s, %s) RETURNING id',
-                    (f_name, l_name, email, contact, hashed_pw)
+                    'INSERT INTO owners (first_name, middle_name, last_name, suffix, email, contact_number, password_hash) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id',
+                    (f_name, middle_name or None, l_name, name_suffix or None, email, contact, hashed_pw)
                 )
                 owner_id = cur2.fetchone()[0]
                 owner_doc_paths = {
@@ -5272,6 +5395,9 @@ def owner_signup():
                 if hotel_address and _table_has_column(cur, 'hotels', 'hotel_address'):
                     update_fields.append("hotel_address = %s")
                     update_params.append(hotel_address)
+                if address_category and _table_has_column(cur, 'hotels', 'address_category'):
+                    update_fields.append("address_category = %s")
+                    update_params.append(address_category)
                 if claimed_coordinates and _table_has_column(cur, 'hotels', 'latitude') and _table_has_column(cur, 'hotels', 'longitude'):
                     update_fields.append("latitude = %s")
                     update_fields.append("longitude = %s")
@@ -5363,8 +5489,8 @@ def owner_signup():
         generated_hotel_code = f'INNOVAHMS-{hotel_id}'
 
         cur2.execute(
-            'INSERT INTO owners (first_name, last_name, email, contact_number, password_hash) VALUES (%s, %s, %s, %s, %s) RETURNING id',
-            (f_name, l_name, email, contact, hashed_pw)
+            'INSERT INTO owners (first_name, middle_name, last_name, suffix, email, contact_number, password_hash) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id',
+            (f_name, middle_name or None, l_name, name_suffix or None, email, contact, hashed_pw)
         )
         owner_id = cur2.fetchone()[0]
         owner_doc_paths = {
@@ -5402,6 +5528,9 @@ def owner_signup():
         if _table_has_column(cur, 'hotels', 'hotel_address'):
             hotel_columns.append('hotel_address')
             hotel_values.append(hotel_address or '')
+        if _table_has_column(cur, 'hotels', 'address_category'):
+            hotel_columns.append('address_category')
+            hotel_values.append(address_category or '')
         if _table_has_column(cur, 'hotels', 'hotel_description'):
             hotel_columns.append('hotel_description')
             hotel_values.append(hotel_description or '')
@@ -6285,8 +6414,16 @@ def _build_forecast_payload(reservation_rows, total_rooms, period):
             occ_history.append(0.0)
 
     horizon = 4 if period == "monthly" else 7
-    revenue_projection = _linear_project(revenue_history, horizon)
-    occ_projection = _linear_project(occ_history, horizon)
+    revenue_projection = _prophet_project(labels, revenue_history, period, horizon)
+    occ_projection = _prophet_project(labels, occ_history, period, horizon)
+    engine_mode = "prophet"
+    if revenue_projection is None:
+        revenue_projection = _linear_project(revenue_history, horizon)
+        engine_mode = "linear-fallback"
+    if occ_projection is None:
+        occ_projection = _linear_project(occ_history, horizon)
+        if engine_mode == "prophet":
+            engine_mode = "mixed-prophet-fallback"
 
     extended_labels = list(labels)
     if labels:
@@ -6308,7 +6445,7 @@ def _build_forecast_payload(reservation_rows, total_rooms, period):
         "engine": {
             "prophet": PROPHET_AVAILABLE,
             "plotly": True,
-            "mode": "linear-fallback" if not PROPHET_AVAILABLE else "prophet-ready",
+            "mode": engine_mode,
         },
         "plotlySpec": {
             "data": [
@@ -7861,6 +7998,9 @@ def create_payment_link():
         data = request.json or {}
         reservation_id = data.get('reservationId')
         payment_method = (data.get('paymentMethod') or 'card').lower()
+        payment_plan = (data.get('paymentPlan') or 'full').lower()
+        if payment_plan not in {'full', 'deposit'}:
+            return jsonify({'error': 'Invalid payment plan.'}), 400
         if not reservation_id:
             return jsonify({'error': 'reservationId is required'}), 400
 
@@ -7874,7 +8014,9 @@ def create_payment_link():
         if not reservation:
             return jsonify({'error': 'Reservation not found'}), 404
 
-        amount_cents = int(_to_float(reservation.get('total_amount'), 0) * 100)
+        reservation_amount = _to_float(reservation.get('total_amount'), 0)
+        payment_amount = reservation_amount if payment_plan == 'full' else round(reservation_amount * 0.5, 2)
+        amount_cents = int(payment_amount * 100)
         if amount_cents <= 0:
             return jsonify({'error': 'Invalid reservation amount'}), 400
 
@@ -7968,7 +8110,8 @@ def create_payment_link():
                 'intentId': intent_id,
                 'linkId': intent_id,
                 'bookingNumber': booking_number,
-                'amount': _to_float(reservation.get('total_amount'), 0),
+                'amount': payment_amount,
+                'paymentPlan': payment_plan,
                 'paymentMethod': pm_type,
             }), 200
 
@@ -8012,7 +8155,8 @@ def create_payment_link():
                 'checkoutUrl': checkout_url,
                 'linkId': link_id,
                 'bookingNumber': booking_number,
-                'amount': _to_float(reservation.get('total_amount'), 0),
+                'amount': payment_amount,
+                'paymentPlan': payment_plan,
                 'paymentMethod': 'card',
             }), 200
 
@@ -9405,6 +9549,8 @@ def get_rooms_catalog():
 
             formatted.append({
                 "id": row.get('id'),
+                "hotelId": row.get('hotel_id'),
+                "hotel_id": row.get('hotel_id'),
                 "roomNumber": row.get('room_number') or '',
                 "roomName": display_name,
                 "roomType": row.get('room_type') or "Suite",
@@ -9440,7 +9586,6 @@ def home_hotels():
         select_columns = ["h.id", "h.hotel_name"]
         optional_columns = [
             "hotel_address",
-            "hotel_code",
             "hotel_logo",
             "hotel_building_image",
             "hotel_description",
@@ -9596,6 +9741,9 @@ def get_recommendations():
     try:
         room_filter = request.args.get('type', 'All')
         category_filter = request.args.get('category')
+        min_price = request.args.get('min_price', type=float)
+        max_price = request.args.get('max_price', type=float)
+        min_rating = request.args.get('min_rating', type=float)
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -9612,9 +9760,11 @@ def get_recommendations():
                 r.max_children,
                 r.status,
                 h.hotel_name,
-                h.hotel_address
+                h.hotel_address,
+                COALESCE(AVG(rv.rating) FILTER (WHERE rv.status = 'published'), 0)::numeric(3,1) AS avg_rating
             FROM rooms r
             LEFT JOIN hotels h ON h.id = r.hotel_id
+            LEFT JOIN reviews rv ON rv.hotel_id = r.hotel_id
             WHERE LOWER(COALESCE(r.status, '')) = 'available'
         """
         params = []
@@ -9633,7 +9783,17 @@ def get_recommendations():
             """
             params.extend([category_like, category_like])
 
-        query += " ORDER BY r.created_at DESC, r.id DESC"
+        if min_price is not None:
+            query += " AND COALESCE(r.price_per_night, 0) >= %s"
+            params.append(min_price)
+        if max_price is not None:
+            query += " AND COALESCE(r.price_per_night, 0) <= %s"
+            params.append(max_price)
+        if min_rating is not None:
+            query += " AND COALESCE((SELECT AVG(rv2.rating) FROM reviews rv2 WHERE rv2.hotel_id = r.hotel_id AND rv2.status = 'published'), 0) >= %s"
+            params.append(min_rating)
+
+        query += " GROUP BY r.id, h.id ORDER BY r.created_at DESC, r.id DESC"
         cur.execute(query, tuple(params))
         rows = cur.fetchall() or []
 
@@ -9655,6 +9815,7 @@ def get_recommendations():
                 "room_type": row.get('room_type') or "Suite",
                 "base_price_php": float(row.get('price_per_night') or 0),
                 "max_guests": max(max_adults + max_children, 1),
+                "avg_rating": float(row.get('avg_rating') or 0),
                 "image_url": first_image,
                 "has_wifi": any('wifi' in a for a in amenities),
                 "has_pool": any('pool' in a for a in amenities),
@@ -11236,6 +11397,7 @@ def vision_rooms():
         guests = request.args.get("guests", type=int)
         adults = request.args.get("adults", type=int)
         children = request.args.get("children", type=int)
+        search_filter = (request.args.get("search") or "").strip()
         from_date_raw = (request.args.get("from") or request.args.get("checkIn") or "").strip()
         to_date_raw = (request.args.get("to") or request.args.get("checkOut") or "").strip()
         conn = get_db_connection()
@@ -11309,6 +11471,11 @@ def vision_rooms():
                 )
             """
             params.extend([like_term, like_term, like_term])
+
+        if search_filter:
+            search_like = f"%{search_filter}%"
+            query += " AND (LOWER(COALESCE(r.room_name, '')) LIKE LOWER(%s) OR LOWER(COALESCE(r.room_type, '')) LIKE LOWER(%s) OR LOWER(COALESCE(h.hotel_name, '')) LIKE LOWER(%s))"
+            params.extend([search_like, search_like, search_like])
 
         if from_date and to_date:
             query += """
@@ -11675,10 +11842,11 @@ def auto_checkout_overdue():
             RETURNING id, booking_number, check_out_date, room_id
         """, (today,))
         rows = cur.fetchall() or []
-        # Free up rooms
+        # Rooms need cleaning before they can be sold again
         for row in rows:
             if row.get('room_id'):
-                cur.execute("UPDATE rooms SET status = 'Available' WHERE id = %s", (row['room_id'],))
+                cur.execute("UPDATE rooms SET status = 'Dirty' WHERE id = %s", (row['room_id'],))
+                _hk_queue_cleaning_task(cur, row['room_id'])
         conn.commit()
         result = [{'id': r['id'], 'bookingNumber': r['booking_number'], 'checkOut': r['check_out_date'].isoformat()} for r in rows]
         if result:
@@ -11770,6 +11938,7 @@ def staff_dashboard():
         pending_balance = _to_float((cur.fetchone() or {}).get('bal'), 0)
 
         cur.execute(f"SELECT COUNT(*) AS c FROM reservations r LEFT JOIN rooms rm ON rm.id=r.room_id WHERE r.status = 'CHECKED_IN' {hotel_filter}", hotel_params)
+        in_house = _to_int((cur.fetchone() or {}).get('c'), 0)
 
         return jsonify({
             'arrivalsToday': len(arrivals),
@@ -11840,7 +12009,7 @@ def staff_checkout_queue():
 
 @app.route('/api/staff/checkout/<int:reservation_id>', methods=['PUT'])
 def staff_process_checkout(reservation_id):
-    """Process final checkout — sets status to CHECKED_OUT, room to Available."""
+    """Process final checkout — sets status to CHECKED_OUT, room to Dirty (housekeeping must clean it before it is Available)."""
     conn = None
     cur = None
     try:
@@ -11854,11 +12023,12 @@ def staff_process_checkout(reservation_id):
         row = cur.fetchone()
         if not row:
             return jsonify({'error': 'Reservation not found or not checked in.'}), 404
-        # Free up the room
+        # Room goes to housekeeping first, NOT straight to Available
         if row.get('room_id'):
-            cur.execute("UPDATE rooms SET status = 'Available' WHERE id = %s", (row['room_id'],))
+            cur.execute("UPDATE rooms SET status = 'Dirty' WHERE id = %s", (row['room_id'],))
+            _hk_queue_cleaning_task(cur, row['room_id'])
         conn.commit()
-        return jsonify({'message': f"{row['booking_number']} checked out. Room freed.", 'bookingNumber': row['booking_number']}), 200
+        return jsonify({'message': f"{row['booking_number']} checked out. Room sent to housekeeping for cleaning.", 'bookingNumber': row['booking_number']}), 200
     except Exception as e:
         if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
@@ -11939,9 +12109,10 @@ def staff_transfer_room(reservation_id):
         updated = cur.fetchone()
         if not updated:
             return jsonify({'error': 'Reservation not found.'}), 404
-        # Free old room, occupy new room
+        # Old room needs cleaning, occupy new room
         if old_room_id:
-            cur.execute("UPDATE rooms SET status = 'Available' WHERE id = %s", (old_room_id,))
+            cur.execute("UPDATE rooms SET status = 'Dirty' WHERE id = %s", (old_room_id,))
+            _hk_queue_cleaning_task(cur, old_room_id)
         cur.execute("UPDATE rooms SET status = 'Occupied' WHERE id = %s", (new_room['id'],))
         conn.commit()
         return jsonify({'message': f"Transferred to Room {new_room_number}.", 'bookingNumber': updated['booking_number']}), 200
@@ -12199,8 +12370,10 @@ def staff_time_in():
             return jsonify({'error': 'staffId is required'}), 400
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        today = datetime.now().date()
-        now   = datetime.now()
+        # Naive Manila-local time — keeps it consistent with existing rows
+        # (column is TIMESTAMP WITHOUT TIME ZONE) regardless of server OS timezone.
+        now   = datetime.now(PH_TZ).replace(tzinfo=None)
+        today = now.date()
         # Check if already clocked in today
         cur.execute("SELECT id, clock_in FROM attendance WHERE staff_id = %s AND date = %s", (staff_id, today))
         existing = cur.fetchone()
@@ -12238,8 +12411,8 @@ def staff_time_out():
             return jsonify({'error': 'staffId is required'}), 400
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        today = datetime.now().date()
-        now   = datetime.now()
+        now   = datetime.now(PH_TZ).replace(tzinfo=None)
+        today = now.date()
         cur.execute("SELECT id, clock_in, clock_out FROM attendance WHERE staff_id = %s AND date = %s", (staff_id, today))
         row = cur.fetchone()
         if not row or not row.get('clock_in'):
@@ -12267,7 +12440,7 @@ def staff_shift_status(staff_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        today = datetime.now().date()
+        today = datetime.now(PH_TZ).date()
         cur.execute("""
             SELECT a.clock_in, a.clock_out, a.status,
                    s.first_name, s.last_name, s.role, h.hotel_name
@@ -12285,7 +12458,7 @@ def staff_shift_status(staff_id):
         if ci and co:
             hours = round((co - ci).total_seconds() / 3600, 2)
         elif ci:
-            hours = round((datetime.now() - ci).total_seconds() / 3600, 2)
+            hours = round((datetime.now(PH_TZ).replace(tzinfo=None) - ci).total_seconds() / 3600, 2)
         return jsonify({
             'staffId': staff_id,
             'name': f"{row.get('first_name','')} {row.get('last_name','')}".strip(),
@@ -12305,7 +12478,7 @@ def staff_shift_status(staff_id):
 
 @app.route('/api/staff/reservations/<int:reservation_id>/pay', methods=['POST'])
 def staff_process_payment(reservation_id):
-    """Process cash payment at front desk — records amount paid and marks as CONFIRMED + CHECKED_IN."""
+    """Process a front desk payment without checking the guest in."""
     conn = None
     cur = None
     try:
@@ -12319,6 +12492,7 @@ def staff_process_payment(reservation_id):
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_reservation_pricing_columns(cur)
 
         cur.execute("""
             SELECT id, booking_number, total_amount, status, deposit_amount
@@ -12334,18 +12508,16 @@ def staff_process_payment(reservation_id):
         balance = max(0, total - new_deposit)
         is_fully_paid = new_deposit >= total
 
-        # Update deposit_amount, payment_method, status -> CONFIRMED, and check in
-        new_status = 'CHECKED_IN' if is_fully_paid else res.get('status')
-        # If partial payment, keep current status but update deposit
+        # Payment is recorded separately from the physical check-in action.
         cur.execute("""
             UPDATE reservations
             SET deposit_amount  = %s,
                 payment_method  = %s,
                 status          = CASE
-                    WHEN %s >= total_amount THEN 'CHECKED_IN'
                     WHEN status IN ('PENDING','CONFIRMED') THEN 'CONFIRMED'
                     ELSE status
                 END,
+                payment_status = CASE WHEN %s >= total_amount THEN 'FULLY_PAID' ELSE 'DOWNPAYMENT' END,
                 special_requests = COALESCE(special_requests,'') || %s
             WHERE id = %s
             RETURNING id, booking_number, status, deposit_amount, total_amount
@@ -12368,6 +12540,65 @@ def staff_process_payment(reservation_id):
             'totalAmount': _to_float(row.get('total_amount'), 0),
             'balance': max(0, _to_float(row.get('total_amount'), 0) - _to_float(row.get('deposit_amount'), 0)),
             'isFullyPaid': _to_float(row.get('deposit_amount'), 0) >= _to_float(row.get('total_amount'), 0),
+        }), 200
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/staff/reservations/<int:reservation_id>/pay-balance', methods=['POST'])
+def staff_pay_reservation_balance(reservation_id):
+    """Record the remaining balance without checking the guest in."""
+    conn = None
+    cur = None
+    try:
+        data = request.json or {}
+        payment_method = (data.get('paymentMethod') or 'cash').strip()
+        notes = (data.get('notes') or '').strip()
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_reservation_pricing_columns(cur)
+        cur.execute("""
+            SELECT id, booking_number, total_amount, deposit_amount, status
+            FROM reservations
+            WHERE id = %s
+            FOR UPDATE
+        """, (reservation_id,))
+        reservation = cur.fetchone()
+        if not reservation:
+            return jsonify({'error': 'Reservation not found.'}), 404
+
+        total = _to_float(reservation.get('total_amount'), 0)
+        deposit = _to_float(reservation.get('deposit_amount'), 0)
+        balance = max(0, total - deposit)
+        if balance <= 0:
+            return jsonify({'error': 'Reservation is already fully paid.'}), 400
+
+        cur.execute("""
+            UPDATE reservations
+            SET deposit_amount = total_amount,
+                payment_method = %s,
+                special_requests = COALESCE(special_requests, '') || %s
+            WHERE id = %s
+            RETURNING id, booking_number, total_amount, deposit_amount, status
+        """, (
+            payment_method,
+            f' [Full payment: {payment_method} ₱{balance:,.2f}{" - " + notes if notes else ""}]',
+            reservation_id,
+        ))
+        row = cur.fetchone()
+        conn.commit()
+        return jsonify({
+            'message': 'Full payment recorded. Guest may now check in.',
+            'bookingNumber': row.get('booking_number'),
+            'status': row.get('status'),
+            'amountPaid': balance,
+            'totalAmount': total,
+            'balance': 0,
+            'isFullyPaid': True,
         }), 200
     except Exception as e:
         if conn: conn.rollback()
@@ -12483,6 +12714,7 @@ def staff_reservations():
                 'amount': _to_float(row.get('total_amount'), 0),
                 'deposit': _to_float(row.get('deposit_amount'), 0),
                 'balance': max(0, _to_float(row.get('total_amount'), 0) - _to_float(row.get('deposit_amount'), 0)),
+                'paymentStatus': 'FULLY_PAID' if _to_float(row.get('deposit_amount'), 0) >= _to_float(row.get('total_amount'), 0) else 'DOWNPAYMENT',
                 'status': status,
                 'paymentMethod': row.get('payment_method') or 'cash',
                 'specialRequests': row.get('special_requests') or '',
@@ -12526,20 +12758,37 @@ def staff_reservations():
 
 @app.route('/api/staff/check-in/<int:reservation_id>', methods=['PUT'])
 def staff_check_in(reservation_id):
-    """Process guest check-in — updates status to CHECKED_IN."""
+    """Process guest check-in and update the room in the same transaction."""
     conn = None
     cur = None
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        hotel_id = request.args.get('hotel_id', type=int)
+        hotel_scope = " AND EXISTS (SELECT 1 FROM rooms scoped_room WHERE scoped_room.id = reservations.room_id AND scoped_room.hotel_id = %s)" if hotel_id else ""
+        params = [reservation_id, hotel_id] if hotel_id else [reservation_id]
         cur.execute("""
-            UPDATE reservations SET status = 'CHECKED_IN'
-            WHERE id = %s AND status IN ('PENDING','CONFIRMED')
-            RETURNING id, booking_number, status
-        """, (reservation_id,))
+                        UPDATE reservations
+                        SET status = 'CHECKED_IN', check_in_time = LOCALTIME
+                        WHERE id = %s
+                            AND status IN ('PENDING','CONFIRMED')
+                            AND deposit_amount >= total_amount
+        """.rstrip() + hotel_scope + """
+            RETURNING id, booking_number, status, room_id
+        """, params)
         row = cur.fetchone()
         if not row:
+            cur.execute("""
+                SELECT status, deposit_amount, total_amount
+                FROM reservations
+                WHERE id = %s
+            """, (reservation_id,))
+            reservation = cur.fetchone()
+            if reservation and _to_float(reservation.get('deposit_amount'), 0) < _to_float(reservation.get('total_amount'), 0):
+                return jsonify({'error': 'Full payment is required before check-in.'}), 400
             return jsonify({'error': 'Reservation not found or already checked in.'}), 404
+        if row.get('room_id'):
+            cur.execute("UPDATE rooms SET status = 'Occupied' WHERE id = %s", (row['room_id'],))
         conn.commit()
         return jsonify({'message': 'Guest checked in successfully.', 'bookingNumber': row.get('booking_number'), 'status': row.get('status')}), 200
     except Exception as e:
@@ -12560,11 +12809,14 @@ def staff_check_out(reservation_id):
         cur.execute("""
             UPDATE reservations SET status = 'CHECKED_OUT'
             WHERE id = %s AND status = 'CHECKED_IN'
-            RETURNING id, booking_number, status
+            RETURNING id, booking_number, status, room_id
         """, (reservation_id,))
         row = cur.fetchone()
         if not row:
             return jsonify({'error': 'Reservation not found or not checked in.'}), 404
+        if row.get('room_id'):
+            cur.execute("UPDATE rooms SET status = 'Dirty' WHERE id = %s", (row['room_id'],))
+            _hk_queue_cleaning_task(cur, row['room_id'])
         conn.commit()
         return jsonify({'message': 'Guest checked out successfully.', 'bookingNumber': row.get('booking_number'), 'status': row.get('status')}), 200
     except Exception as e:
@@ -12593,6 +12845,50 @@ def migrate_arrival_time():
         return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)
+
+def _hk_json_row(row):
+    """Plain dict that jsonify can serialize. Flask cannot serialize datetime.time values
+    (hk_tasks.scheduled_time, hk_schedules.shift_start/shift_end), which made the whole
+    endpoint return a 500 and the pages look empty."""
+    out = {}
+    for key, value in dict(row).items():
+        if hasattr(value, 'strftime') and not isinstance(value, (date, datetime)):
+            value = value.strftime('%H:%M')
+        out[key] = value
+    return out
+
+
+def _hk_queue_cleaning_task(cur, room_id):
+    """A room was just vacated (checkout / transfer): give housekeeping a 'Full Clean' task for it.
+    Skips if that room already has an open cleaning task. Uses a savepoint so a problem here
+    can never break the checkout itself."""
+    if not room_id:
+        return
+    try:
+        cur.execute("SAVEPOINT hk_clean_task")
+        cur.execute("SELECT id, hotel_id, room_number FROM rooms WHERE id = %s", (room_id,))
+        room = cur.fetchone()
+        if room:
+            cur.execute(
+                "SELECT 1 FROM hk_tasks WHERE room_id = %s AND task_type = 'Full Clean' AND status IN ('Pending','In Progress') LIMIT 1",
+                (room_id,),
+            )
+            if not cur.fetchone():
+                cur.execute(
+                    """
+                    INSERT INTO hk_tasks (hotel_id, room_id, room_label, task_type, priority, status, notes, scheduled_time)
+                    VALUES (%s, %s, %s, 'Full Clean', 'HIGH', 'Pending', 'Guest checked out - clean before next booking', LOCALTIME(0))
+                    """,
+                    (room['hotel_id'], room['id'], str(room['room_number'] or room['id'])),
+                )
+        cur.execute("RELEASE SAVEPOINT hk_clean_task")
+    except Exception as e:
+        print(f"[HK] could not queue cleaning task for room {room_id}: {e}")
+        try:
+            cur.execute("ROLLBACK TO SAVEPOINT hk_clean_task")
+        except Exception:
+            pass
+
 
 def _run_auto_cancel():
     """Cancel PENDING/CONFIRMED reservations where check_in_date < today and guest never arrived."""
@@ -12677,7 +12973,8 @@ def _run_auto_checkout():
         rows = cur.fetchall() or []
         for row in rows:
             if row.get('room_id'):
-                cur.execute("UPDATE rooms SET status = 'Available' WHERE id = %s", (row['room_id'],))
+                cur.execute("UPDATE rooms SET status = 'Dirty' WHERE id = %s", (row['room_id'],))
+                _hk_queue_cleaning_task(cur, row['room_id'])
         conn.commit()
         if rows:
             print(f"[Auto-Checkout] {len(rows)} guest(s) auto-checked-out")
@@ -12740,10 +13037,15 @@ def hk_update_room_status(room_number):
         q = "UPDATE rooms SET status = %s WHERE room_number = %s"
         p = [new_status, room_number]
         if hotel_id: q += " AND hotel_id = %s"; p.append(hotel_id)
+        if new_status == 'Available':
+            q += " AND status <> 'Occupied'"  # a guest is inside - only front desk check-out frees it
         q += " RETURNING id, room_number, status"
         cur.execute(q, p)
         row = cur.fetchone()
-        if not row: return jsonify({'error': 'Room not found.'}), 404
+        if not row:
+            if new_status == 'Available':
+                return jsonify({'error': f'Room {room_number} is occupied or not found.'}), 409
+            return jsonify({'error': 'Room not found.'}), 404
         conn.commit()
         return jsonify({'message': f'Room {room_number} updated to {new_status}.', 'status': new_status}), 200
     except Exception as e:
@@ -13257,7 +13559,7 @@ def hk_dashboard_stats():
         cur.execute(f"SELECT COUNT(*) AS c FROM hk_tasks {q} AND status='Completed' AND completed_at::date=CURRENT_DATE" if hotel_id else "SELECT COUNT(*) AS c FROM hk_tasks WHERE status='Completed' AND completed_at::date=CURRENT_DATE", p)
         completed = (cur.fetchone() or {}).get('c', 0)
 
-        cur.execute(f"SELECT COUNT(*) AS c FROM hk_room_status {q} AND status='Dirty'" if hotel_id else "SELECT COUNT(*) AS c FROM hk_room_status WHERE status='Dirty'", p)
+        cur.execute(f"SELECT COUNT(*) AS c FROM rooms {q} AND status='Dirty'" if hotel_id else "SELECT COUNT(*) AS c FROM rooms WHERE status='Dirty'", p)
         dirty = (cur.fetchone() or {}).get('c', 0)
 
         # Priority tasks
@@ -13269,9 +13571,9 @@ def hk_dashboard_stats():
 
         # Room grid
         if hotel_id:
-            cur.execute("SELECT room_label AS id, room_type AS type, status FROM hk_room_status WHERE hotel_id=%s ORDER BY room_label LIMIT 12", [hotel_id])
+            cur.execute("SELECT room_number AS id, room_type AS type, status FROM rooms WHERE hotel_id=%s ORDER BY (status='Dirty') DESC, room_number LIMIT 12", [hotel_id])
         else:
-            cur.execute("SELECT room_label AS id, room_type AS type, status FROM hk_room_status ORDER BY room_label LIMIT 12")
+            cur.execute("SELECT room_number AS id, room_type AS type, status FROM rooms ORDER BY (status='Dirty') DESC, room_number LIMIT 12")
         rooms = cur.fetchall()
 
         # Supplies
@@ -13283,7 +13585,8 @@ def hk_dashboard_stats():
         supplies = [{'name': s['name'], 'current': s['current'], 'max': s['max'], 'alert': s['current'] < (s['max'] * 0.4)} for s in supplies_raw]
 
         priority_tasks = [{'id': t['room_label'], 'type': t['task_type'], 'staff': t['staff_name'] or '', 'time': str(t['scheduled_time'] or ''), 'status': t['priority'], 'note': t['notes'] or ''} for t in tasks]
-        room_grid = [{'id': r['id'], 'type': r['type'] or '', 'status': r['status']} for r in rooms]
+        grid_labels = {'Available': 'Avail', 'InProgress': 'In Prog', 'Maintenance': 'Maint.', 'Cleaning': 'In Prog'}
+        room_grid = [{'id': r['id'], 'type': r['type'] or '', 'status': grid_labels.get(r['status'], r['status'])} for r in rooms]
 
         return jsonify({
             'pendingTasks': pending, 'inProgress': in_prog,
@@ -13308,7 +13611,7 @@ def hk_get_tasks():
         else:
             cur.execute("SELECT * FROM hk_tasks ORDER BY created_at DESC")
         rows = cur.fetchall()
-        return jsonify({'tasks': [dict(r) for r in rows]}), 200
+        return jsonify({'tasks': [_hk_json_row(r) for r in rows]}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
@@ -13326,10 +13629,10 @@ def hk_create_task():
             INSERT INTO hk_tasks (hotel_id, room_label, task_type, assigned_to, staff_name, priority, notes, scheduled_time)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
         """, [d.get('hotel_id'), d.get('room_label'), d.get('task_type'), d.get('assigned_to'),
-              d.get('staff_name'), d.get('priority','NORMAL'), d.get('notes'), d.get('scheduled_time')])
+              d.get('staff_name'), d.get('priority','NORMAL'), d.get('notes'), d.get('scheduled_time') or None])
         task = cur.fetchone()
         conn.commit()
-        return jsonify({'task': dict(task)}), 201
+        return jsonify({'task': _hk_json_row(task)}), 201
     except Exception as e:
         if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
@@ -13505,7 +13808,7 @@ def hk_get_history():
         avg_time = round((cur.fetchone() or {}).get('avg') or 0)
 
         return jsonify({
-            'history': [dict(r) for r in rows],
+            'history': [_hk_json_row(r) for r in rows],
             'stats': {'completedThisWeek': week_count, 'avgTaskTime': f"{avg_time}min" if avg_time else 'N/A', 'performanceScore': '89%'}
         }), 200
     except Exception as e:
@@ -13531,7 +13834,7 @@ def hk_get_schedule():
         w = "WHERE " + " AND ".join(where) if where else ""
         cur.execute(f"SELECT * FROM hk_schedules {w} ORDER BY shift_start", params)
         rows = cur.fetchall()
-        return jsonify({'schedules': [dict(r) for r in rows]}), 200
+        return jsonify({'schedules': [_hk_json_row(r) for r in rows]}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:

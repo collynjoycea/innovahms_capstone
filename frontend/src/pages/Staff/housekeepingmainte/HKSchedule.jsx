@@ -64,7 +64,7 @@ const HKSchedule = () => {
             Work <span className={theme.accent}>Schedule</span>
           </h1>
           <p className={`text-[10px] font-bold ${theme.textSub} uppercase tracking-[0.3em] mt-1`}>
-            Housekeeping Operations â€¢ Obsidian Sanctuary
+            Housekeeping Operations • Obsidian Sanctuary
           </p>
         </div>
         <div className="flex items-center gap-4">

@@ -1,8 +1,8 @@
 ﻿import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, Phone, User, Eye, EyeOff, UserPlus, AlertCircle } from "lucide-react";
+import { Mail, Lock, Phone, User, Eye, EyeOff, UserPlus, AlertCircle, FileText, X } from "lucide-react";
 import { GoogleLogin } from '@react-oauth/google';
-import FacebookLogin from 'react-facebook-login';
+import FacebookLogin from 'react-facebook-login/dist/facebook-login-render-props';
 import { Facebook } from "lucide-react";
 import {
   normalizeEmail,
@@ -21,16 +21,125 @@ const INITIAL_FORM = {
   confirmPassword: "",
 };
 
+const CUSTOMER_TERMS = `INNOVA-HMS
+
+Terms and Conditions for Customers
+
+These Terms and Conditions govern your access to and use of INNOVA-HMS as a customer. By creating an account, viewing available rooms, making a reservation, or using INNOVA-HMS, you acknowledge that you have read, understood, and agreed to these Terms.
+
+1. Use of INNOVA-HMS
+INNOVA-HMS allows customers to access information provided by participating hotels, view room availability, make reservations, and receive booking-related information.
+
+2. Customer Account
+You agree to provide accurate, complete, and current information when registering or making a reservation. You are responsible for protecting your account credentials and for activities conducted through your account.
+
+3. Hotel and Room Information
+Hotel and room information is provided by participating hotels. Review room descriptions, rates, availability, policies, and booking conditions before completing a reservation.
+
+4. Making a Reservation
+Customers are responsible for accurate booking information, including name, contact information, check-in and check-out dates, number of guests, selected room, and other required information.
+
+5. Booking Confirmation
+Review the reservation details provided after booking, including hotel, room type, dates, guests, payment information, and reservation status. Report incorrect information to the hotel or INNOVA-HMS support promptly.
+
+6. Cancellation and Modification
+Cancellation, modification, no-show, and refund conditions vary by hotel and reservation. Review the applicable conditions before booking.
+
+7. Payments
+Online payments may be completed through the designated payment gateway. PayMongo may be used for supported transactions and its applicable terms and policies may apply.
+
+8. Customer Information
+Provide accurate information and do not submit false, misleading, fraudulent, or unnecessary information.
+
+9. Artificial Intelligence and Recommendations
+AI recommendations are provided for convenience and are not guarantees of availability, pricing, booking outcomes, or other conditions. Rely on official reservation information displayed or confirmed through the platform.
+
+10. Automated Notifications
+INNOVA-HMS may send notifications regarding reservations, confirmations, cancellations, payment status, and other system information. Keep your contact information current.
+
+11. Customer Conduct
+Do not provide false information, create fraudulent reservations, use another person's account, access information without authorization, bypass security, upload harmful content, interfere with the platform, manipulate records, or use the platform unlawfully.
+
+12. System Availability
+Temporary interruptions may occur because of maintenance, technical issues, network interruptions, security measures, or circumstances beyond the administrator's control.
+
+13. Reservation Information
+Customers are responsible for reviewing reservation details before completing a booking. Incorrect customer information may result in modification, cancellation, or other consequences under the applicable booking conditions.
+
+14. Account Suspension or Termination
+INNOVA-HMS administrators may suspend or terminate accounts for violating these Terms, fraud, misuse, unauthorized access, security compromise, or unlawful activity.
+
+15. System-Generated Information
+Analytics, recommendations, forecasts, and other generated information may contain errors and are not guarantees of future conditions or outcomes.
+
+16. Acceptance of Terms
+By creating an account, making a reservation, or using INNOVA-HMS, you acknowledge that you have read, understood, and agreed to these Terms. If you do not agree, do not register for or use the platform.`;
+
+const CUSTOMER_PRIVACY = `INNOVA-HMS
+
+Privacy Policy for Customers
+
+This Privacy Policy explains how INNOVA-HMS collects, uses, processes, stores, and protects information provided by customers. By creating an account, making a reservation, or using INNOVA-HMS, you acknowledge that you have read and understood this Privacy Policy.
+
+1. Information We Collect
+INNOVA-HMS may collect account information such as full name, email address, contact number, username, account credentials, and other registration information. Reservation information may include selected hotel, selected room, check-in and check-out dates, number of guests, booking status, and information necessary to process the reservation. Transaction records may include payment reference, status, amount, and date. PayMongo or another authorized provider may process payments.
+
+2. How We Use Customer Information
+Information may be used to create and manage accounts, process reservations, provide confirmations and notifications, support preference analysis and recommendations, maintain security, process payment records, resolve concerns, generate analytics, and operate and improve INNOVA-HMS.
+
+3. Customer Behavioral Analytics
+INNOVA-HMS may analyze customer interactions and reservation history to identify preferences and patterns that support personalized recommendations and hotel operational decision-making. Analytics are used only for legitimate platform and reservation purposes.
+
+4. Artificial Intelligence
+AI may process relevant information for personalized recommendations, intelligent room assignment, and other decision-support functions. AI results may not always be accurate and are not guaranteed outcomes.
+
+5. Sharing of Customer Information
+Information may be made available to the participating hotel associated with a reservation when necessary to process and manage the booking. Authorized providers may process information for hosting, security, payment, communications, or technical services. INNOVA-HMS does not intentionally sell customer personal information.
+
+6. Payment Information
+Where PayMongo is used, payment processing may occur through PayMongo's systems. INNOVA-HMS does not intentionally store complete payment-card credentials when processed directly by the provider. Transaction references, status, amount, and date may be retained for records.
+
+7. Automated Notifications
+Contact information may be used for confirmations, booking updates, payment notifications, and other necessary messages. Customers are responsible for accurate contact information.
+
+8. Data Security
+INNOVA-HMS uses reasonable measures to protect information from unauthorized access, alteration, disclosure, loss, or misuse. No electronic system is completely secure. Customers are responsible for protecting their account credentials.
+
+9. Data Retention
+Information may be retained as reasonably necessary to provide the platform, maintain reservation and transaction records, address disputes, maintain security, and fulfill operational or legal requirements.
+
+10. Customer Privacy Rights
+Subject to applicable laws, customers may have rights to request access to or correction of personal information and other applicable privacy rights. Requests may be submitted through official INNOVA-HMS contact information.
+
+11. Cookies and Similar Technologies
+Cookies may be used for authentication, session management, security, functionality, and performance. Browser settings may manage cookies, though disabling them may affect features.
+
+12. Protection of Minors
+INNOVA-HMS is intended for users legally permitted to create accounts and make reservations. Do not provide another person's personal information without authorization.
+
+13. Privacy and Applicable Laws
+INNOVA-HMS intends to handle personal information responsibly and in accordance with applicable Philippine privacy requirements, including transparency, legitimate purpose, and proportionality.
+
+14. Privacy Concerns
+For questions or concerns, contact the INNOVA-HMS administrator through the official contact information provided on the platform.
+
+15. Acknowledgment
+By creating an account, making a reservation, or using INNOVA-HMS, you acknowledge how your information may be collected, used, processed, stored, and protected.`;
+
 export default function SignUp() {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [fieldErrors, setFieldErrors] = useState({});
   const [touchedFields, setTouchedFields] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [policyToShow, setPolicyToShow] = useState(null);
 
   const validateSingleField = (key, value, currentFormData = formData) => {
     let error = null;
@@ -134,10 +243,17 @@ export default function SignUp() {
       return;
     }
 
+    if (!acceptedTerms || !acceptedPrivacy) {
+      setErrorMessage('Please read and accept both the Customer Terms and Conditions and Privacy Policy before continuing.');
+      return;
+    }
+
     const normalizedForm = {
       ...formData,
       email: normalizeEmail(formData.email),
       otpCode,
+      acceptedTerms,
+      acceptedPrivacy,
     };
 
     setIsSubmitting(true);
@@ -429,7 +545,7 @@ export default function SignUp() {
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     name="password"
-                    type={showPassword ? "text" : "password"}
+                    type={showConfirmPassword ? "text" : "password"}
                     value={formData.password}
                     onChange={(e) => updateField('password', e.target.value)}
                     onBlur={() => handleBlur('password')}
@@ -474,6 +590,14 @@ export default function SignUp() {
                     }`}
                     placeholder="Re-enter password"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((visible) => !visible)}
+                    aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
                 {touchedFields.confirmPassword && fieldErrors.confirmPassword && (
                   <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
@@ -481,6 +605,47 @@ export default function SignUp() {
                   </span>
                 )}
               </div>
+            </div>
+
+            <div className={`rounded-md border p-3 ${!acceptedTerms || !acceptedPrivacy ? 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50' : 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-700/50 dark:bg-emerald-950/20'}`}>
+              <label className="flex items-start gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(event) => setAcceptedTerms(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#006042]"
+                />
+                <span>
+                  I have read and agree to the customer{" "}
+                  <button
+                    type="button"
+                    onClick={() => setPolicyToShow('terms')}
+                    className="font-bold text-[#006042] underline underline-offset-2 dark:text-emerald-400"
+                  >
+                    Terms and Conditions
+                  </button>
+                  .
+                </span>
+              </label>
+              <label className="mt-3 flex items-start gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={acceptedPrivacy}
+                  onChange={(event) => setAcceptedPrivacy(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#006042]"
+                />
+                <span>
+                  I have read and agree to the customer{" "}
+                  <button
+                    type="button"
+                    onClick={() => setPolicyToShow('privacy')}
+                    className="font-bold text-[#006042] underline underline-offset-2 dark:text-emerald-400"
+                  >
+                    Privacy Policy
+                  </button>
+                  .
+                </span>
+              </label>
             </div>
 
             {/* Submit Button */}
@@ -514,31 +679,27 @@ export default function SignUp() {
               <GoogleLogin 
                 onSuccess={handleGoogleSuccess} 
                 onError={() => setErrorMessage("Google Login Failed")}
-                theme="outline"
+                theme={document.documentElement.classList.contains("dark") ? "filled_black" : "outline"}
                 shape="rectangular"
                 width="240px" 
               />
             </div>
           
-            <div className="signup-hidden-facebook">
-              <FacebookLogin
-                appId="760975413559116"
-                callback={responseFacebook}
-                fields="name,email,picture"
-                tag={({ onClick }) => (
-                  <button id="hidden-fb-btn" onClick={onClick} />
-                )}
-              />
-            </div>
-
-            <button 
-              type="button"
-              onClick={() => document.getElementById('hidden-fb-btn').click()}
-              className="flex items-center justify-center gap-2 w-[240px] px-4 py-2 border border-slate-300 dark:border-slate-700 rounded text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm bg-white dark:bg-slate-900 h-[40px]"
-            >
-              <Facebook size={18} className="text-[#1877F2] fill-[#1877F2]" />
-              <span>Facebook</span>
-            </button>
+            <FacebookLogin
+              appId="1986409515302523"
+              autoLoad={false}
+              callback={responseFacebook}
+              render={(renderProps) => (
+                <button
+                  type="button"
+                  onClick={renderProps.onClick}
+                  className="flex items-center justify-center gap-2 w-[240px] h-[40px] px-4 border border-slate-300 dark:border-slate-700 rounded text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm bg-white dark:bg-slate-900"
+                >
+                  <Facebook size={18} className="text-[#1877F2] fill-[#1877F2]" />
+                  <span>Facebook</span>
+                </button>
+              )}
+            />
           </div>
 
           {/* Bottom Login Link */}
@@ -555,13 +716,43 @@ export default function SignUp() {
           </div>
 
         </div>
+      {policyToShow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[min(720px,90vh)] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+              <div className="flex items-center gap-2">
+                <FileText size={18} className="text-[#006042] dark:text-emerald-400" />
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {policyToShow === 'terms' ? 'Terms and Conditions for Customers' : 'Privacy Policy for Customers'}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPolicyToShow(null)}
+                aria-label="Close policy"
+                className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <pre className="overflow-y-auto whitespace-pre-wrap px-5 py-4 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+              {policyToShow === 'terms' ? CUSTOMER_TERMS : CUSTOMER_PRIVACY}
+            </pre>
+            <div className="flex justify-end border-t border-slate-200 px-5 py-3 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setPolicyToShow(null)}
+                className="rounded bg-[#006042] px-4 py-2 text-xs font-bold text-white hover:bg-[#004a33]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       </div>
 
-      <style>{`
-        .signup-hidden-facebook {
-          display: none;
-        }
-      `}</style>
     </div>
   );
 }

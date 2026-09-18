@@ -11,7 +11,7 @@ const HKHistory = () => {
   const { isDarkMode } = useOutletContext() || { isDarkMode: true };
   const { qs } = useStaffSession();
   const [historyData, setHistoryData] = useState([]);
-  const [stats, setStats] = useState({ completedThisWeek: 0, avgTaskTime: 'N/A', performanceScore: 'â€”' });
+  const [stats, setStats] = useState({ completedThisWeek: 0, avgTaskTime: 'N/A', performanceScore: '—' });
 
   useEffect(() => {
     axios.get(`/api/housekeeping/history${qs}`).then(res => {
@@ -23,7 +23,7 @@ const HKHistory = () => {
   const performanceStats = [
     { label: 'COMPLETED THIS WEEK', value: String(stats.completedThisWeek ?? 0), icon: <CheckCircle2 className="text-emerald-500" size={24} /> },
     { label: 'AVG TASK TIME',        value: stats.avgTaskTime || 'N/A',           icon: <Clock className="text-purple-500" size={24} /> },
-    { label: 'PERFORMANCE SCORE',   value: stats.performanceScore || 'â€”',         icon: <Star className="text-yellow-500" size={24} /> },
+    { label: 'PERFORMANCE SCORE',   value: stats.performanceScore || '—',         icon: <Star className="text-yellow-500" size={24} /> },
   ];
 
   const theme = {
@@ -48,7 +48,7 @@ const HKHistory = () => {
             Task <span className={goldTextClass}>History</span>
           </h1>
           <p className={`text-[10px] font-bold ${theme.textSub} uppercase tracking-[0.3em] mt-2`}>
-            Operations Portal â€¢ Performance & Cleaning Logs
+            Operations Portal • Performance & Cleaning Logs
           </p>
         </div>
         <div className="flex gap-4 mt-6 md:mt-0">
@@ -102,10 +102,10 @@ const HKHistory = () => {
                 </div>
                 <div>
                   <h4 className={`text-[15px] font-black uppercase tracking-tight ${theme.textMain}`}>
-                    {item.task_type} â€” <span className={goldTextClass}>{item.room_label}</span>
+                    {item.task_type} — <span className={goldTextClass}>{item.room_label}</span>
                   </h4>
                   <p className={`text-[12px] font-medium ${theme.textSub} mt-1 leading-relaxed`}>
-                    {item.staff_name ? `Assigned to ${item.staff_name} â€¢ ` : ''}{item.completed_at ? new Date(item.completed_at).toLocaleString() : ''}
+                    {item.staff_name ? `Assigned to ${item.staff_name} • ` : ''}{item.completed_at ? new Date(item.completed_at).toLocaleString() : ''}
                   </p>
                 </div>
               </div>

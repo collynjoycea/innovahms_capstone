@@ -21,11 +21,8 @@ import {
 } from '../../utils/authValidation';
 
 const STAFF_ROLES = [
-  'Hotel Manager',
-  'Front Desk Operations',
-  'Housekeeping & Maintenance',
-  'Inventory & Supplies',
-  'HR/Payroll Staff Management',
+  'Front Desktop',
+  'Housekeeping',
 ];
 
 const STEPS = [

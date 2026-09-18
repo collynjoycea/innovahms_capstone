@@ -47,6 +47,7 @@ const compact = (value) => {
 
 export default function AboutUs() {
   const [data, setData] = useState(fallbackData);
+  const [hotelPins, setHotelPins] = useState([ABOUT_LOCATION]);
 
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem("theme");
@@ -80,6 +81,12 @@ export default function AboutUs() {
                 ? payload.stats
                 : fallbackData.stats,
           });
+          const pins = Array.isArray(payload.featuredHotels)
+            ? payload.featuredHotels
+                .filter((hotel) => Number.isFinite(Number(hotel.lat)) && Number.isFinite(Number(hotel.lng)))
+                .map((hotel) => ({ ...hotel, lat: Number(hotel.lat), lng: Number(hotel.lng) }))
+            : [];
+          setHotelPins(pins.length ? pins : [ABOUT_LOCATION]);
         }
       } catch {
         setData(fallbackData);
@@ -198,10 +205,11 @@ export default function AboutUs() {
             <div className="h-[420px] rounded-2xl overflow-hidden border border-[#243B33] shadow-xl relative">
 
               <NeighborhoodMap
-                hotels={[ABOUT_LOCATION]}
+                hotels={hotelPins}
                 landmarks={[]}
-                hotelCenter={{ lat: ABOUT_LOCATION.lat, lng: ABOUT_LOCATION.lng }}
-                focusedHotelId={ABOUT_LOCATION.id}
+                hotelCenter={{ lat: hotelPins[0]?.lat || ABOUT_LOCATION.lat, lng: hotelPins[0]?.lng || ABOUT_LOCATION.lng }}
+                focusedHotelId={hotelPins[0]?.id || ABOUT_LOCATION.id}
+                searchScope="Caloocan, Philippines"
                 isDarkMode={isDark}
               />
 

@@ -223,7 +223,8 @@ function App() {
         {/* GROUP 2: OWNER DASHBOARD */}
         <Route path="/owner" element={<OwnerLayout context={{ isDarkMode, setIsDarkMode }} />}>
           <Route index element={<OwnerDashboard />} />
-          <Route path="profile" element={<OwnerProfile />} />
+          <Route path="profile" element={<OwnerProfile section="owner" />} />
+          <Route path="property-details" element={<OwnerProfile section="property" />} />
           <Route path="subscription" element={<OwnerSubscription />} />
           <Route path="rooms" element={<OwnerRooms />} />
           <Route path="reservations" element={<OwnerReservations />} />

@@ -16,7 +16,11 @@ import {
   KeyRound,
   RefreshCw,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Eye,
+  EyeOff,
+  FileText,
+  X
 } from "lucide-react";
 import {
   getPasswordStrengthMessage,
@@ -29,13 +33,18 @@ import {
 
 const INITIAL_FORM = {
   firstName: "",
+  middleName: "",
   lastName: "",
+  suffix: "",
   email: "",
   contactNumber: "",
   password: "",
   hotelCode: "",
   hotelName: "",
   hotelAddress: "",
+  addressCategory: "",
+  latitude: "",
+  longitude: "",
   otpCode: "",
 };
 
@@ -56,6 +65,170 @@ const STEPS = [
 const MAX_FILE_SIZE_MB = 5;
 const ALLOWED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 
+const TERMS_AND_CONDITIONS = `INNOVA-HMS
+
+Terms and Conditions for Hotel Owners
+
+These Terms and Conditions govern the registration, subscription, and use of the INNOVA-HMS platform by hotel owners and their authorized representatives.
+
+By registering, subscribing to, or using INNOVA-HMS, you acknowledge that you have read, understood, and agreed to these Terms and Conditions.
+
+1. Use of INNOVA-HMS
+
+INNOVA-HMS is a web-based Smart Hotel Operations Information System designed to help participating hotels manage reservations, guest information, room availability, room assignments, housekeeping activities, inventory records, staff access, analytics, forecasting, and other operational information through a centralized platform.
+
+INNOVA-HMS provides digital tools intended to support hotel operations and decision-making. Hotel Owners remain responsible for verifying information and making final operational decisions.
+
+2. Account Registration
+
+Hotel Owners must provide accurate, complete, and current information when creating an INNOVA-HMS account.
+
+Information provided may include:
+- Hotel name;
+- Hotel address;
+- Contact information;
+- Room information;
+- Room rates;
+- Room availability;
+- Amenities and room descriptions;
+- Check-in and check-out information;
+- Cancellation and refund policies; and
+- Other information required by the platform.
+
+Hotel Owners are responsible for ensuring that information displayed through their account is accurate and updated.
+
+3. Account Security
+
+Hotel Owners are responsible for maintaining the confidentiality of their account credentials. Account credentials must not be shared with unauthorized persons. Hotel Owners must promptly notify the INNOVA-HMS administrator if they suspect unauthorized access to their account. All activities performed through an authorized Hotel Owner account are the responsibility of the account holder.
+
+4. Hotel Staff Accounts
+
+Hotel Owners may create or authorize accounts for designated hotel personnel, including front desk staff and housekeeping staff. Hotel Owners are responsible for authorizing appropriate staff members, assigning appropriate system access, ensuring legitimate use, and removing access when a staff member is no longer authorized.
+
+5. Hotel Information and Room Listings
+
+Hotel Owners are responsible for the accuracy of room descriptions, room rates, room availability, room status, policies, and other information presented to customers. Hotel Owners must not intentionally provide false, misleading, or fraudulent information.
+
+6. Reservation Management
+
+Hotel Owners and authorized front desk staff are responsible for properly managing reservations made through INNOVA-HMS. Hotel Owners must maintain accurate availability, room status, reservation records, and booking details. Reasonable care should be taken to minimize double bookings, incorrect room assignments, and other reservation-related errors.
+
+7. Room Assignment
+
+INNOVA-HMS may provide intelligent room assignment features based on available information such as room availability, room status, and customer preferences. AI-assisted room assignments are recommendations and should be reviewed by authorized hotel personnel before being finalized when necessary.
+
+8. Housekeeping and Room Status
+
+Authorized housekeeping staff may use INNOVA-HMS to record housekeeping activities and update room status. Hotel Owners are responsible for ensuring that room information and housekeeping records accurately reflect the hotel's current operational status.
+
+9. Inventory and Supplies
+
+INNOVA-HMS may provide tools for recording and monitoring hotel inventory and supplies. Hotel Owners and authorized personnel are responsible for entering accurate inventory information and verifying physical inventory when necessary. Inventory alerts and recommendations assist with monitoring and planning and do not guarantee that shortages will be prevented.
+
+10. Artificial Intelligence
+
+INNOVA-HMS may use artificial intelligence for intelligent room assignment, customer behavioral analysis, recommendations, and other decision-support functions. AI-generated results may contain inaccuracies or may not reflect all relevant circumstances. Hotel Owners and authorized personnel are responsible for reviewing AI-generated information and making final operational decisions.
+
+11. Prophet Forecasting
+
+INNOVA-HMS may use Prophet forecasting to analyze historical operational data and generate forecasts. Forecast results are estimates based on available data and assumptions. Actual future conditions may differ from forecasted results. Forecasting information should be used as a decision-support tool and should not be treated as a guarantee of future occupancy, demand, revenue, inventory requirements, or other business conditions.
+
+12. Analytics and Reports
+
+INNOVA-HMS may provide dashboards, reports, analytics, and operational insights based on information entered into the system. The accuracy of reports and analytics depends on the quality, completeness, and timeliness of the data provided. Hotel Owners should verify important information before using it for significant operational or business decisions.
+
+13. Customer Information
+
+Hotel Owners and authorized staff may access customer information necessary for legitimate reservation and hotel-operation purposes. Customer information must be handled responsibly and must not be sold without proper authorization, used for unauthorized purposes, disclosed unnecessarily, accessed without authorization, or used to discriminate against or harm customers.
+
+14. Subscription and Payment
+
+Access to INNOVA-HMS may require a subscription or other applicable payment. Where PayMongo is used as the designated payment gateway, payment transactions may be processed through PayMongo and may be subject to its applicable terms and policies. Hotel Owners are responsible for accurate billing information and required payments. INNOVA-HMS does not require Hotel Owners to provide payment-card credentials directly to the system when payment processing is handled by the designated payment gateway.
+
+15. Prohibited Activities
+
+Hotel Owners and authorized users must not provide false or misleading information, create fraudulent reservations, access another hotel owner's account or information without authorization, bypass system security, introduce malicious software or harmful code, misuse customer information, interfere with INNOVA-HMS, obtain unauthorized access to system data, use the platform for unlawful activities, or allow unauthorized persons to use their accounts.
+
+16. System Availability
+
+INNOVA-HMS is intended to provide continuous access to its features; however, temporary interruptions may occur due to maintenance, technical problems, network interruptions, security measures, or circumstances beyond the control of the system administrator. Reasonable efforts will be made to maintain and restore system availability.
+
+17. Data Accuracy and User Responsibility
+
+Hotel Owners acknowledge that information displayed, processed, or generated by INNOVA-HMS depends on information entered into the system. INNOVA-HMS cannot guarantee the accuracy of results when underlying information is incorrect, incomplete, outdated, or improperly entered. Hotel Owners remain responsible for verifying critical operational information.
+
+18. Account Suspension or Termination
+
+INNOVA-HMS administrators may suspend or terminate a Hotel Owner account due to violation of these Terms, fraudulent activity, unauthorized access, misuse of customer or system information, security threats, abuse of the platform, or unlawful use of the system.
+
+19. Acceptance of Terms
+
+By creating an account, subscribing to, or using INNOVA-HMS, you acknowledge that you have read, understood, and agreed to these Terms and Conditions. If you do not agree with these Terms, you should not register for or use the INNOVA-HMS platform.
+
+For concerns regarding these Terms and Conditions, contact the INNOVA-HMS administrator through the official contact information provided on the platform.`;
+
+const PRIVACY_POLICY = `INNOVA-HMS
+
+Privacy Policy for Hotel Owners
+
+This Privacy Policy explains how INNOVA-HMS collects, uses, stores, protects, and manages information associated with Hotel Owners and their authorized users.
+
+By registering for and using INNOVA-HMS, you acknowledge that you have read and understood this Privacy Policy.
+
+1. Information We Collect
+
+Depending on how the platform is used, INNOVA-HMS may collect account information such as name, email address, contact number, username, account credentials, hotel information, and other information required for registration.
+
+Hotel information may include hotel name and address, room information, room rates, room availability, hotel policies, inventory information, and other operational information entered into the system.
+
+Hotel Owners may enter or authorize staff information for front desk and housekeeping accounts, including names, contact information, account identifiers, assigned roles, and system activity records.
+
+Where applicable, INNOVA-HMS may maintain records related to subscriptions, payment status, invoices, and transaction references. Payment processing may be handled by PayMongo or another designated payment service provider.
+
+2. How We Use Information
+
+Information collected through INNOVA-HMS may be used to create and manage accounts, provide system features, manage hotel and reservation information, monitor housekeeping and inventory records, provide dashboards and reports, generate analytics and forecasts, support AI features, process subscriptions and payments, send system notifications, maintain security, troubleshoot technical issues, and improve the platform.
+
+3. AI, Analytics, and Forecasting
+
+INNOVA-HMS may process operational information to provide analytics, behavioral insights, intelligent recommendations, and forecasting features. Prophet forecasting may process historical operational data to generate estimates for planning and decision-making. AI and forecasting outputs are based on available system data and are not guaranteed results.
+
+4. Sharing of Information
+
+INNOVA-HMS may provide information to authorized users when necessary for legitimate system and hotel operations. Information may also be processed by authorized service providers for payment processing, hosting, security, or technical services. INNOVA-HMS does not intentionally sell personal information to third parties.
+
+5. Payment Information
+
+Where PayMongo is used, payment transactions are handled through the designated payment service. INNOVA-HMS does not intentionally collect or store complete payment-card credentials when processed directly by the payment provider. Payment-related information may include transaction references, payment status, amount, date, and other transaction records.
+
+6. Data Security
+
+INNOVA-HMS implements reasonable administrative, technical, and organizational measures intended to protect information from unauthorized access, alteration, disclosure, loss, or misuse. No electronic system can guarantee absolute security. Hotel Owners and authorized staff are also responsible for protecting account credentials and following appropriate security practices.
+
+7. Data Retention
+
+Information may be retained as reasonably necessary to provide the platform, maintain operational records, comply with applicable requirements, resolve disputes, maintain security, and fulfill legitimate business or system purposes. Retention periods may vary by information type and purpose.
+
+8. Access to Information
+
+Hotel Owners may access information associated with their hotel and authorized users based on assigned account permissions. Access to customer information should be limited to legitimate hotel and reservation-related purposes.
+
+9. User Responsibilities
+
+Hotel Owners are responsible for ensuring that information entered into INNOVA-HMS is accurate and that authorized staff handle information appropriately. Hotel Owners must not intentionally upload unnecessary sensitive information or use the platform to collect information unrelated to legitimate hotel operations.
+
+10. Privacy and Applicable Laws
+
+INNOVA-HMS intends to handle personal information responsibly and in accordance with applicable Philippine privacy requirements, including transparency, legitimate purpose, and proportionality.
+
+11. Privacy Concerns
+
+For questions, requests, or concerns regarding this Privacy Policy or information processed through INNOVA-HMS, Hotel Owners may contact the INNOVA-HMS administrator through the official contact information provided on the platform.
+
+12. Acknowledgment
+
+By using INNOVA-HMS, you acknowledge that you have read and understood this Privacy Policy and understand how information may be collected, used, processed, and protected in connection with the platform.`;
+
 const formatFileMeta = (file) => {
   if (!file) return "No file selected (.pdf, .jpg, .png, .webp)";
   const sizeInKb = file.size / 1024;
@@ -65,8 +238,8 @@ const formatFileMeta = (file) => {
 export default function OwnerSignUp() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
-  const [signupMode, setSignupMode] = useState("create");
   const [formData, setFormData] = useState(INITIAL_FORM);
+  const [showPassword, setShowPassword] = useState(false);
   const [documents, setDocuments] = useState({
     businessPermit: null,
     birCertificate: null,
@@ -79,6 +252,9 @@ export default function OwnerSignUp() {
   const [touchedFields, setTouchedFields] = useState({});
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [policyToShow, setPolicyToShow] = useState(null);
   
   // OTP States
   const [isSendingOtp, setIsSendingOtp] = useState(false);
@@ -118,6 +294,10 @@ export default function OwnerSignUp() {
       else if (!isValidName(value)) error = "Enter a valid last name (alphabetic characters only).";
     }
 
+    if (key === "middleName" && value.trim() && !isValidName(value)) {
+      error = "Enter a valid middle name.";
+    }
+
     if (key === "email") {
       if (!value.trim()) error = "Business email address is required.";
       else if (!isValidEmail(value)) error = "Enter a valid email address";
@@ -140,20 +320,17 @@ export default function OwnerSignUp() {
       }
     }
 
-    if (key === "hotelName" && signupMode === "create") {
+    if (key === "hotelName") {
       if (!value.trim()) error = "Property name is required.";
       else if (value.trim().length < 3) error = "Hotel name must be at least 3 characters.";
     }
 
-    if (key === "hotelAddress" && signupMode === "create") {
+    if (key === "hotelAddress") {
       if (!value.trim()) error = "Complete property address is required.";
       else if (value.trim().length < 10) error = "Please provide a more detailed address.";
     }
 
-    if (key === "hotelCode" && signupMode === "claim") {
-      if (!value.trim()) error = "Hotel code is required.";
-      else if (!isValidHotelCode(value)) error = "Must strictly follow format: INNOVAHMS-123.";
-    }
+    if (key === "addressCategory" && !value) error = "Select an address category.";
 
     if (key === "otpCode") {
       if (!value.trim()) error = "Enter the 6-digit confirmation code.";
@@ -167,7 +344,7 @@ export default function OwnerSignUp() {
     let sanitizedValue = value;
 
     // Strict Real-time Formatting & Masking
-    if (key === "firstName" || key === "lastName") {
+    if (key === "firstName" || key === "middleName" || key === "lastName") {
       sanitizedValue = value.replace(/[^a-zA-Z\sÃ±Ã‘-]/g, "");
     } else if (key === "contactNumber") {
       sanitizedValue = value.replace(/[^0-9]/g, "").slice(0, 11);
@@ -205,6 +382,8 @@ export default function OwnerSignUp() {
         error = `File size exceeds limit (${MAX_FILE_SIZE_MB}MB max allowed).`;
       } else if (!ALLOWED_MIME_TYPES.includes(file.type)) {
         error = "Invalid file format. Upload PDF, JPG, PNG, or WEBP only.";
+      } else if (Object.entries(documents).some(([otherKey, otherFile]) => otherKey !== key && otherFile && otherFile.name === file.name && otherFile.size === file.size && otherFile.lastModified === file.lastModified)) {
+        error = "This file is already attached to another requirement.";
       }
     }
 
@@ -223,7 +402,7 @@ export default function OwnerSignUp() {
     const newTouched = { ...touchedFields };
 
     if (step === 1) {
-      ["firstName", "lastName", "email", "contactNumber", "password"].forEach((field) => {
+      ["firstName", "middleName", "lastName", "email", "contactNumber", "password"].forEach((field) => {
         newTouched[field] = true;
         const err = validateSingleField(field, formData[field]);
         if (err) errors[field] = err;
@@ -231,17 +410,11 @@ export default function OwnerSignUp() {
     }
 
     if (step === 2) {
-      if (signupMode === "create") {
-        ["hotelName", "hotelAddress"].forEach((field) => {
-          newTouched[field] = true;
-          const err = validateSingleField(field, formData[field]);
-          if (err) errors[field] = err;
-        });
-      } else {
-        newTouched.hotelCode = true;
-        const err = validateSingleField("hotelCode", formData.hotelCode);
-        if (err) errors.hotelCode = err;
-      }
+      ["hotelName", "hotelAddress", "addressCategory"].forEach((field) => {
+        newTouched[field] = true;
+        const err = validateSingleField(field, formData[field]);
+        if (err) errors[field] = err;
+      });
     }
 
     if (step === 3) {
@@ -257,6 +430,8 @@ export default function OwnerSignUp() {
       newTouched.otpCode = true;
       const err = validateSingleField("otpCode", formData.otpCode);
       if (err) errors.otpCode = err;
+      if (!acceptedTerms) errors.acceptedTerms = "You must accept the Terms and Conditions before submitting.";
+      if (!acceptedPrivacy) errors.acceptedPrivacy = "You must accept the Privacy Policy before submitting.";
     }
 
     setTouchedFields(newTouched);
@@ -337,9 +512,11 @@ export default function OwnerSignUp() {
     const payload = {
       ...formData,
       email: normalizeEmail(formData.email),
-      hotelCode: signupMode === "claim" ? formData.hotelCode.trim().toUpperCase() : "",
-      hotelName: signupMode === "create" ? formData.hotelName.trim() : "",
-      hotelAddress: signupMode === "create" ? formData.hotelAddress.trim() : "",
+      hotelCode: "",
+      hotelName: formData.hotelName.trim(),
+      hotelAddress: formData.hotelAddress.trim(),
+      acceptedTerms: String(acceptedTerms),
+      acceptedPrivacy: String(acceptedPrivacy),
     };
 
     setIsSubmitting(true);
@@ -376,8 +553,9 @@ export default function OwnerSignUp() {
         validId: null,
       });
       setTouchedFields({});
-      setSignupMode("create");
       setCurrentStep(1);
+      setAcceptedTerms(false);
+      setAcceptedPrivacy(false);
     } catch {
       setErrorMessage("Server connection error during activation. Please verify your connection.");
     } finally {
@@ -393,7 +571,8 @@ export default function OwnerSignUp() {
         
         {/* Title & Progress Tracker */}
         <div className="mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Property Owner Registration Form</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Hotel Owner Registration Form
+</h2>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
             Complete all fields and email verification for administrative review and account deployment.
           </p>
@@ -447,6 +626,19 @@ export default function OwnerSignUp() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Middle Name</label>
+                  <input type="text" placeholder="e.g. Santos" value={formData.middleName} onChange={(e) => updateField("middleName", e.target.value)} onBlur={() => handleBlur("middleName")} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded" />
+                  {touchedFields.middleName && fieldErrors.middleName && <span className="text-[11px] text-red-600 mt-1 block">{fieldErrors.middleName}</span>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Suffix</label>
+                  <select value={formData.suffix} onChange={(e) => updateField("suffix", e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded">
+                    <option value="">None</option><option value="Jr.">Jr.</option><option value="Sr.">Sr.</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     First Name <span className="text-red-500">*</span>
@@ -559,17 +751,20 @@ export default function OwnerSignUp() {
                   <div className="relative">
                     <Lock size={15} className="absolute left-3 top-2.5 text-slate-400" />
                     <input
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="At least 8 characters, with letters and numbers"
                       value={formData.password}
                       onChange={(e) => updateField("password", e.target.value)}
                       onBlur={() => handleBlur("password")}
-                      className={`w-full pl-9 pr-3 py-2 border text-xs rounded focus:outline-none transition-colors ${
+                      className={`w-full pl-9 pr-10 py-2 border text-xs rounded focus:outline-none transition-colors ${
                         touchedFields.password && fieldErrors.password
                           ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
                           : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
                       }`}
                     />
+                    <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
                   </div>
                   {touchedFields.password && fieldErrors.password && (
                     <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
@@ -592,38 +787,7 @@ export default function OwnerSignUp() {
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Select property registration type and specify location info.</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-                <label className={`p-3 border rounded cursor-pointer flex items-start gap-3 ${signupMode === "create" ? "border-emerald-600 bg-emerald-50/30 dark:bg-emerald-950/20" : "border-slate-200 dark:border-slate-800"}`}>
-                  <input
-                    type="radio"
-                    name="signupMode"
-                    checked={signupMode === "create"}
-                    onChange={() => setSignupMode("create")}
-                    className="mt-0.5 accent-emerald-700"
-                  />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-white block">Register New Establishment</span>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Generates a new property code upon administration approval.</span>
-                  </div>
-                </label>
-
-                <label className={`p-3 border rounded cursor-pointer flex items-start gap-3 ${signupMode === "claim" ? "border-emerald-600 bg-emerald-50/30 dark:bg-emerald-950/20" : "border-slate-200 dark:border-slate-800"}`}>
-                  <input
-                    type="radio"
-                    name="signupMode"
-                    checked={signupMode === "claim"}
-                    onChange={() => setSignupMode("claim")}
-                    className="mt-0.5 accent-emerald-700"
-                  />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-white block">Claim Existing Hotel Code</span>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Link account to a pre-generated hotel system code.</span>
-                  </div>
-                </label>
-              </div>
-
-              {signupMode === "create" ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                       Hotel / Property Name <span className="text-red-500">*</span>
@@ -675,34 +839,29 @@ export default function OwnerSignUp() {
                       </span>
                     )}
                   </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Pre-issued Hotel Code <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative max-w-md">
-                    <Hash size={15} className="absolute left-3 top-2.5 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="INNOVAHMS-123"
-                      value={formData.hotelCode}
-                      onChange={(e) => updateField("hotelCode", e.target.value)}
-                      onBlur={() => handleBlur("hotelCode")}
-                      className={`w-full pl-9 pr-3 py-2 border text-xs font-mono uppercase rounded focus:outline-none transition-colors ${
-                        touchedFields.hotelCode && fieldErrors.hotelCode
-                          ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
-                          : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
-                      }`}
-                    />
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Address Category <span className="text-red-500">*</span></label>
+                    <select
+                      value={formData.addressCategory}
+                      onChange={(e) => updateField("addressCategory", e.target.value)}
+                      onBlur={() => handleBlur("addressCategory")}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none focus:border-emerald-700"
+                    >
+                      <option value="">Select category</option>
+                      <option value="Hotel">Hotel</option>
+                      <option value="Resort">Resort</option>
+                      <option value="Inn">Inn</option>
+                      <option value="Bed and Breakfast">Bed and Breakfast</option>
+                    </select>
+                    {touchedFields.addressCategory && fieldErrors.addressCategory && <span className="text-[11px] text-red-600 mt-1 block">{fieldErrors.addressCategory}</span>}
                   </div>
-                  {touchedFields.hotelCode && fieldErrors.hotelCode && (
-                    <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">
-                      {fieldErrors.hotelCode}
-                    </span>
-                  )}
+
+                  <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <input type="number" step="any" placeholder="Map pin latitude (optional)" value={formData.latitude} onChange={(e) => updateField("latitude", e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded" />
+                    <input type="number" step="any" placeholder="Map pin longitude (optional)" value={formData.longitude} onChange={(e) => updateField("longitude", e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded" />
+                  </div>
                 </div>
-              )}
             </section>
           )}
 
@@ -789,6 +948,60 @@ export default function OwnerSignUp() {
                     {resendTimer > 0 ? `Resend code in ${resendTimer}s` : "Resend OTP Code"}
                   </button>
                 </div>
+
+                <div className={`mt-5 rounded border p-3 ${fieldErrors.acceptedTerms || fieldErrors.acceptedPrivacy ? "border-red-400 bg-red-50/50 dark:border-red-500/60 dark:bg-red-950/20" : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"}`}>
+                  <label className="flex items-start gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={acceptedTerms}
+                      onChange={(event) => {
+                        setAcceptedTerms(event.target.checked);
+                        setFieldErrors((current) => ({ ...current, acceptedTerms: undefined }));
+                      }}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-800"
+                    />
+                    <span>
+                      I have read and agree to the INNOVA-HMS{" "}
+                      <button
+                        type="button"
+                        onClick={() => setPolicyToShow("terms")}
+                        className="font-bold text-emerald-800 underline underline-offset-2 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-300"
+                      >
+                        Terms and Conditions
+                      </button>
+                      .
+                    </span>
+                  </label>
+                  {fieldErrors.acceptedTerms && (
+                    <p className="mt-2 text-[11px] font-medium text-red-600 dark:text-red-400">{fieldErrors.acceptedTerms}</p>
+                  )}
+
+                  <label className="mt-3 flex items-start gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={acceptedPrivacy}
+                      onChange={(event) => {
+                        setAcceptedPrivacy(event.target.checked);
+                        setFieldErrors((current) => ({ ...current, acceptedPrivacy: undefined }));
+                      }}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-800"
+                    />
+                    <span>
+                      I have read and agree to the INNOVA-HMS{" "}
+                      <button
+                        type="button"
+                        onClick={() => setPolicyToShow("privacy")}
+                        className="font-bold text-emerald-800 underline underline-offset-2 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-300"
+                      >
+                        Privacy Policy
+                      </button>
+                      .
+                    </span>
+                  </label>
+                  {fieldErrors.acceptedPrivacy && (
+                    <p className="mt-2 text-[11px] font-medium text-red-600 dark:text-red-400">{fieldErrors.acceptedPrivacy}</p>
+                  )}
+                </div>
               </div>
             </section>
           )}
@@ -833,6 +1046,41 @@ export default function OwnerSignUp() {
 
         </form>
       </main>
+
+      {policyToShow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[min(720px,90vh)] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+              <div className="flex items-center gap-2">
+                <FileText size={18} className="text-emerald-700 dark:text-emerald-400" />
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {policyToShow === "terms" ? "Terms and Conditions for Hotel Owners" : "Privacy Policy for Hotel Owners"}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPolicyToShow(null)}
+                aria-label="Close policy"
+                className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <pre className="overflow-y-auto whitespace-pre-wrap px-5 py-4 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+              {policyToShow === "terms" ? TERMS_AND_CONDITIONS : PRIVACY_POLICY}
+            </pre>
+            <div className="flex justify-end border-t border-slate-200 px-5 py-3 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setPolicyToShow(null)}
+                className="rounded bg-emerald-800 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-900"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Completion Modal */}
       {successData && (

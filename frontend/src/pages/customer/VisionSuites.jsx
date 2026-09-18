@@ -49,6 +49,19 @@ const roomText = (room, ...fields) => {
 
 const normalizeRoomText = (value) => String(value || "").replace(/\s+/g, " ").trim();
 const escapeRegExp = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const formatInputDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+const addInputDays = (value, days) => {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() + days);
+  return formatInputDate(date);
+};
 
 const getRoomGroupName = (room) => {
   const roomName = normalizeRoomText(roomText(room, "name", "roomName", "room_name"));
@@ -244,7 +257,7 @@ function TourModal({ open, onClose, onReserve, roomName, tour, loading, notice }
 }
 
 export default function VisionSuites() {
-  const PAGE_SIZE = 10; // Itinakda sa 10 muna bago mag-view all ng 10 uli
+  const PAGE_SIZE = 10;
   const location = useLocation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -268,7 +281,8 @@ export default function VisionSuites() {
   const [sortMode, setSortMode] = useState("recommended");
   const [filterCheckIn, setFilterCheckIn] = useState("");
   const [filterCheckOut, setFilterCheckOut] = useState("");
-  const [filterGuests, setFilterGuests] = useState("");
+  const [filterAdults, setFilterAdults] = useState("");
+  const [filterChildren, setFilterChildren] = useState("");
   const [visibleItemCount, setVisibleItemCount] = useState(PAGE_SIZE);
   const [landmarks, setLandmarks] = useState([]);
   const [nearbyHotels, setNearbyHotels] = useState([]);
@@ -291,8 +305,22 @@ export default function VisionSuites() {
   ]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const visionMinCheckIn = formatInputDate(new Date());
+  const visionMinCheckOut = filterCheckIn
+    ? addInputDays(filterCheckIn, 1)
+    : addInputDays(visionMinCheckIn, 1);
 
   const validateDateRange = (checkIn, checkOut) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (checkIn && new Date(`${checkIn}T00:00:00`) < today) {
+      setError("Check-in date cannot be in the past.");
+      return false;
+    }
+    if (checkOut && new Date(`${checkOut}T00:00:00`) < today) {
+      setError("Check-out date cannot be in the past.");
+      return false;
+    }
     if (!checkIn || !checkOut) return true;
     if (new Date(`${checkOut}T00:00:00`) <= new Date(`${checkIn}T00:00:00`)) {
       setError("Check-out date must be after the check-in date.");
@@ -354,6 +382,9 @@ export default function VisionSuites() {
     const from = params.get("from") || params.get("checkIn") || "";
     const to = params.get("to") || params.get("checkOut") || "";
     const guests = params.get("guests") || "";
+    const adults = params.get("adults") || "";
+    const children = params.get("children") || "";
+    const search = params.get("search") || "";
     const requestedView = params.get("view") || params.get("roomType") || "";
     const hotelId = params.get("hotel_id") || "";
     const selectedViewMode = params.get("viewMode") || params.get("mode") || "hotel";
@@ -378,15 +409,45 @@ export default function VisionSuites() {
     });
     if (from) setFilterCheckIn(from);
     if (to) setFilterCheckOut(to);
-    if (guests) setFilterGuests(guests);
-    setHotelSearch("");
-    setSelectedRoomType("all");
+    setFilterAdults(adults || guests);
+    setFilterChildren(children);
+    setHotelSearch(search);
+    setSelectedRoomType(requestedView || "all");
     setSelectedRating("all");
     setSortMode("recommended");
     setVisibleItemCount(PAGE_SIZE);
 
     loadVision(query);
   }, [location.search]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const query = {};
+      if (filterCheckIn) query.from = filterCheckIn;
+      if (filterCheckOut) query.to = filterCheckOut;
+      if (filterAdults) query.adults = filterAdults;
+      if (filterChildren) query.children = filterChildren;
+      if (hotelSearch.trim()) query.search = hotelSearch.trim();
+      if (selectedRoomType !== "all") query.view = selectedRoomType;
+      loadVision(query);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [hotelSearch, filterCheckIn, filterCheckOut, filterAdults, filterChildren, selectedRoomType]);
+
+  const handleRoomTypeChange = (event) => {
+    const roomType = event.target.value;
+    const params = new URLSearchParams(location.search);
+
+    if (roomType === "all") {
+      params.delete("view");
+      params.delete("roomType");
+    } else {
+      params.set("view", roomType);
+      params.delete("roomType");
+    }
+    params.set("viewMode", "room");
+    navigate(`/vision-suites?${params.toString()}`);
+  };
 
   useEffect(() => {
     setSessionUser(extractCustomerSession());
@@ -495,7 +556,9 @@ export default function VisionSuites() {
           hotel_id: hotel?.id || null,
           from: filterCheckIn || "",
           to: filterCheckOut || "",
-          guests: filterGuests || "",
+          guests: filterAdults || "",
+          adults: filterAdults || "",
+          children: filterChildren || "",
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -515,10 +578,7 @@ export default function VisionSuites() {
     }
   };
 
-  const roomTypeOptions = useMemo(
-    () => Array.from(new Set((rooms || []).map((room) => getRoomGroupName(room)).filter(Boolean))),
-    [rooms]
-  );
+  const roomTypeOptions = ["Single", "Double", "Suite", "Deluxe"];
 
   const displayHotels = useMemo(() => {
     let list = [];
@@ -539,7 +599,8 @@ export default function VisionSuites() {
     const query = hotelSearch.trim().toLowerCase();
     const next = (rooms || []).filter((room) => {
       const groupName = getRoomGroupName(room);
-      const matchRoomType = selectedRoomType === "all" || String(groupName).toLowerCase() === String(selectedRoomType).toLowerCase();
+      const roomType = roomText(room, "type", "roomType", "room_type");
+      const matchRoomType = selectedRoomType === "all" || String(roomType).toLowerCase() === String(selectedRoomType).toLowerCase();
       const matchSearch =
         !query ||
         String(room.hotelName || "").toLowerCase().includes(query) ||
@@ -586,19 +647,6 @@ export default function VisionSuites() {
     return roomList;
   }, [rooms, hotelSearch, selectedRoomType, selectedRating, sortMode]);
 
-  const handleSearchRoomsSubmit = () => {
-    if (!validateDateRange(filterCheckIn, filterCheckOut)) {
-      return;
-    }
-
-    const query = {};
-    if (filterCheckIn) query.from = filterCheckIn;
-    if (filterCheckOut) query.to = filterCheckOut;
-    if (filterGuests) query.guests = filterGuests;
-    if (selectedRoomType !== "all") query.view = selectedRoomType;
-    loadVision(query);
-  };
-
   const clearCollectionFilters = () => {
     setHotelSearch("");
     setSelectedRoomType("all");
@@ -606,13 +654,14 @@ export default function VisionSuites() {
     setSortMode("recommended");
     setFilterCheckIn("");
     setFilterCheckOut("");
-    setFilterGuests("");
+    setFilterAdults("");
+    setFilterChildren("");
     setVisibleItemCount(PAGE_SIZE);
   };
 
   useEffect(() => {
     setVisibleItemCount(PAGE_SIZE);
-  }, [hotelSearch, selectedRoomType, selectedRating, sortMode, filterCheckIn, filterCheckOut, filterGuests, viewMode]);
+  }, [hotelSearch, selectedRoomType, selectedRating, sortMode, filterCheckIn, filterCheckOut, filterAdults, filterChildren, viewMode]);
 
   const currentList = viewMode === "hotel" ? displayHotels : filteredRooms;
 
@@ -721,157 +770,172 @@ export default function VisionSuites() {
         </div>
 
         {/* STICKY SEARCH BOX */}
-        <div className="sticky top-20 z-40 w-full max-w-6xl px-4 mx-auto">
-          <div className="relative bg-white/95 dark:bg-[#121c16]/95 p-5 md:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.4)] backdrop-blur-xl border border-[#1F6F5F]/30">
-            <div className="absolute -top-4 left-6">
-              <div className="flex items-center gap-2 bg-white dark:bg-[#18261e] px-4 py-1.5 shadow-md border border-[#1F6F5F]/30 text-[#2FA084] font-black text-xs tracking-widest uppercase font-sans">
-                <Hotel size={14} className="text-[#2FA084]" />
-                <span>{viewMode === "hotel" ? "Hotel" : "Room"}</span>
-              </div>
-            </div>
+        <div className="sticky top-20 z-40 w-full max-w-3xl px-4 mx-auto">
+          <div className="flex items-center justify-center mb-[-1px] relative z-20">
+            <button 
+              type="button"
+              className="flex items-center gap-2 px-6 py-2 rounded-t-xl bg-white dark:bg-[#121E1A] text-[#1F6F5F] dark:text-[#6FCF97] font-bold text-xs shadow-md border-t border-x border-gray-200 dark:border-[#243B33]"
+            >
+              <Hotel size={15} />
+              <span>{viewMode === "hotel" ? "Hotels" : "Rooms"}</span>
+            </button>
+          </div>
 
-            <div className="flex items-center justify-between border-b border-[#1F6F5F]/20 pb-3 mb-4 pt-2 gap-4 flex-wrap">
-              <div className="flex items-center gap-6 flex-wrap">
-                <div className="flex items-center gap-2 rounded-full border border-[#1F6F5F]/20 bg-[#1F6F5F]/5 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("hotel")}
-                    className={`px-4 py-1.5 text-xs font-black uppercase tracking-wider transition-all ${
-                      viewMode === "hotel"
-                        ? "bg-[#1F6F5F] text-white shadow-sm"
-                        : "text-[#2FA084] hover:bg-[#1F6F5F]/10"
-                    }`}
-                  >
-                    Hotel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("room")}
-                    className={`px-4 py-1.5 text-xs font-black uppercase tracking-wider transition-all ${
-                      viewMode === "room"
-                        ? "bg-[#1F6F5F] text-white shadow-sm"
-                        : "text-[#2FA084] hover:bg-[#1F6F5F]/10"
-                    }`}
-                  >
-                    Room
-                  </button>
-                </div>
+          <div className="relative z-10 rounded-2xl bg-white/90 dark:bg-[#121E1A]/90 backdrop-blur-md p-4 sm:p-5 shadow-[0_15px_40px_rgba(0,0,0,0.25)] border border-gray-100/80 dark:border-[#243B33] text-left">
+            
+            {/* View Mode & Reset Controls Header */}
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-200 dark:border-[#243B33]">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("hotel")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    viewMode === "hotel"
+                      ? "bg-[#1F6F5F] text-white"
+                      : "bg-gray-100 dark:bg-[#182924] text-gray-600 dark:text-gray-300"
+                  }`}
+                >
+                  Hotel Mode
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("room")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    viewMode === "room"
+                      ? "bg-[#1F6F5F] text-white"
+                      : "bg-gray-100 dark:bg-[#182924] text-gray-600 dark:text-gray-300"
+                  }`}
+                >
+                  Room Mode
+                </button>
               </div>
 
               <button
                 type="button"
                 onClick={clearCollectionFilters}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2FA084] hover:text-[#288B77] transition-colors"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-[#1F6F5F] dark:text-gray-400 dark:hover:text-[#6FCF97]"
               >
-                <RotateCcw size={13} />
-                <span>Reset Filters</span>
+                <RotateCcw size={12} />
+                <span>Reset</span>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2.5 items-center">
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Check-In</label>
-                <div className="flex items-center gap-2">
-                  <Calendar size={14} className="text-[#2FA084] shrink-0" />
+            {/* Input Row 1: Hotel/Room Name Search Input & Room Type Dropdown */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-2.5">
+              <div className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3.5 py-2">
+                <Search size={16} className="text-gray-400 shrink-0" />
+                <div className="w-full">
+                  <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Search Name / Location</p>
                   <input
-                    type="date"
-                    value={filterCheckIn}
-                    onChange={(e) => setFilterCheckIn(e.target.value)}
-                    className="w-full bg-transparent text-xs font-bold text-slate-800 dark:text-white outline-none cursor-pointer"
+                    type="text"
+                    value={hotelSearch}
+                    onChange={(e) => setHotelSearch(e.target.value)}
+                    placeholder="Search hotel or room..."
+                    className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none"
                   />
                 </div>
               </div>
 
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Check-Out</label>
-                <div className="flex items-center gap-2">
-                  <Calendar size={14} className="text-[#2FA084] shrink-0" />
-                  <input
-                    type="date"
-                    value={filterCheckOut}
-                    onChange={(e) => setFilterCheckOut(e.target.value)}
-                    className="w-full bg-transparent text-xs font-bold text-slate-800 dark:text-white outline-none cursor-pointer"
-                  />
-                </div>
-              </div>
-
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Guests</label>
-                <div className="flex items-center gap-2">
-                  <Users size={14} className="text-[#2FA084] shrink-0" />
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    placeholder="2 Guests"
-                    value={filterGuests}
-                    onChange={(e) => setFilterGuests(e.target.value)}
-                    className="w-full bg-transparent text-xs font-bold text-slate-800 dark:text-white outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Room Type</label>
-                <div className="flex items-center gap-2">
-                  <Search size={14} className="text-[#2FA084] shrink-0" />
+              <div className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3.5 py-2">
+                <Search size={16} className="text-gray-400 shrink-0" />
+                <div className="w-full">
+                  <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Room Type / Option</p>
                   <select
                     value={selectedRoomType}
-                    onChange={(e) => setSelectedRoomType(e.target.value)}
-                    className="w-full bg-transparent text-xs font-bold text-slate-800 dark:text-white outline-none cursor-pointer"
+                    onChange={handleRoomTypeChange}
+                    className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
                   >
-                    <option value="all" className="dark:bg-[#121c16]">All Types</option>
+                    <option value="all" className="text-black">Any Room Type</option>
                     {roomTypeOptions.map((type) => (
-                      <option key={type} value={type} className="dark:bg-[#121c16]">{type}</option>
+                      <option key={type} value={type} className="text-black">{type}</option>
                     ))}
                   </select>
                 </div>
               </div>
-
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Rating</label>
-                <div className="flex items-center gap-2">
-                  <Star size={14} className="text-[#2FA084] fill-[#2FA084] shrink-0" />
-                  <select
-                    value={selectedRating}
-                    onChange={(e) => setSelectedRating(e.target.value)}
-                    className="w-full bg-transparent text-xs font-bold text-slate-800 dark:text-white outline-none cursor-pointer"
-                  >
-                    <option value="all" className="dark:bg-[#121c16]">All Ratings</option>
-                    <option value="5" className="dark:bg-[#121c16]">5 Stars</option>
-                    <option value="4" className="dark:bg-[#121c16]">4 Stars</option>
-                    <option value="3" className="dark:bg-[#121c16]">3 Stars</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-2.5 transition-all hover:border-[#2FA084]">
-                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#2FA084] mb-1">Sort</label>
-                <div className="flex items-center gap-2">
-                  <ArrowUpDown size={14} className="text-[#2FA084] shrink-0" />
-                  <select
-                    value={sortMode}
-                    onChange={(e) => setSortMode(e.target.value)}
-                    className="w-full bg-transparent text-xs font-bold text-slate-800 dark:text-white outline-none cursor-pointer"
-                  >
-                    <option value="recommended" className="dark:bg-[#121c16]">Recommended</option>
-                    <option value="price-asc" className="dark:bg-[#121c16]">Price: Low-High</option>
-                    <option value="price-desc" className="dark:bg-[#121c16]">Price: High-Low</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={handleSearchRoomsSubmit}
-                  className="w-full py-3 px-3 bg-[#1F6F5F] hover:bg-[#288B77] dark:bg-[#2FA084] dark:hover:bg-[#288B77] text-white font-bold text-xs tracking-wider uppercase shadow-md transition-all hover:scale-[1.005] active:scale-[0.995] flex items-center justify-center gap-2"
-                >
-                  <Search size={14} />
-                  <span>Filter</span>
-                </button>
-              </div>
             </div>
+
+            {/* Input Row 2: Check-in, Check-out, Guests Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-2">
+              
+              {/* Dates Input Group */}
+              <div className="grid grid-cols-2 gap-2 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 p-2">
+                <div className="border-r border-gray-200 dark:border-[#243B33] pr-2">
+                  <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">Check-in</p>
+                  <div className="flex items-center gap-1.5">
+                    <Calendar size={14} className="text-[#1F6F5F] dark:text-[#6FCF97] shrink-0" />
+                    <input
+                      type="date"
+                      value={filterCheckIn}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFilterCheckIn(value);
+                        const nextCheckOut = filterCheckOut && filterCheckOut > value
+                          ? filterCheckOut
+                          : addInputDays(value, 1);
+                        if (nextCheckOut) setFilterCheckOut(nextCheckOut);
+                        validateDateRange(value, nextCheckOut);
+                      }}
+                      min={visionMinCheckIn}
+                      className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                <div className="pl-2">
+                  <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">
+                    Check-out
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <Calendar size={14} className="text-[#1F6F5F] dark:text-[#6FCF97] shrink-0" />
+                    <input
+                      type="date"
+                      value={filterCheckOut}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFilterCheckOut(value);
+                        validateDateRange(filterCheckIn, value);
+                      }}
+                      min={visionMinCheckOut}
+                      className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Guests Input Group */}
+              <div className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3.5 py-2">
+                <Users size={16} className="text-[#1F6F5F] dark:text-[#6FCF97] shrink-0" />
+                <div className="w-full">
+                  <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Occupancy</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={filterAdults}
+                      onChange={(e) => setFilterAdults(String(Math.min(12, Math.max(1, Number(e.target.value) || 1))))}
+                      placeholder="1"
+                      className="w-12 bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none"
+                      aria-label="Adults"
+                    />
+                    <span className="text-xs text-gray-500 dark:text-gray-400">adults</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="12"
+                      value={filterChildren}
+                      onChange={(e) => setFilterChildren(String(Math.min(12, Math.max(0, Number(e.target.value) || 0))))}
+                      placeholder="0"
+                      className="w-12 bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none"
+                      aria-label="Kids"
+                    />
+                    <span className="text-xs text-gray-500 dark:text-gray-400">kids</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
           </div>
         </div>
       </section>
@@ -879,13 +943,11 @@ export default function VisionSuites() {
       {/* COLLECTION RESULTS LIST */}
       <section className="py-10 px-4 max-w-5xl mx-auto pt-6">
         <div className="min-w-0">
-          {/* HEADER HEADER STYLE TULAD NG SA PICTURE NA HININGI */}
           <div className="flex items-center justify-between mb-6 pb-2 border-b border-[#1F6F5F]/20">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-black text-[#2FA084] uppercase tracking-wider">
                 {viewMode === "hotel" ? "Recommendation Hotels" : "Recommendation Rooms"}
               </h3>
-              <ArrowRight size={16} className="text-[#2FA084]" />
             </div>
             
             <button
@@ -897,8 +959,7 @@ export default function VisionSuites() {
               }}
               className="group inline-flex items-center gap-1.5 text-xs font-bold text-[#2FA084] hover:text-[#288B77] transition-colors"
             >
-              <span>{hasMoreItems ? "View All Room" : "All Rooms Loaded"}</span>
-              <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
+              <span>{hasMoreItems ? "" : ""}</span>
             </button>
           </div>
 
@@ -1108,50 +1169,6 @@ export default function VisionSuites() {
         </div>
       </section>
 
-      {!sessionUser?.id ? (
-        <section className="py-20 px-4 max-w-5xl mx-auto">
-          <div className="border border-[#1F6F5F]/30 bg-white dark:bg-[#121c16] p-10 md:p-14 shadow-2xl">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.35em] text-[#2FA084] mb-3">Executive Privileges</p>
-                <h3 className="text-3xl font-sans font-black text-slate-900 dark:text-white">Become a Member for Exclusive Perks</h3>
-                <p className="mt-4 text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Unlock customized suite recommendations, loyalty tier multipliers, and priority VIP reservations.
-                </p>
-                <div className="mt-8 flex gap-3">
-                  <a
-                    href="/signup"
-                    className="inline-flex items-center justify-center px-8 py-4 bg-[#1F6F5F] hover:bg-[#288B77] dark:bg-[#2FA084] dark:hover:bg-[#288B77] text-white font-black uppercase text-[11px] tracking-[0.25em]"
-                  >
-                    Register Account
-                  </a>
-                  <a
-                    href="/login"
-                    className="inline-flex items-center justify-center px-8 py-4 border border-[#1F6F5F]/40 bg-[#1F6F5F]/20 text-[#2FA084] font-black uppercase text-[11px] tracking-[0.25em] hover:bg-[#1F6F5F]/40"
-                  >
-                    Sign In
-                  </a>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-5">
-                  <p className="text-xs font-black text-[#2FA084]">Personalized AI Matches</p>
-                  <p className="text-sm text-slate-500 mt-1 blur-[2px] select-none">Curated options aligned with your taste.</p>
-                </div>
-                <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-5">
-                  <p className="text-xs font-black text-[#2FA084]">Innova Rewards Program</p>
-                  <p className="text-sm text-slate-500 mt-1 blur-[2px] select-none">Earn 500 bonus points upon reservation.</p>
-                </div>
-                <div className="border border-[#1F6F5F]/30 bg-[#1F6F5F]/10 p-5">
-                  <p className="text-xs font-black text-[#2FA084]">Concierge Route Mapping</p>
-                  <p className="text-sm text-slate-500 mt-1 blur-[2px] select-none">Exclusive travel guides and transport access.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

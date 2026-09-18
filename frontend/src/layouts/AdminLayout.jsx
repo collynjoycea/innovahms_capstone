@@ -4,6 +4,7 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminHeader from '../components/AdminHeader';
 
 const AdminLayout = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('theme');
     return saved ? saved === 'dark' : true;
@@ -24,10 +25,15 @@ const AdminLayout = () => {
 
   return (
     <div className={`flex h-screen overflow-hidden transition-colors duration-300 ${isDarkMode ? 'bg-[#09090b]' : 'bg-gray-50'}`}>
-      <AdminSidebar isDarkMode={isDarkMode} />
+      <AdminSidebar isDarkMode={isDarkMode} isExpanded={isSidebarOpen} />
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <AdminHeader isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+        <AdminHeader
+          isDarkMode={isDarkMode}
+          toggleTheme={toggleTheme}
+          isSidebarOpen={isSidebarOpen}
+          toggleSidebar={() => setIsSidebarOpen((open) => !open)}
+        />
         
         <main className="flex-1 overflow-y-auto">
           <Outlet context={{ isDarkMode }} />

@@ -93,6 +93,8 @@ CREATE TABLE IF NOT EXISTS reservations (
     check_in DATE,
     check_out DATE,
     total_amount_php NUMERIC(12,2) NOT NULL DEFAULT 0,
+    deposit_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+    payment_status VARCHAR(20) NOT NULL DEFAULT 'DOWNPAYMENT',
     status VARCHAR(20) NOT NULL DEFAULT 'confirmed' CHECK (status IN ('pending', 'confirmed', 'checked_in', 'checked_out', 'paid', 'completed', 'cancelled')),
     origin_country VARCHAR(80),
     check_in_time TIME WITHOUT TIME ZONE,

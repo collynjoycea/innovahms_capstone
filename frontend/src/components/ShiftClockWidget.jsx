@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LogIn, LogOut, Clock, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { LogIn, LogOut, Clock, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import useStaffSession from '../hooks/useStaffSession';
 
 /**
@@ -13,6 +13,7 @@ export default function ShiftClockWidget({ isDarkMode }) {
   const [msg, setMsg] = useState('');
   const [msgType, setMsgType] = useState('');
   const [now, setNow] = useState(new Date());
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Live clock
   useEffect(() => {
@@ -35,34 +36,74 @@ export default function ShiftClockWidget({ isDarkMode }) {
     return () => clearInterval(t);
   }, [fetchShift]);
 
+  // Geofencing — Time In / Time Out require the device's current GPS
+  // coordinates, which the backend checks against the hotel's location.
+  const getLocation = () => new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation is not supported on this device/browser.'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      (err) => reject(err),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
+
   const handleTimeIn = async () => {
     setActing(true); setMsg('');
     try {
+      let coords;
+      try {
+        coords = await getLocation();
+      } catch {
+        setMsg('Location access is required to time in.'); setMsgType('error');
+        return;
+      }
       const res = await fetch('/api/staff/time-in', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staffId }),
+        body: JSON.stringify({ staffId, ...coords }),
       });
       const d = await res.json();
       if (res.ok) { setMsg(`In ${d.clockIn}`); setMsgType('success'); fetchShift(); }
-      else { setMsg(d.error || 'Failed'); setMsgType('error'); }
+      else {
+        const detail = d.distanceMeters != null ? ` (${d.distanceMeters}m away, limit ${d.allowedRadiusMeters}m)` : '';
+        setMsg((d.error || 'Failed') + detail); setMsgType('error');
+      }
     } catch { setMsg('Error'); setMsgType('error'); }
-    finally { setActing(false); setTimeout(() => setMsg(''), 3000); }
+    finally { setActing(false); setTimeout(() => setMsg(''), 5000); }
   };
 
-  const handleTimeOut = async () => {
+  // Time Out button no longer fires the request directly — it opens a
+  // centered confirmation modal first, so an accidental click can't clock
+  // someone out early.
+  const openTimeOutConfirm = () => setShowConfirm(true);
+
+  const confirmTimeOut = async () => {
+    setShowConfirm(false);
     setActing(true); setMsg('');
     try {
+      let coords;
+      try {
+        coords = await getLocation();
+      } catch {
+        setMsg('Location access is required to time out.'); setMsgType('error');
+        return;
+      }
       const res = await fetch('/api/staff/time-out', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staffId }),
+        body: JSON.stringify({ staffId, ...coords }),
       });
       const d = await res.json();
       if (res.ok) { setMsg(`Out ${d.clockOut} · ${d.hoursWorked}h`); setMsgType('success'); fetchShift(); }
-      else { setMsg(d.error || 'Failed'); setMsgType('error'); }
+      else {
+        const detail = d.distanceMeters != null ? ` (${d.distanceMeters}m away, limit ${d.allowedRadiusMeters}m)` : '';
+        setMsg((d.error || 'Failed') + detail); setMsgType('error');
+      }
     } catch { setMsg('Error'); setMsgType('error'); }
-    finally { setActing(false); setTimeout(() => setMsg(''), 3000); }
+    finally { setActing(false); setTimeout(() => setMsg(''), 5000); }
   };
 
   const isIn   = shift?.clockIn && !shift?.clockOut;
@@ -107,7 +148,7 @@ export default function ShiftClockWidget({ isDarkMode }) {
 
       {/* Time Out button */}
       {isIn && (
-        <button onClick={handleTimeOut} disabled={acting}
+        <button onClick={openTimeOutConfirm} disabled={acting}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-500 text-white text-[9px] font-black uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-rose-500/20">
           {acting ? <Loader2 size={11} className="animate-spin" /> : <LogOut size={11} strokeWidth={3} />}
           Time Out
@@ -119,6 +160,48 @@ export default function ShiftClockWidget({ isDarkMode }) {
         <span className={`text-[9px] font-black hidden sm:block ${msgType === 'success' ? 'text-emerald-500' : 'text-rose-500'}`}>
           {msg}
         </span>
+      )}
+
+      {/* CENTERED CONFIRMATION MODAL — not a toast/alert, sits in the middle of the screen */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 backdrop-blur-md bg-black/80">
+          <div className={`relative w-full max-w-sm rounded-[2rem] border shadow-2xl overflow-hidden ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800' : 'bg-white border-zinc-200'}`}>
+
+            {/* Header */}
+            <div className="p-6 border-b border-rose-500/20 flex justify-between items-center bg-gradient-to-r from-rose-500/10 to-transparent">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
+                  <AlertCircle size={20} />
+                </div>
+                <h2 className={`text-sm font-black uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                  Confirm Time Out
+                </h2>
+              </div>
+              <button onClick={() => setShowConfirm(false)} className={`${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'} hover:text-rose-500 transition-all`}>
+                <X size={20} strokeWidth={3} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5">
+              <p className={`text-xs font-bold leading-relaxed ${isDarkMode ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                Sigurado ka bang mag-Time Out ka na? Ma-record kaagad ang oras na ito bilang katapusan ng shift mo{elapsed ? ` (${elapsed} on duty so far)` : ''}.
+              </p>
+
+              <div className="flex gap-3">
+                <button onClick={() => setShowConfirm(false)}
+                  className={`flex-1 py-3 rounded-xl border-2 font-black uppercase text-[10px] tracking-widest transition-all ${isDarkMode ? 'border-zinc-700 text-zinc-400 hover:border-white hover:text-white' : 'border-zinc-300 text-zinc-500 hover:border-zinc-900 hover:text-zinc-900'}`}>
+                  Kanselahin
+                </button>
+                <button onClick={confirmTimeOut} disabled={acting}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-rose-500 text-white font-black uppercase text-[10px] tracking-widest hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-rose-500/20">
+                  {acting ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} strokeWidth={3} />}
+                  Oo, Time Out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -117,7 +117,6 @@ export default function Features() {
                   <h3 className="text-base font-medium text-[#111C18] dark:text-white group-hover:text-[#1F6F5F] dark:group-hover:text-[#6FCF97] transition-colors">
                     {feature.title}
                   </h3>
-                  <ArrowUpRight size={15} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
 
                 <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-normal">

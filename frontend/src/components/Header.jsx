@@ -209,7 +209,7 @@ export default function Header() {
       <div className="mx-auto max-w-[1320px] px-5 py-2.5 sm:px-7" ref={dropRef}>
         <div className="flex min-h-[60px] items-center justify-between gap-4">
           <Link to="/" onClick={handleLogoClick} className="min-w-0 flex-shrink-0">
-            <img src="/images/logo.png" alt="Innova HMS" className="h-9 w-auto sm:h-10" />
+            <img src="/images/logo.png" alt="Innova HMS" className="h-12 w-auto sm:h-14" />
           </Link>
 
           <nav className={`hidden lg:flex items-center gap-1 rounded-full border px-1.5 py-1.5 ${navShellClass}`}>

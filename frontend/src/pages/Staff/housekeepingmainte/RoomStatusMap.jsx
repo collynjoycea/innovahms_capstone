@@ -7,14 +7,15 @@ const STATUS_COLORS = {
   Available:   { border: 'border-emerald-500/50', text: 'text-emerald-500', bg: 'bg-emerald-500/5',  dot: 'bg-emerald-500',  label: 'Available' },
   Occupied:    { border: 'border-red-500/50',     text: 'text-red-500',     bg: 'bg-red-500/5',      dot: 'bg-red-500',      label: 'Occupied' },
   Dirty:       { border: 'border-amber-500/50',   text: 'text-amber-500',   bg: 'bg-amber-500/5',    dot: 'bg-amber-500',    label: 'Dirty' },
-  Clean:       { border: 'border-emerald-400/50', text: 'text-emerald-400', bg: 'bg-emerald-400/5',  dot: 'bg-emerald-400',  label: 'Clean âœ“' },
+  Clean:       { border: 'border-emerald-400/50', text: 'text-emerald-400', bg: 'bg-emerald-400/5',  dot: 'bg-emerald-400',  label: 'Clean ✓' },
   InProgress:  { border: 'border-cyan-500/50',    text: 'text-cyan-500',    bg: 'bg-cyan-500/5',     dot: 'bg-cyan-500',     label: 'In Prog' },
   Maintenance: { border: 'border-purple-500/50',  text: 'text-purple-500',  bg: 'bg-purple-500/5',   dot: 'bg-purple-500',   label: 'Maint.' },
   Cleaning:    { border: 'border-orange-500/50',  text: 'text-orange-500',  bg: 'bg-orange-500/5',   dot: 'bg-orange-500',   label: 'Cleaning' },
 };
 
-const STATUS_CYCLE = ['Available', 'Dirty', 'InProgress', 'Clean', 'Occupied', 'Maintenance'];
-const getStyle = (s) => STATUS_COLORS[s] || { border: 'border-zinc-700', text: 'text-zinc-400', bg: '', dot: 'bg-zinc-500', label: s || 'â€”' };
+// Cleaning flow first: Dirty -> InProgress -> Clean -> Available (then Occupied / Maintenance)
+const STATUS_CYCLE = ['Dirty', 'InProgress', 'Clean', 'Available', 'Occupied', 'Maintenance'];
+const getStyle = (s) => STATUS_COLORS[s] || { border: 'border-zinc-700', text: 'text-zinc-400', bg: '', dot: 'bg-zinc-500', label: s || '—' };
 const nextStatus = (current) => STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
 
 export default function RoomStatusMap() {
@@ -101,7 +102,7 @@ export default function RoomStatusMap() {
             Room Status <span className="text-[#6FCF97]">Map</span>
           </h1>
           <p className={`text-[10px] font-bold ${theme.textSub} uppercase tracking-[0.3em] mt-1`}>
-            Live Room Status Â· Click a room to cycle status
+            Live Room Status · Click a room to cycle status
           </p>
         </div>
         <div className="flex items-center gap-3 mt-4 md:mt-0">

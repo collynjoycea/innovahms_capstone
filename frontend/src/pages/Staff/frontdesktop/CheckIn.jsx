@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Search, LogIn, CheckCircle2, AlertCircle, AlertTriangle, Clock, RefreshCw, Loader2, Filter, XCircle } from 'lucide-react';
+import { Search, LogIn, CheckCircle2, AlertCircle, AlertTriangle, Clock, RefreshCw, Loader2, Filter, XCircle, CreditCard } from 'lucide-react';
 import useStaffSession from '../../../hooks/useStaffSession';
 
 const TABS = ['ALL', 'TODAY', 'PAST'];
@@ -14,6 +14,8 @@ export default function CheckIn() {
  const [search, setSearch] = useState('');
  const [activeTab, setActiveTab] = useState('TODAY');
  const [processing, setProcessing] = useState(null);
+ const [paying, setPaying] = useState(null);
+ const [paymentToConfirm, setPaymentToConfirm] = useState(null);
  const [msg, setMsg] = useState({ id: null, text: '', type: '' });
  const [cancelling, setCancelling] = useState(false);
  const [cancelResult, setCancelResult] = useState(null);
@@ -48,6 +50,10 @@ export default function CheckIn() {
  };
 
  const handleCheckIn = async (r) => {
+ if (r.paymentStatus !== 'FULLY_PAID') {
+ setMsg({ id: r.id, text: 'Full payment is required before check-in.', type: 'error' });
+ return;
+ }
  if (r.isDoubleBooked) {
  setMsg({ id: r.id, text: 'Double booking detected — resolve conflict before check-in.', type: 'error' });
  return;
@@ -67,6 +73,36 @@ export default function CheckIn() {
  setMsg({ id: r.id, text: 'Server error.', type: 'error' });
  } finally {
  setProcessing(null);
+ }
+ };
+
+ const openPaymentConfirmation = (r) => {
+ setPaymentToConfirm(r);
+ setMsg({ id: null, text: '', type: '' });
+ };
+
+ const handleFullPayment = async () => {
+ const r = paymentToConfirm;
+ if (!r) return;
+ setPaying(r.id);
+ try {
+ const res = await fetch(`/api/staff/reservations/${r.id}/pay-balance`, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ paymentMethod: r.paymentMethod || 'cash' }),
+ });
+ const data = await res.json();
+ if (res.ok) {
+ setMsg({ id: r.id, text: `Full payment recorded — ₱${Number(data.amountPaid).toLocaleString()}.`, type: 'success' });
+ setPaymentToConfirm(null);
+ fetchData();
+ } else {
+ setMsg({ id: r.id, text: data.error || 'Payment failed.', type: 'error' });
+ }
+ } catch {
+ setMsg({ id: r.id, text: 'Server error.', type: 'error' });
+ } finally {
+ setPaying(null);
  }
  };
 
@@ -252,11 +288,21 @@ export default function CheckIn() {
  <p className={`text-[9px] font-bold ${sub}`}>{r.nights} night{r.nights !== 1 ? 's' : ''}</p>
  </td>
  <td className="px-8 py-5">
+ <div className="flex flex-col items-start gap-2">
  <span className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${
  r.status === 'CHECKED_IN' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
  r.status === 'CONFIRMED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
  'bg-amber-500/10 text-amber-500 border-amber-500/20'
  }`}>{r.status}</span>
+ {r.status !== 'CHECKED_IN' && r.paymentStatus === 'DOWNPAYMENT' && (
+ <button onClick={() => openPaymentConfirmation(r)} disabled={paying === r.id}
+ className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-black text-[9px] font-black uppercase tracking-widest hover:brightness-110 disabled:opacity-50">
+ {paying === r.id ? <Loader2 size={11} className="animate-spin" /> : <CreditCard size={11} />}
+ Pay Balance
+ </button>
+ )}
+ {r.paymentStatus === 'FULLY_PAID' && <span className="text-[8px] font-black uppercase tracking-widest text-emerald-500">Fully Paid</span>}
+ </div>
  </td>
  <td className="px-8 py-5 text-right">
  {r.status === 'CHECKED_IN' ? (
@@ -283,6 +329,60 @@ export default function CheckIn() {
  </table>
  </div>
  </div>
+ {paymentToConfirm && (
+ <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+ <div className={`w-full max-w-md rounded-[2rem] border p-7 shadow-2xl ${card}`}>
+ <div className="flex items-start justify-between gap-4">
+ <div>
+ <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-500">Confirm Payment</p>
+ <h2 className={`mt-2 text-2xl font-black uppercase tracking-tight ${text}`}>Pay guest balance?</h2>
+ </div>
+ <button onClick={() => setPaymentToConfirm(null)} disabled={paying === paymentToConfirm.id}
+ className={`rounded-xl p-2 transition-colors ${isDarkMode ? 'text-zinc-500 hover:bg-white/5 hover:text-white' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900'}`}>
+ <XCircle size={20} />
+ </button>
+ </div>
+ <div className={`mt-6 space-y-3 rounded-2xl border p-4 ${isDarkMode ? 'border-zinc-800 bg-black/20' : 'border-zinc-200 bg-zinc-50'}`}>
+ <div className="flex items-center justify-between gap-4">
+ <span className={`text-[10px] font-black uppercase tracking-widest ${sub}`}>Guest</span>
+ <span className={`text-right text-xs font-black uppercase ${text}`}>{paymentToConfirm.guestName}</span>
+ </div>
+ <div className="flex items-center justify-between gap-4">
+ <span className={`text-[10px] font-black uppercase tracking-widest ${sub}`}>Booking Ref</span>
+ <span className="text-xs font-black font-mono text-[#2FA084]">{paymentToConfirm.bookingNumber}</span>
+ </div>
+ <div className="flex items-center justify-between gap-4">
+ <span className={`text-[10px] font-black uppercase tracking-widest ${sub}`}>Payment Date</span>
+ <span className={`text-right text-xs font-black uppercase ${text}`}>{new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+ </div>
+ <div className="flex items-center justify-between gap-4">
+ <span className={`text-[10px] font-black uppercase tracking-widest ${sub}`}>Downpayment</span>
+ <span className={`text-xs font-black ${text}`}>₱{Number(paymentToConfirm.deposit).toLocaleString()}</span>
+ </div>
+ <div className={`mt-2 flex items-center justify-between border-t pt-3 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+ <span className={`text-[10px] font-black uppercase tracking-widest ${sub}`}>Amount to collect</span>
+ <span className="text-2xl font-black text-amber-500">₱{Number(paymentToConfirm.balance).toLocaleString()}</span>
+ </div>
+ <div className={`flex items-center justify-between border-t pt-3 ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+ <span className={`text-[10px] font-black uppercase tracking-widest ${sub}`}>Total</span>
+ <span className={`text-lg font-black ${text}`}>₱{Number(paymentToConfirm.amount).toLocaleString()}</span>
+ </div>
+ </div>
+ <p className={`mt-4 text-[11px] font-bold ${sub}`}>Confirm that the guest has paid the remaining balance. This will mark the reservation as fully paid.</p>
+ <div className="mt-6 flex justify-end gap-3">
+ <button onClick={() => setPaymentToConfirm(null)} disabled={paying === paymentToConfirm.id}
+ className={`rounded-xl border px-5 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${isDarkMode ? 'border-zinc-700 text-zinc-400 hover:text-white' : 'border-zinc-200 text-zinc-500 hover:text-zinc-900'}`}>
+ Cancel
+ </button>
+ <button onClick={handleFullPayment} disabled={paying === paymentToConfirm.id}
+ className="flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-black transition-all hover:brightness-110 disabled:opacity-50">
+ {paying === paymentToConfirm.id && <Loader2 size={13} className="animate-spin" />}
+ Confirm Payment
+ </button>
+ </div>
+ </div>
+ </div>
+ )}
  </div>
  );
 }
