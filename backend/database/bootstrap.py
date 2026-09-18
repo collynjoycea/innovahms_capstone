@@ -322,6 +322,7 @@ def ensure_customer_privilege_tables(cur):
 
 
 def ensure_reservation_pricing_columns(cur):
+    ensure_reservation_operational_columns(cur)
     statements = [
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS base_amount NUMERIC(12, 2)",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS privilege_discount_percent INTEGER DEFAULT 0",
@@ -337,6 +338,44 @@ def ensure_reservation_pricing_columns(cur):
     ]
     for statement in statements:
         _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="reservation_pricing_alter")
+
+    _execute_in_savepoint(
+        cur,
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'DOWNPAYMENT'",
+        ignore_errors=True,
+        prefix="reservation_payment_alter",
+    )
+
+
+def ensure_reservation_operational_columns(cur):
+    """Bring legacy reservation columns in line with the staff reservation API."""
+    statements = [
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS booking_number VARCHAR(40)",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS check_in_date DATE",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS check_out_date DATE",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS total_nights INTEGER DEFAULT 1",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS payment_method VARCHAR(30) DEFAULT 'cash'",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS special_requests TEXT DEFAULT ''",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'DOWNPAYMENT'",
+    ]
+    for statement in statements:
+        _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="reservation_operational_alter")
+    cur.execute("""
+        UPDATE reservations
+        SET check_in_date = COALESCE(check_in_date, check_in),
+            check_out_date = COALESCE(check_out_date, check_out),
+            total_amount = CASE WHEN COALESCE(total_amount, 0) = 0 THEN total_amount_php ELSE total_amount END,
+            total_nights = CASE WHEN COALESCE(total_nights, 0) = 0 THEN GREATEST(COALESCE(check_out, check_in) - check_in, 1) ELSE total_nights END,
+            booking_number = COALESCE(booking_number, 'INV-' || id),
+            payment_status = CASE WHEN COALESCE(deposit_amount, 0) >= COALESCE(total_amount, total_amount_php) THEN 'FULLY_PAID' ELSE 'DOWNPAYMENT' END
+        WHERE check_in_date IS NULL OR check_out_date IS NULL OR total_amount IS NULL OR booking_number IS NULL OR payment_status IS NULL OR payment_status <> CASE WHEN COALESCE(deposit_amount, 0) >= COALESCE(total_amount, total_amount_php) THEN 'FULLY_PAID' ELSE 'DOWNPAYMENT' END
+    """)
+    cur.execute("UPDATE reservations SET status = UPPER(status) WHERE status <> UPPER(status)")
+    _execute_in_savepoint(cur, "ALTER TABLE reservations DROP CONSTRAINT IF EXISTS reservations_status_check", ignore_errors=True, prefix="reservation_status_constraint")
+    _execute_in_savepoint(cur, "ALTER TABLE reservations ADD CONSTRAINT reservations_status_check CHECK (status IN ('PENDING','CONFIRMED','CHECKED_IN','CHECKED_OUT','PAID','COMPLETED','CANCELLED'))", ignore_errors=True, prefix="reservation_status_constraint")
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_reservations_booking_number ON reservations(booking_number)")
 
 
 def ensure_hourly_room_rate_columns(cur):

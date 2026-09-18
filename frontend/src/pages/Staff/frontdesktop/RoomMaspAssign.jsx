@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { LayoutGrid, ShieldCheck, Zap, AlertCircle, Crown, RefreshCw, Trash2, AlertTriangle, Loader2, X, CheckCircle2 } from 'lucide-react';
+import { LayoutGrid, AlertTriangle, Crown, RefreshCw, Trash2, Loader2, X, CheckCircle2 } from 'lucide-react';
 import useStaffSession from '../../../hooks/useStaffSession';
 
 const STATUS_STYLES = {
@@ -8,6 +8,9 @@ const STATUS_STYLES = {
  occupied: { color: 'text-red-500', border: 'border-red-500/30', bg: 'bg-red-500/5', dot: 'bg-red-500' },
  cleaning: { color: 'text-orange-500', border: 'border-orange-500/30', bg: 'bg-orange-500/5', dot: 'bg-orange-500' },
  maintenance: { color: 'text-purple-500', border: 'border-purple-500/30', bg: 'bg-purple-500/5', dot: 'bg-purple-500' },
+ dirty: { color: 'text-amber-500', border: 'border-amber-500/30', bg: 'bg-amber-500/5', dot: 'bg-amber-500' },
+ inprogress: { color: 'text-cyan-500', border: 'border-cyan-500/30', bg: 'bg-cyan-500/5', dot: 'bg-cyan-500' },
+ clean: { color: 'text-teal-400', border: 'border-teal-400/30', bg: 'bg-teal-400/5', dot: 'bg-teal-400' },
  reserved: { color: 'text-blue-500', border: 'border-blue-500/30', bg: 'bg-blue-500/5', dot: 'bg-blue-500' },
 };
 const getStyle = (s) => STATUS_STYLES[(s || '').toLowerCase()] || STATUS_STYLES.available;
@@ -22,7 +25,6 @@ export default function RoomMapAssign() {
  const [dbLoading, setDbLoading] = useState(true);
  const [deleting, setDeleting] = useState(null);
  const [delMsg, setDelMsg] = useState({ id: null, text: '', type: '' });
- const [floorFilter, setFloorFilter] = useState('All');
  const [statusFilter, setStatusFilter] = useState('All');
 
  const fetchRooms = useCallback(async () => {
@@ -68,13 +70,9 @@ export default function RoomMapAssign() {
  } finally { setDeleting(null); }
  };
 
- // Extract unique floors from room numbers
- const floors = ['All', ...Array.from(new Set(rooms.map(r => r.roomNumber?.toString()[0]).filter(Boolean))).sort()];
-
  const filteredRooms = rooms.filter(r => {
- const matchFloor = floorFilter === 'All' || r.roomNumber?.toString().startsWith(floorFilter);
  const matchStatus = statusFilter === 'All' || r.status?.toLowerCase() === statusFilter.toLowerCase();
- return matchFloor && matchStatus;
+ return matchStatus;
  });
 
  const card = isDarkMode ? 'bg-[#0c0c0e] border-zinc-800/50' : 'bg-white border-zinc-200 shadow-sm';
@@ -93,13 +91,9 @@ export default function RoomMapAssign() {
  </p>
  </div>
  <div className="flex items-center gap-3">
- <select value={floorFilter} onChange={e => setFloorFilter(e.target.value)}
- className={`px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none border ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800 text-white' : 'bg-white border-zinc-200'}`}>
- {floors.map(f => <option key={f} value={f}>{f === 'All' ? 'All Floors' : `Floor ${f}`}</option>)}
- </select>
  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
  className={`px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none border ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800 text-white' : 'bg-white border-zinc-200'}`}>
- {['All','Available','Occupied','Cleaning','Maintenance'].map(s => <option key={s} value={s}>{s}</option>)}
+ {['All','Available','Occupied','Dirty','InProgress','Clean','Cleaning','Maintenance'].map(s => <option key={s} value={s}>{s}</option>)}
  </select>
  <button onClick={() => { fetchRooms(); fetchDoubleBooked(); }}
  className={`p-3 rounded-xl border ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800 text-zinc-400 hover:text-[#2FA084]' : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'} transition-all`}>
@@ -191,29 +185,6 @@ export default function RoomMapAssign() {
  )}
  </div>
 
- {/* AI RULES */}
- <div className={`p-8 rounded-[2.5rem] border ${card}`}>
- <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-5 text-[#2FA084]">
- <Zap size={18} fill="#2FA084" /> AI Auto-Assignment Rules
- </h2>
- <div className="space-y-3">
- {[
- { icon: <Crown size={14} className="text-orange-400" />, rule: 'Diamond VIP / Platinum → Highest floor available' },
- { icon: <ShieldCheck size={14} className="text-blue-400" />, rule: 'Gold / Premium → Cleaned room with preference match' },
- { icon: <Zap size={14} className="text-emerald-400" />, rule: 'Standard → Next available by floor preference' },
- { icon: <AlertCircle size={14} className="text-red-400" />, rule: 'Risk flagged → Standard, no upgrades' },
- { icon: <LayoutGrid size={14} className="text-zinc-400" />, rule: 'Groups → Adjacent rooms automatically linked' },
- ].map((r, i) => (
- <div key={i} className={`p-4 rounded-2xl flex items-center gap-4 border transition-all hover:translate-x-1 ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-zinc-50 border-zinc-100'}`}>
- <div className="w-6 h-6 rounded-full bg-zinc-900 flex items-center justify-center text-[10px] font-black text-[#2FA084] border border-[#2FA084]/30 shrink-0">{i+1}</div>
- <div className="flex items-center gap-2">
- {r.icon}
- <p className={`text-[9px] font-black uppercase tracking-tight leading-relaxed ${sub}`}>{r.rule}</p>
- </div>
- </div>
- ))}
- </div>
- </div>
 
  {/* ROOM COUNTS */}
  <div className={`p-6 rounded-[2.5rem] border ${card}`}>

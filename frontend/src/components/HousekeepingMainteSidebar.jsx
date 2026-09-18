@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import useStaffSession from '../hooks/useStaffSession';
 import { 
   LayoutDashboard, 
   ClipboardList, 
@@ -22,9 +23,32 @@ const HousekeepingSidebar = ({ isDarkMode }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [time, setTime] = useState(new Date());
 
-  // Operational Counts para sa mga badges
-  const activeTasksCount = 5; 
-  const urgentRepairsCount = 2;
+  const { qs, firstName, lastName, role } = useStaffSession();
+  const displayName = `${firstName || ''} ${lastName || ''}`.trim() || 'Staff';
+
+  // Live badge counts (open tasks / unresolved repair reports)
+  const [activeTasksCount, setActiveTasksCount] = useState(0);
+  const [urgentRepairsCount, setUrgentRepairsCount] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    const loadCounts = async () => {
+      try {
+        const [tRes, mRes] = await Promise.all([
+          fetch(`/api/housekeeping/tasks${qs}`),
+          fetch(`/api/housekeeping/maintenance${qs}`),
+        ]);
+        const tData = await tRes.json();
+        const mData = await mRes.json();
+        if (!alive) return;
+        if (tRes.ok) setActiveTasksCount((tData.tasks || []).filter(t => t.status === 'Pending' || t.status === 'In Progress').length);
+        if (mRes.ok) setUrgentRepairsCount((mData.reports || []).filter(r => r.status !== 'Resolved').length);
+      } catch { /* ignore */ }
+    };
+    loadCounts();
+    const id = setInterval(loadCounts, 30000);
+    return () => { alive = false; clearInterval(id); };
+  }, [qs]);
 
   useEffect(() => {
     const handleStatusChange = () => setIsOnline(navigator.onLine);
@@ -119,10 +143,10 @@ const HousekeepingSidebar = ({ isDarkMode }) => {
               <Wrench size={18} strokeWidth={2.5} />
             </div>
             <div className="overflow-hidden">
-              <h4 className={`text-[11px] font-black uppercase tracking-tight leading-none ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Collyn Fernandez</h4>
+              <h4 className={`text-[11px] font-black uppercase tracking-tight leading-none ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>{displayName}</h4>
               <div className="flex items-center gap-1.5 mt-1.5">
                 <Activity size={10} className="text-emerald-500 animate-pulse" />
-                <p className="text-[8px] font-bold text-[#2FA084] uppercase tracking-widest opacity-80 italic">Ops Specialist</p>
+                <p className="text-[8px] font-bold text-[#2FA084] uppercase tracking-widest opacity-80 italic">{role || 'Housekeeping'}</p>
               </div>
             </div>
           </div>

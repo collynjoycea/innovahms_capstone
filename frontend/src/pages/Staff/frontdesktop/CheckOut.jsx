@@ -204,7 +204,7 @@ export default function CheckOut() {
  ? 'bg-orange-500 text-white shadow-orange-500/20'
  : 'bg-[#2FA084] text-black shadow-[#2FA084]/10'
  }`}>
- <LogOut size={13} strokeWidth={3} /> {isOverdue ? 'Force Out' : 'Process'}
+ <LogOut size={13} strokeWidth={3} /> {isOverdue ? 'Force Out' : 'Check Out'}
  </button>
  </td>
  </tr>
@@ -245,15 +245,6 @@ export default function CheckOut() {
  </div>
  </div>
 
- {/* Tabs */}
- <div className={`flex p-1 rounded-xl border ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-100 border-zinc-200'}`}>
- {[['checkout','Check-Out'],['extend','Extend'],['transfer','Transfer']].map(([k,l]) => (
- <button key={k} onClick={() => setTab(k)}
- className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${tab === k ? 'bg-[#2FA084] text-black shadow' : `${sub} hover:text-[#2FA084]`}`}>
- {l}
- </button>
- ))}
- </div>
 
  {tab === 'checkout' && (
  <button onClick={doCheckout} disabled={processing}
@@ -261,32 +252,6 @@ export default function CheckOut() {
  {processing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
  Confirm Final Check-Out
  </button>
- )}
-
- {tab === 'extend' && (
- <div className="space-y-3">
- <label className={`text-[9px] font-black uppercase tracking-widest ${sub}`}>New Check-Out Date</label>
- <input type="date" value={extDate} min={selected.checkOut} onChange={e => setExtDate(e.target.value)}
- className={`w-full p-4 rounded-2xl border outline-none focus:border-[#2FA084] ${inp}`} />
- <button onClick={doExtend} disabled={processing}
- className="w-full py-4 rounded-2xl bg-[#2FA084] text-black font-black uppercase text-[11px] tracking-widest hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
- {processing ? <Loader2 size={16} className="animate-spin" /> : <CalendarPlus size={16} />}
- Confirm Extension
- </button>
- </div>
- )}
-
- {tab === 'transfer' && (
- <div className="space-y-3">
- <label className={`text-[9px] font-black uppercase tracking-widest ${sub}`}>New Room Number</label>
- <input type="text" placeholder="e.g. 502" value={newRoom} onChange={e => setNewRoom(e.target.value)}
- className={`w-full p-4 rounded-2xl border outline-none focus:border-[#2FA084] ${inp}`} />
- <button onClick={doTransfer} disabled={processing}
- className="w-full py-4 rounded-2xl border-2 border-zinc-700 text-zinc-400 hover:border-white hover:text-white font-black uppercase text-[11px] tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2">
- {processing ? <Loader2 size={16} className="animate-spin" /> : <ArrowLeftRight size={16} />}
- Execute Transfer
- </button>
- </div>
  )}
 
  {msg.text && (

@@ -7,6 +7,35 @@ VALUES (
 )
 ON CONFLICT (email) DO NOTHING;
 
+-- Three current-day front desk arrivals with downpayments only.
+DO $$
+DECLARE
+    hotel_id_value INTEGER;
+    room_ids INTEGER[];
+    customer_ids INTEGER[];
+    reservation_index INTEGER;
+BEGIN
+    SELECT id INTO hotel_id_value FROM hotels ORDER BY id LIMIT 1;
+    SELECT ARRAY_AGG(id ORDER BY id) INTO room_ids FROM (SELECT id FROM rooms WHERE hotel_id = hotel_id_value ORDER BY id LIMIT 3) x;
+    SELECT ARRAY_AGG(id ORDER BY id) INTO customer_ids FROM (SELECT id FROM customers ORDER BY id LIMIT 3) y;
+    IF hotel_id_value IS NOT NULL AND COALESCE(array_length(room_ids, 1), 0) >= 3 AND COALESCE(array_length(customer_ids, 1), 0) >= 3 THEN
+        FOR reservation_index IN 1..3 LOOP
+            INSERT INTO reservations (
+                booking_number, customer_id, room_id, hotel_id, check_in_date, check_out_date,
+                total_nights, total_amount, deposit_amount, payment_method, status, payment_status
+            )
+            SELECT
+                'DEMO-DP-' || reservation_index || '-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD'),
+                customer_ids[reservation_index], room_ids[reservation_index], hotel_id_value,
+                CURRENT_DATE, CURRENT_DATE + 1, 1, 5000.00, 1500.00, 'cash', 'CONFIRMED', 'DOWNPAYMENT'
+            WHERE NOT EXISTS (
+                SELECT 1 FROM reservations r
+                WHERE r.booking_number = 'DEMO-DP-' || reservation_index || '-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD')
+            );
+        END LOOP;
+    END IF;
+END $$;
+
 -- Membership packages
 INSERT INTO membership_packages (name, slug, description, monthly_price, annual_price, max_rooms, features, is_active)
 VALUES
@@ -188,3 +217,37 @@ INSERT INTO notification_types (type_key, name, description, category, priority,
  'Maintenance due: {{equipment_name}} - {{location}}',
  'Maintenance due: {{equipment_name}} - {{location}}')
 ON CONFLICT (type_key) DO NOTHING;
+
+-- Test housekeeping staff (login: hk.test@innovahms.test / Housekeep@2026, hotel code = first hotel's code)
+INSERT INTO staff (hotel_id, first_name, last_name, email, contact_number, password_hash, role, hotel_code, status)
+SELECT h.id, 'Test', 'Housekeeper', 'hk.test@innovahms.test', '+639171234567',
+       'scrypt:32768:8:1$S29q5nLvBt9P43tS$c1e1e8cdf9ed312569042559784795ee3766430d9dfee37e389760c63a386b54508e74d59bae335317e0ebf54e3f23d0b55f6082ba90e9a7ae85ad06aed1a755',
+       'Housekeeping & Maintenance', COALESCE(NULLIF(UPPER(h.hotel_code), ''), 'INNOVAHMS-' || h.id), 'Active'
+FROM hotels h
+ORDER BY h.id
+LIMIT 1
+ON CONFLICT (email) DO NOTHING;
+
+-- Rooms: allow housekeeping statuses. After front desk check-out a room is set to 'Dirty'
+-- and must go Dirty -> InProgress -> Clean -> Available before it can be booked again.
+DO $$
+DECLARE c RECORD;
+BEGIN
+    FOR c IN
+        SELECT conname FROM pg_constraint
+        WHERE conrelid = 'rooms'::regclass AND contype = 'c'
+          AND pg_get_constraintdef(oid) ILIKE '%status%'
+    LOOP
+        EXECUTE format('ALTER TABLE rooms DROP CONSTRAINT %I', c.conname);
+    END LOOP;
+    ALTER TABLE rooms ADD CONSTRAINT rooms_status_check
+        CHECK (status IN ('Available','Occupied','Maintenance','Cleaning','Dirty','InProgress','Clean','Reserved')) NOT VALID;
+END $$;
+
+-- Sample housekeeping tasks for the test user's hotel (uses that hotel's real rooms; only if it has no tasks yet)
+INSERT INTO hk_tasks (hotel_id, room_id, room_label, task_type, assigned_to, staff_name, priority, status, notes, scheduled_time)
+SELECT s.hotel_id, r.id, r.room_number, 'Full Clean', s.id, 'Test Housekeeper', 'HIGH', 'Pending', 'Sample task - clean before next check-in', '14:00'
+FROM staff s
+JOIN LATERAL (SELECT id, room_number FROM rooms WHERE hotel_id = s.hotel_id ORDER BY id LIMIT 3) r ON TRUE
+WHERE s.email = 'hk.test@innovahms.test'
+  AND NOT EXISTS (SELECT 1 FROM hk_tasks t WHERE t.hotel_id = s.hotel_id);

@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import psycopg2
 from psycopg2 import sql
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from google.oauth2 import id_token
@@ -20,6 +20,13 @@ from email.message import EmailMessage
 from html import escape
 from datetime import date, datetime, timedelta, timezone
 from collections import Counter, defaultdict
+
+# Philippine timezone — used for staff attendance (time-in/time-out/shift-status)
+# so "today" always matches Manila's calendar day, regardless of the server's
+# own OS/system timezone (e.g. if the host runs on UTC). Fixed +8 offset —
+# the Philippines has no daylight saving time — so this needs no tzdata
+# package (unlike zoneinfo.ZoneInfo, which fails on Windows without it).
+PH_TZ = timezone(timedelta(hours=8))
 
 try:
     from .database import bootstrap as db_bootstrap
@@ -1490,7 +1497,7 @@ def _seed_membership_packages(cur):
                 package["monthly_price"],
                 package["annual_price"],
                 package["max_rooms"],
-                package["features"],
+                Json(package["features"]),
                 package["is_popular"],
                 package["display_order"],
             ),
@@ -11835,10 +11842,11 @@ def auto_checkout_overdue():
             RETURNING id, booking_number, check_out_date, room_id
         """, (today,))
         rows = cur.fetchall() or []
-        # Free up rooms
+        # Rooms need cleaning before they can be sold again
         for row in rows:
             if row.get('room_id'):
-                cur.execute("UPDATE rooms SET status = 'Available' WHERE id = %s", (row['room_id'],))
+                cur.execute("UPDATE rooms SET status = 'Dirty' WHERE id = %s", (row['room_id'],))
+                _hk_queue_cleaning_task(cur, row['room_id'])
         conn.commit()
         result = [{'id': r['id'], 'bookingNumber': r['booking_number'], 'checkOut': r['check_out_date'].isoformat()} for r in rows]
         if result:
@@ -12001,7 +12009,7 @@ def staff_checkout_queue():
 
 @app.route('/api/staff/checkout/<int:reservation_id>', methods=['PUT'])
 def staff_process_checkout(reservation_id):
-    """Process final checkout — sets status to CHECKED_OUT, room to Available."""
+    """Process final checkout — sets status to CHECKED_OUT, room to Dirty (housekeeping must clean it before it is Available)."""
     conn = None
     cur = None
     try:
@@ -12015,11 +12023,12 @@ def staff_process_checkout(reservation_id):
         row = cur.fetchone()
         if not row:
             return jsonify({'error': 'Reservation not found or not checked in.'}), 404
-        # Free up the room
+        # Room goes to housekeeping first, NOT straight to Available
         if row.get('room_id'):
-            cur.execute("UPDATE rooms SET status = 'Available' WHERE id = %s", (row['room_id'],))
+            cur.execute("UPDATE rooms SET status = 'Dirty' WHERE id = %s", (row['room_id'],))
+            _hk_queue_cleaning_task(cur, row['room_id'])
         conn.commit()
-        return jsonify({'message': f"{row['booking_number']} checked out. Room freed.", 'bookingNumber': row['booking_number']}), 200
+        return jsonify({'message': f"{row['booking_number']} checked out. Room sent to housekeeping for cleaning.", 'bookingNumber': row['booking_number']}), 200
     except Exception as e:
         if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
@@ -12100,9 +12109,10 @@ def staff_transfer_room(reservation_id):
         updated = cur.fetchone()
         if not updated:
             return jsonify({'error': 'Reservation not found.'}), 404
-        # Free old room, occupy new room
+        # Old room needs cleaning, occupy new room
         if old_room_id:
-            cur.execute("UPDATE rooms SET status = 'Available' WHERE id = %s", (old_room_id,))
+            cur.execute("UPDATE rooms SET status = 'Dirty' WHERE id = %s", (old_room_id,))
+            _hk_queue_cleaning_task(cur, old_room_id)
         cur.execute("UPDATE rooms SET status = 'Occupied' WHERE id = %s", (new_room['id'],))
         conn.commit()
         return jsonify({'message': f"Transferred to Room {new_room_number}.", 'bookingNumber': updated['booking_number']}), 200
@@ -12360,8 +12370,10 @@ def staff_time_in():
             return jsonify({'error': 'staffId is required'}), 400
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        today = datetime.now().date()
-        now   = datetime.now()
+        # Naive Manila-local time — keeps it consistent with existing rows
+        # (column is TIMESTAMP WITHOUT TIME ZONE) regardless of server OS timezone.
+        now   = datetime.now(PH_TZ).replace(tzinfo=None)
+        today = now.date()
         # Check if already clocked in today
         cur.execute("SELECT id, clock_in FROM attendance WHERE staff_id = %s AND date = %s", (staff_id, today))
         existing = cur.fetchone()
@@ -12399,8 +12411,8 @@ def staff_time_out():
             return jsonify({'error': 'staffId is required'}), 400
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        today = datetime.now().date()
-        now   = datetime.now()
+        now   = datetime.now(PH_TZ).replace(tzinfo=None)
+        today = now.date()
         cur.execute("SELECT id, clock_in, clock_out FROM attendance WHERE staff_id = %s AND date = %s", (staff_id, today))
         row = cur.fetchone()
         if not row or not row.get('clock_in'):
@@ -12428,7 +12440,7 @@ def staff_shift_status(staff_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        today = datetime.now().date()
+        today = datetime.now(PH_TZ).date()
         cur.execute("""
             SELECT a.clock_in, a.clock_out, a.status,
                    s.first_name, s.last_name, s.role, h.hotel_name
@@ -12446,7 +12458,7 @@ def staff_shift_status(staff_id):
         if ci and co:
             hours = round((co - ci).total_seconds() / 3600, 2)
         elif ci:
-            hours = round((datetime.now() - ci).total_seconds() / 3600, 2)
+            hours = round((datetime.now(PH_TZ).replace(tzinfo=None) - ci).total_seconds() / 3600, 2)
         return jsonify({
             'staffId': staff_id,
             'name': f"{row.get('first_name','')} {row.get('last_name','')}".strip(),
@@ -12466,7 +12478,7 @@ def staff_shift_status(staff_id):
 
 @app.route('/api/staff/reservations/<int:reservation_id>/pay', methods=['POST'])
 def staff_process_payment(reservation_id):
-    """Process cash payment at front desk — records amount paid and marks as CONFIRMED + CHECKED_IN."""
+    """Process a front desk payment without checking the guest in."""
     conn = None
     cur = None
     try:
@@ -12480,6 +12492,7 @@ def staff_process_payment(reservation_id):
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_reservation_pricing_columns(cur)
 
         cur.execute("""
             SELECT id, booking_number, total_amount, status, deposit_amount
@@ -12495,18 +12508,16 @@ def staff_process_payment(reservation_id):
         balance = max(0, total - new_deposit)
         is_fully_paid = new_deposit >= total
 
-        # Update deposit_amount, payment_method, status -> CONFIRMED, and check in
-        new_status = 'CHECKED_IN' if is_fully_paid else res.get('status')
-        # If partial payment, keep current status but update deposit
+        # Payment is recorded separately from the physical check-in action.
         cur.execute("""
             UPDATE reservations
             SET deposit_amount  = %s,
                 payment_method  = %s,
                 status          = CASE
-                    WHEN %s >= total_amount THEN 'CHECKED_IN'
                     WHEN status IN ('PENDING','CONFIRMED') THEN 'CONFIRMED'
                     ELSE status
                 END,
+                payment_status = CASE WHEN %s >= total_amount THEN 'FULLY_PAID' ELSE 'DOWNPAYMENT' END,
                 special_requests = COALESCE(special_requests,'') || %s
             WHERE id = %s
             RETURNING id, booking_number, status, deposit_amount, total_amount
@@ -12529,6 +12540,65 @@ def staff_process_payment(reservation_id):
             'totalAmount': _to_float(row.get('total_amount'), 0),
             'balance': max(0, _to_float(row.get('total_amount'), 0) - _to_float(row.get('deposit_amount'), 0)),
             'isFullyPaid': _to_float(row.get('deposit_amount'), 0) >= _to_float(row.get('total_amount'), 0),
+        }), 200
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/staff/reservations/<int:reservation_id>/pay-balance', methods=['POST'])
+def staff_pay_reservation_balance(reservation_id):
+    """Record the remaining balance without checking the guest in."""
+    conn = None
+    cur = None
+    try:
+        data = request.json or {}
+        payment_method = (data.get('paymentMethod') or 'cash').strip()
+        notes = (data.get('notes') or '').strip()
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_reservation_pricing_columns(cur)
+        cur.execute("""
+            SELECT id, booking_number, total_amount, deposit_amount, status
+            FROM reservations
+            WHERE id = %s
+            FOR UPDATE
+        """, (reservation_id,))
+        reservation = cur.fetchone()
+        if not reservation:
+            return jsonify({'error': 'Reservation not found.'}), 404
+
+        total = _to_float(reservation.get('total_amount'), 0)
+        deposit = _to_float(reservation.get('deposit_amount'), 0)
+        balance = max(0, total - deposit)
+        if balance <= 0:
+            return jsonify({'error': 'Reservation is already fully paid.'}), 400
+
+        cur.execute("""
+            UPDATE reservations
+            SET deposit_amount = total_amount,
+                payment_method = %s,
+                special_requests = COALESCE(special_requests, '') || %s
+            WHERE id = %s
+            RETURNING id, booking_number, total_amount, deposit_amount, status
+        """, (
+            payment_method,
+            f' [Full payment: {payment_method} ₱{balance:,.2f}{" - " + notes if notes else ""}]',
+            reservation_id,
+        ))
+        row = cur.fetchone()
+        conn.commit()
+        return jsonify({
+            'message': 'Full payment recorded. Guest may now check in.',
+            'bookingNumber': row.get('booking_number'),
+            'status': row.get('status'),
+            'amountPaid': balance,
+            'totalAmount': total,
+            'balance': 0,
+            'isFullyPaid': True,
         }), 200
     except Exception as e:
         if conn: conn.rollback()
@@ -12644,6 +12714,7 @@ def staff_reservations():
                 'amount': _to_float(row.get('total_amount'), 0),
                 'deposit': _to_float(row.get('deposit_amount'), 0),
                 'balance': max(0, _to_float(row.get('total_amount'), 0) - _to_float(row.get('deposit_amount'), 0)),
+                'paymentStatus': 'FULLY_PAID' if _to_float(row.get('deposit_amount'), 0) >= _to_float(row.get('total_amount'), 0) else 'DOWNPAYMENT',
                 'status': status,
                 'paymentMethod': row.get('payment_method') or 'cash',
                 'specialRequests': row.get('special_requests') or '',
@@ -12697,14 +12768,24 @@ def staff_check_in(reservation_id):
         hotel_scope = " AND EXISTS (SELECT 1 FROM rooms scoped_room WHERE scoped_room.id = reservations.room_id AND scoped_room.hotel_id = %s)" if hotel_id else ""
         params = [reservation_id, hotel_id] if hotel_id else [reservation_id]
         cur.execute("""
-            UPDATE reservations
-            SET status = 'CHECKED_IN', check_in_time = LOCALTIME
-            WHERE id = %s AND status IN ('PENDING','CONFIRMED')
+                        UPDATE reservations
+                        SET status = 'CHECKED_IN', check_in_time = LOCALTIME
+                        WHERE id = %s
+                            AND status IN ('PENDING','CONFIRMED')
+                            AND deposit_amount >= total_amount
         """.rstrip() + hotel_scope + """
             RETURNING id, booking_number, status, room_id
         """, params)
         row = cur.fetchone()
         if not row:
+            cur.execute("""
+                SELECT status, deposit_amount, total_amount
+                FROM reservations
+                WHERE id = %s
+            """, (reservation_id,))
+            reservation = cur.fetchone()
+            if reservation and _to_float(reservation.get('deposit_amount'), 0) < _to_float(reservation.get('total_amount'), 0):
+                return jsonify({'error': 'Full payment is required before check-in.'}), 400
             return jsonify({'error': 'Reservation not found or already checked in.'}), 404
         if row.get('room_id'):
             cur.execute("UPDATE rooms SET status = 'Occupied' WHERE id = %s", (row['room_id'],))
@@ -12728,11 +12809,14 @@ def staff_check_out(reservation_id):
         cur.execute("""
             UPDATE reservations SET status = 'CHECKED_OUT'
             WHERE id = %s AND status = 'CHECKED_IN'
-            RETURNING id, booking_number, status
+            RETURNING id, booking_number, status, room_id
         """, (reservation_id,))
         row = cur.fetchone()
         if not row:
             return jsonify({'error': 'Reservation not found or not checked in.'}), 404
+        if row.get('room_id'):
+            cur.execute("UPDATE rooms SET status = 'Dirty' WHERE id = %s", (row['room_id'],))
+            _hk_queue_cleaning_task(cur, row['room_id'])
         conn.commit()
         return jsonify({'message': 'Guest checked out successfully.', 'bookingNumber': row.get('booking_number'), 'status': row.get('status')}), 200
     except Exception as e:
@@ -12761,6 +12845,50 @@ def migrate_arrival_time():
         return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)
+
+def _hk_json_row(row):
+    """Plain dict that jsonify can serialize. Flask cannot serialize datetime.time values
+    (hk_tasks.scheduled_time, hk_schedules.shift_start/shift_end), which made the whole
+    endpoint return a 500 and the pages look empty."""
+    out = {}
+    for key, value in dict(row).items():
+        if hasattr(value, 'strftime') and not isinstance(value, (date, datetime)):
+            value = value.strftime('%H:%M')
+        out[key] = value
+    return out
+
+
+def _hk_queue_cleaning_task(cur, room_id):
+    """A room was just vacated (checkout / transfer): give housekeeping a 'Full Clean' task for it.
+    Skips if that room already has an open cleaning task. Uses a savepoint so a problem here
+    can never break the checkout itself."""
+    if not room_id:
+        return
+    try:
+        cur.execute("SAVEPOINT hk_clean_task")
+        cur.execute("SELECT id, hotel_id, room_number FROM rooms WHERE id = %s", (room_id,))
+        room = cur.fetchone()
+        if room:
+            cur.execute(
+                "SELECT 1 FROM hk_tasks WHERE room_id = %s AND task_type = 'Full Clean' AND status IN ('Pending','In Progress') LIMIT 1",
+                (room_id,),
+            )
+            if not cur.fetchone():
+                cur.execute(
+                    """
+                    INSERT INTO hk_tasks (hotel_id, room_id, room_label, task_type, priority, status, notes, scheduled_time)
+                    VALUES (%s, %s, %s, 'Full Clean', 'HIGH', 'Pending', 'Guest checked out - clean before next booking', LOCALTIME(0))
+                    """,
+                    (room['hotel_id'], room['id'], str(room['room_number'] or room['id'])),
+                )
+        cur.execute("RELEASE SAVEPOINT hk_clean_task")
+    except Exception as e:
+        print(f"[HK] could not queue cleaning task for room {room_id}: {e}")
+        try:
+            cur.execute("ROLLBACK TO SAVEPOINT hk_clean_task")
+        except Exception:
+            pass
+
 
 def _run_auto_cancel():
     """Cancel PENDING/CONFIRMED reservations where check_in_date < today and guest never arrived."""
@@ -12845,7 +12973,8 @@ def _run_auto_checkout():
         rows = cur.fetchall() or []
         for row in rows:
             if row.get('room_id'):
-                cur.execute("UPDATE rooms SET status = 'Available' WHERE id = %s", (row['room_id'],))
+                cur.execute("UPDATE rooms SET status = 'Dirty' WHERE id = %s", (row['room_id'],))
+                _hk_queue_cleaning_task(cur, row['room_id'])
         conn.commit()
         if rows:
             print(f"[Auto-Checkout] {len(rows)} guest(s) auto-checked-out")
@@ -12908,10 +13037,15 @@ def hk_update_room_status(room_number):
         q = "UPDATE rooms SET status = %s WHERE room_number = %s"
         p = [new_status, room_number]
         if hotel_id: q += " AND hotel_id = %s"; p.append(hotel_id)
+        if new_status == 'Available':
+            q += " AND status <> 'Occupied'"  # a guest is inside - only front desk check-out frees it
         q += " RETURNING id, room_number, status"
         cur.execute(q, p)
         row = cur.fetchone()
-        if not row: return jsonify({'error': 'Room not found.'}), 404
+        if not row:
+            if new_status == 'Available':
+                return jsonify({'error': f'Room {room_number} is occupied or not found.'}), 409
+            return jsonify({'error': 'Room not found.'}), 404
         conn.commit()
         return jsonify({'message': f'Room {room_number} updated to {new_status}.', 'status': new_status}), 200
     except Exception as e:
@@ -13425,7 +13559,7 @@ def hk_dashboard_stats():
         cur.execute(f"SELECT COUNT(*) AS c FROM hk_tasks {q} AND status='Completed' AND completed_at::date=CURRENT_DATE" if hotel_id else "SELECT COUNT(*) AS c FROM hk_tasks WHERE status='Completed' AND completed_at::date=CURRENT_DATE", p)
         completed = (cur.fetchone() or {}).get('c', 0)
 
-        cur.execute(f"SELECT COUNT(*) AS c FROM hk_room_status {q} AND status='Dirty'" if hotel_id else "SELECT COUNT(*) AS c FROM hk_room_status WHERE status='Dirty'", p)
+        cur.execute(f"SELECT COUNT(*) AS c FROM rooms {q} AND status='Dirty'" if hotel_id else "SELECT COUNT(*) AS c FROM rooms WHERE status='Dirty'", p)
         dirty = (cur.fetchone() or {}).get('c', 0)
 
         # Priority tasks
@@ -13437,9 +13571,9 @@ def hk_dashboard_stats():
 
         # Room grid
         if hotel_id:
-            cur.execute("SELECT room_label AS id, room_type AS type, status FROM hk_room_status WHERE hotel_id=%s ORDER BY room_label LIMIT 12", [hotel_id])
+            cur.execute("SELECT room_number AS id, room_type AS type, status FROM rooms WHERE hotel_id=%s ORDER BY (status='Dirty') DESC, room_number LIMIT 12", [hotel_id])
         else:
-            cur.execute("SELECT room_label AS id, room_type AS type, status FROM hk_room_status ORDER BY room_label LIMIT 12")
+            cur.execute("SELECT room_number AS id, room_type AS type, status FROM rooms ORDER BY (status='Dirty') DESC, room_number LIMIT 12")
         rooms = cur.fetchall()
 
         # Supplies
@@ -13451,7 +13585,8 @@ def hk_dashboard_stats():
         supplies = [{'name': s['name'], 'current': s['current'], 'max': s['max'], 'alert': s['current'] < (s['max'] * 0.4)} for s in supplies_raw]
 
         priority_tasks = [{'id': t['room_label'], 'type': t['task_type'], 'staff': t['staff_name'] or '', 'time': str(t['scheduled_time'] or ''), 'status': t['priority'], 'note': t['notes'] or ''} for t in tasks]
-        room_grid = [{'id': r['id'], 'type': r['type'] or '', 'status': r['status']} for r in rooms]
+        grid_labels = {'Available': 'Avail', 'InProgress': 'In Prog', 'Maintenance': 'Maint.', 'Cleaning': 'In Prog'}
+        room_grid = [{'id': r['id'], 'type': r['type'] or '', 'status': grid_labels.get(r['status'], r['status'])} for r in rooms]
 
         return jsonify({
             'pendingTasks': pending, 'inProgress': in_prog,
@@ -13476,7 +13611,7 @@ def hk_get_tasks():
         else:
             cur.execute("SELECT * FROM hk_tasks ORDER BY created_at DESC")
         rows = cur.fetchall()
-        return jsonify({'tasks': [dict(r) for r in rows]}), 200
+        return jsonify({'tasks': [_hk_json_row(r) for r in rows]}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
@@ -13494,10 +13629,10 @@ def hk_create_task():
             INSERT INTO hk_tasks (hotel_id, room_label, task_type, assigned_to, staff_name, priority, notes, scheduled_time)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
         """, [d.get('hotel_id'), d.get('room_label'), d.get('task_type'), d.get('assigned_to'),
-              d.get('staff_name'), d.get('priority','NORMAL'), d.get('notes'), d.get('scheduled_time')])
+              d.get('staff_name'), d.get('priority','NORMAL'), d.get('notes'), d.get('scheduled_time') or None])
         task = cur.fetchone()
         conn.commit()
-        return jsonify({'task': dict(task)}), 201
+        return jsonify({'task': _hk_json_row(task)}), 201
     except Exception as e:
         if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
@@ -13673,7 +13808,7 @@ def hk_get_history():
         avg_time = round((cur.fetchone() or {}).get('avg') or 0)
 
         return jsonify({
-            'history': [dict(r) for r in rows],
+            'history': [_hk_json_row(r) for r in rows],
             'stats': {'completedThisWeek': week_count, 'avgTaskTime': f"{avg_time}min" if avg_time else 'N/A', 'performanceScore': '89%'}
         }), 200
     except Exception as e:
@@ -13699,7 +13834,7 @@ def hk_get_schedule():
         w = "WHERE " + " AND ".join(where) if where else ""
         cur.execute(f"SELECT * FROM hk_schedules {w} ORDER BY shift_start", params)
         rows = cur.fetchall()
-        return jsonify({'schedules': [dict(r) for r in rows]}), 200
+        return jsonify({'schedules': [_hk_json_row(r) for r in rows]}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:

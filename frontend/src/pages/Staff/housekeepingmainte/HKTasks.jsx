@@ -37,7 +37,10 @@ const HKTasks = () => {
     try {
       await axios.patch(`/api/housekeeping/tasks/${selectedTask.id}/status`, { status: 'Completed', time_spent_mins: completeData.time_spent_mins });
       if (completeData.room_status) {
-        await axios.patch(`/api/housekeeping/room-status/${selectedTask.room_label}`, { hotel_id: hotelId, status: completeData.room_status === 'Ready for Guest' ? 'Clean' : 'Dirty' });
+        try {
+          // Ready for Guest -> Available (bookable again). Server refuses this if a guest is still inside.
+          await axios.patch(`/api/housekeeping/room-status/${selectedTask.room_label}`, { hotel_id: hotelId, status: completeData.room_status === 'Ready for Guest' ? 'Available' : 'Dirty' });
+        } catch {}
       }
       setActiveModal(null);
       fetchTasks();
@@ -154,7 +157,7 @@ const HKTasks = () => {
           <div className="space-y-4 text-left">
             <div>
               <label className="text-[9px] font-black uppercase tracking-widest text-[#6FCF97] mb-2 block">Room Target</label>
-              <input disabled value={`${selectedTask?.title} â€” ${selectedTask?.type}`} className={`w-full p-3 rounded-xl border ${theme.input} font-bold opacity-50`} />
+              <input disabled value={`${selectedTask?.title} — ${selectedTask?.type}`} className={`w-full p-3 rounded-xl border ${theme.input} font-bold opacity-50`} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

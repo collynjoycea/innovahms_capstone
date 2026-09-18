@@ -13,16 +13,6 @@ const FrontDesktopSidebar = ({ isDarkMode }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [time, setTime] = useState(new Date());
 
-  // Logging out only ends the browser session — it does NOT clock the staff
-  // out of their shift. Shift time-in/time-out is handled separately on the
-  // "My Shift Profile" page (see MyShiftProfile.jsx / ShiftClockWidget).
-  const handleLogout = () => {
-    localStorage.removeItem('staffSession');
-    localStorage.removeItem('staffUser');
-    window.dispatchEvent(new Event('staffSessionChanged'));
-    navigate('/staff/login');
-  };
-
   // --- DATABASE STATES PARA SA BADGES ---
   const [counts, setCounts] = useState({
     all: 0,
@@ -194,14 +184,14 @@ const FrontDesktopSidebar = ({ isDarkMode }) => {
           </div>
 
           <button 
-            onClick={handleLogout}
+            onClick={() => navigate('/staff/login')}
             className={`w-full flex items-center justify-center gap-2 px-3 py-3 rounded-lg transition-all font-black text-[10px] uppercase tracking-[0.1em] border ${
               isDarkMode 
                 ? 'bg-transparent text-gray-500 border-white/5 hover:text-red-500 hover:bg-red-500/10' 
                 : 'bg-transparent text-gray-500 border-gray-200 hover:text-red-600 hover:bg-red-50'
             }`}
           >
-            <LogOut size={14} /> Logout
+            <LogOut size={14} /> End Shift & Logout
           </button>
         </div>
       </div>
