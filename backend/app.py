@@ -13532,8 +13532,205 @@ def inv_dashboard():
     finally: _safe_close(conn, cur)
 
 
-if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+# ================================================================
+# GUEST REQUESTS
+# ================================================================
+
+def _guest_request_payload(row):
+    return {
+        'id': row['id'],
+        'guestName': row['guest_name'],
+        'roomNumber': row['room_number'],
+        'inventoryId': row.get('inventory_id'),
+        'itemName': row['item_name'],
+        'quantity': row['quantity'],
+        'priority': row['priority'],
+        'notes': row.get('notes') or '',
+        'status': row['status'],
+        'hkNote': row.get('hk_note') or '',
+        'createdAt': _serialize_date(row.get('created_at')),
+        'relayedAt': _serialize_date(row.get('relayed_at')),
+        'startedAt': _serialize_date(row.get('started_at')),
+        'deliveredAt': _serialize_date(row.get('delivered_at')),
+        'stockLeft': row.get('stock_left'),
+    }
+
+
+def _guest_request_select(hotel_id=None, statuses=None):
+    clauses = ['gr.hotel_id = %s'] if hotel_id else []
+    params = [hotel_id] if hotel_id else []
+    if statuses:
+        clauses.append('gr.status = ANY(%s)')
+        params.append(list(statuses))
+    where = ' AND '.join(clauses) or 'TRUE'
+    return f"""
+        SELECT gr.*, ii.stock_level AS stock_left
+        FROM guest_requests gr
+        LEFT JOIN inventory_items ii ON ii.id = gr.inventory_id
+        WHERE {where}
+        ORDER BY CASE gr.priority WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END,
+                 gr.created_at DESC
+    """, params
+
+
+@app.route('/api/staff/inventory-options', methods=['GET'])
+def staff_inventory_options():
+    conn = None; cur = None
+    try:
+        hotel_id = request.args.get('hotel_id', type=int)
+        conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT id, item_name, category, stock_level, max_stock, unit
+            FROM inventory_items
+            WHERE (%s IS NULL OR hotel_id = %s)
+            ORDER BY category, item_name
+        """, (hotel_id, hotel_id))
+        return jsonify({'inventory': [{
+            'id': r['id'], 'item_name': r['item_name'], 'category': r.get('category') or 'Other',
+            'current_qty': r.get('stock_level') or 0, 'max_qty': r.get('max_stock') or 0,
+            'unit': r.get('unit') or 'pcs',
+        } for r in cur.fetchall() or []]}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally: _safe_close(conn, cur)
+
+
+@app.route('/api/staff/guest-requests', methods=['GET', 'POST'])
+def staff_guest_requests():
+    conn = None; cur = None
+    try:
+        hotel_id = request.args.get('hotel_id', type=int) if request.method == 'GET' else _to_int((request.json or {}).get('hotel_id'), 0)
+        if not hotel_id:
+            return jsonify({'error': 'hotel_id is required.'}), 400
+        conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        if request.method == 'GET':
+            query, params = _guest_request_select(hotel_id)
+            cur.execute(query, params)
+            return jsonify({'requests': [_guest_request_payload(r) for r in cur.fetchall() or []]}), 200
+
+        data = request.json or {}
+        reservation_id = _to_int(data.get('reservation_id'), 0)
+        quantity = _to_int(data.get('quantity'), 0)
+        item_name = (data.get('item_name') or '').strip()
+        if not reservation_id or not item_name or quantity < 1:
+            return jsonify({'error': 'Guest, item, and a positive quantity are required.'}), 400
+        cur.execute("""
+            SELECT r.id, rm.hotel_id, rm.room_number, c.first_name, c.last_name
+            FROM reservations r
+            JOIN rooms rm ON rm.id = r.room_id
+            LEFT JOIN customers c ON c.id = r.customer_id
+            WHERE r.id = %s AND r.status = 'CHECKED_IN' AND rm.hotel_id = %s
+        """, (reservation_id, hotel_id))
+        guest = cur.fetchone()
+        if not guest:
+            return jsonify({'error': 'Guest is not currently checked in at this hotel.'}), 400
+        inventory_id = _to_int(data.get('inventory_id'), 0) or None
+        if inventory_id:
+            cur.execute("SELECT id, item_name, stock_level FROM inventory_items WHERE id = %s AND hotel_id = %s", (inventory_id, hotel_id))
+            item = cur.fetchone()
+            if not item:
+                return jsonify({'error': 'Inventory item not found.'}), 404
+            if quantity > item['stock_level']:
+                return jsonify({'error': f"Only {item['stock_level']} available in stock."}), 409
+        status = 'RELAYED' if data.get('relay') else 'RECEIVED'
+        cur.execute("""
+            INSERT INTO guest_requests
+              (hotel_id, reservation_id, guest_name, room_number, inventory_id, item_name,
+               quantity, priority, notes, status, requested_by, relayed_by, relayed_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s = 'RELAYED' THEN NOW() END)
+            RETURNING id
+        """, (hotel_id, reservation_id,
+              f"{guest.get('first_name') or ''} {guest.get('last_name') or ''}".strip(),
+              guest['room_number'], inventory_id, item_name, quantity,
+              data.get('priority') or 'NORMAL', data.get('notes') or '', status,
+              data.get('requested_by'), data.get('requested_by'), status))
+        request_id = cur.fetchone()['id']
+        conn.commit()
+        return jsonify({'message': 'Guest request saved.', 'id': request_id, 'status': status}), 201
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally: _safe_close(conn, cur)
+
+
+@app.route('/api/staff/guest-requests/<int:request_id>/<action>', methods=['PUT'])
+def staff_guest_request_action(request_id, action):
+    if action not in ('relay', 'cancel'):
+        return jsonify({'error': 'Unsupported action.'}), 400
+    conn = None; cur = None
+    try:
+        hotel_id = request.args.get('hotel_id', type=int)
+        conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        target_status = 'RELAYED' if action == 'relay' else 'CANCELLED'
+        timestamp_field = 'relayed_at' if action == 'relay' else 'cancelled_at'
+        cur.execute(f"""UPDATE guest_requests SET status = %s, {timestamp_field} = NOW()
+                      WHERE id = %s AND (%s IS NULL OR hotel_id = %s)
+                        AND status = %s RETURNING id""", (target_status, request_id, hotel_id, hotel_id, 'RECEIVED' if action == 'relay' else 'RECEIVED'))
+        if not cur.fetchone():
+            return jsonify({'error': 'Request is no longer in an actionable state.'}), 409
+        conn.commit()
+        return jsonify({'message': f'Request {target_status.lower()}.'}), 200
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally: _safe_close(conn, cur)
+
+
+@app.route('/api/housekeeping/guest-requests', methods=['GET'])
+def hk_guest_requests():
+    conn = None; cur = None
+    try:
+        hotel_id = request.args.get('hotel_id', type=int)
+        conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        query, params = _guest_request_select(hotel_id, ('RELAYED', 'IN_PROGRESS', 'DELIVERED'))
+        cur.execute(query, params)
+        return jsonify({'requests': [_guest_request_payload(r) for r in cur.fetchall() or []]}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally: _safe_close(conn, cur)
+
+
+@app.route('/api/housekeeping/guest-requests/<int:request_id>/status', methods=['PATCH'])
+def hk_guest_request_status(request_id):
+    conn = None; cur = None
+    try:
+        data = request.json or {}
+        status = data.get('status')
+        hotel_id = request.args.get('hotel_id', type=int)
+        staff_id = data.get('staff_id')
+        hk_note = (data.get('hk_note') or '').strip()
+        if status not in ('IN_PROGRESS', 'DELIVERED', 'UNAVAILABLE'):
+            return jsonify({'error': 'Invalid request status.'}), 400
+        conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM guest_requests WHERE id = %s AND (%s IS NULL OR hotel_id = %s) FOR UPDATE", (request_id, hotel_id, hotel_id))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'error': 'Request not found.'}), 404
+        allowed = {'IN_PROGRESS': ('RELAYED',), 'UNAVAILABLE': ('RELAYED', 'IN_PROGRESS'), 'DELIVERED': ('IN_PROGRESS',)}
+        if row['status'] not in allowed[status]:
+            return jsonify({'error': f"Request cannot be marked {status.lower()} from {row['status'].lower()}."}), 409
+        if status == 'DELIVERED' and row['inventory_id']:
+            cur.execute("SELECT id, stock_level, hotel_id FROM inventory_items WHERE id = %s FOR UPDATE", (row['inventory_id'],))
+            item = cur.fetchone()
+            if not item or item['stock_level'] < row['quantity']:
+                return jsonify({'error': f"Insufficient stock. Available: {item['stock_level'] if item else 0}."}), 409
+            new_stock = item['stock_level'] - row['quantity']
+            cur.execute("UPDATE inventory_items SET stock_level = %s, updated_at = NOW() WHERE id = %s", (new_stock, item['id']))
+            cur.execute("""INSERT INTO stock_movements
+                (hotel_id, item_id, movement_type, quantity, department, reason, performed_by, staff_id)
+                VALUES (%s,%s,'OUT',%s,'Housekeeping','Guest request delivery','Housekeeping',%s)""",
+                        (item['hotel_id'], item['id'], row['quantity'], staff_id))
+        timestamp_field = {'IN_PROGRESS': 'started_at', 'DELIVERED': 'delivered_at', 'UNAVAILABLE': 'unavailable_at'}[status]
+        cur.execute(f"""UPDATE guest_requests SET status = %s, hk_staff_id = %s,
+                      hk_note = CASE WHEN %s <> '' THEN %s ELSE hk_note END,
+                      {timestamp_field} = NOW() WHERE id = %s""",
+                    (status, staff_id, hk_note, hk_note, request_id))
+        conn.commit()
+        return jsonify({'message': f'Request marked {status.lower()}.'}), 200
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally: _safe_close(conn, cur)
 
 
 # ================================================================

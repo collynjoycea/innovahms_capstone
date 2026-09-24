@@ -27,7 +27,8 @@ const FrontDesktopSidebar = ({ isDarkMode }) => {
   const [counts, setCounts] = useState({
     all: 0,
     checkIn: 0,
-    checkOut: 0
+    checkOut: 0,
+    guestRequests: 0
   });
 
   // 1. Fetch Counts from Database
@@ -42,8 +43,13 @@ const FrontDesktopSidebar = ({ isDarkMode }) => {
         // Bilang ng mga CONFIRMED na (Waiting for Check-In)
         checkIn: data.filter(res => res.status === 'CONFIRMED').length,
         // Bilang ng mga CHECKED_IN na (Waiting for Check-Out)
-        checkOut: data.filter(res => res.status === 'CHECKED_IN').length
+        checkOut: data.filter(res => res.status === 'CHECKED_IN').length,
+        guestRequests: 0
       });
+      try {
+        const requests = await axios.get('/api/staff/guest-requests');
+        setCounts(previous => ({ ...previous, guestRequests: (requests.data.requests || []).filter(r => r.status === 'RECEIVED').length }));
+      } catch { /* ignore */ }
     } catch (error) {
       console.error("Error fetching sidebar badges:", error);
     }
@@ -99,7 +105,8 @@ const FrontDesktopSidebar = ({ isDarkMode }) => {
     {
       title: "GUEST CRM",
       items: [
-        { name: "Guest Profiles", path: "/staff/guest-profiles", icon: <Users /> }
+        { name: "Guest Profiles", path: "/staff/guest-profiles", icon: <Users /> },
+        { name: "Guest Requests", path: "/staff/guest-requests", icon: <Clock />, badge: counts.guestRequests > 0 ? counts.guestRequests : null }
       ]
     }
   ];

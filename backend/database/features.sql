@@ -154,6 +154,34 @@ CREATE TABLE IF NOT EXISTS hk_settings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS guest_requests (
+    id SERIAL PRIMARY KEY,
+    hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+    reservation_id INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+    guest_name VARCHAR(200) NOT NULL,
+    room_number VARCHAR(50) NOT NULL,
+    inventory_id INTEGER,
+    item_name VARCHAR(200) NOT NULL,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    priority VARCHAR(20) NOT NULL DEFAULT 'NORMAL',
+    notes TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'RECEIVED',
+    requested_by INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+    relayed_by INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+    hk_staff_id INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+    hk_note TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    relayed_at TIMESTAMP,
+    started_at TIMESTAMP,
+    delivered_at TIMESTAMP,
+    unavailable_at TIMESTAMP,
+    cancelled_at TIMESTAMP,
+    CONSTRAINT guest_requests_status_check CHECK (status IN ('RECEIVED', 'RELAYED', 'IN_PROGRESS', 'DELIVERED', 'UNAVAILABLE', 'CANCELLED'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_guest_requests_hotel_status ON guest_requests(hotel_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_guest_requests_reservation ON guest_requests(reservation_id);
+
 -- Inventory Management
 CREATE TABLE IF NOT EXISTS inventory_items (
     id SERIAL PRIMARY KEY,
