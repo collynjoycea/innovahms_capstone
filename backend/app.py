@@ -13825,6 +13825,20 @@ def hk_get_schedule():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS hk_schedules (
+                id SERIAL PRIMARY KEY,
+                hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+                shift_date DATE NOT NULL,
+                shift_start TIME NOT NULL,
+                shift_end TIME NOT NULL,
+                task_label VARCHAR(160) NOT NULL DEFAULT 'Housekeeping Shift',
+                zone VARCHAR(160) DEFAULT '',
+                staff_id INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+                staff_name VARCHAR(120) DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         params = []
         where = []
         if hotel_id:
@@ -13836,6 +13850,72 @@ def hk_get_schedule():
         rows = cur.fetchall()
         return jsonify({'schedules': [_hk_json_row(r) for r in rows]}), 200
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/housekeeping/settings', methods=['GET'])
+def hk_get_settings():
+    hotel_id = request.args.get('hotel_id', type=int)
+    if not hotel_id:
+        return jsonify({'error': 'hotel_id is required.'}), 400
+    conn = None; cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS hk_settings (
+                hotel_id INTEGER PRIMARY KEY REFERENCES hotels(id) ON DELETE CASCADE,
+                average_clean_time INTEGER NOT NULL DEFAULT 42,
+                dispatch_logic VARCHAR(40) NOT NULL DEFAULT 'Performance Based',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("SELECT average_clean_time, dispatch_logic FROM hk_settings WHERE hotel_id=%s", [hotel_id])
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'averageCleanTime': 42, 'dispatchLogic': 'Performance Based'}), 200
+        return jsonify({
+            'averageCleanTime': row['average_clean_time'],
+            'dispatchLogic': row['dispatch_logic'],
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/housekeeping/settings', methods=['PUT'])
+def hk_save_settings():
+    data = request.json or {}
+    hotel_id = data.get('hotel_id')
+    if not hotel_id:
+        return jsonify({'error': 'hotel_id is required.'}), 400
+    conn = None; cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS hk_settings (
+                hotel_id INTEGER PRIMARY KEY REFERENCES hotels(id) ON DELETE CASCADE,
+                average_clean_time INTEGER NOT NULL DEFAULT 42,
+                dispatch_logic VARCHAR(40) NOT NULL DEFAULT 'Performance Based',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            INSERT INTO hk_settings (hotel_id, average_clean_time, dispatch_logic)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (hotel_id) DO UPDATE SET
+                average_clean_time=EXCLUDED.average_clean_time,
+                dispatch_logic=EXCLUDED.dispatch_logic,
+                updated_at=NOW()
+        """, [hotel_id, data.get('average_clean_time', 42), data.get('dispatch_logic', 'Performance Based')])
+        conn.commit()
+        return jsonify({'message': 'Housekeeping settings saved.'}), 200
+    except Exception as e:
+        if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)

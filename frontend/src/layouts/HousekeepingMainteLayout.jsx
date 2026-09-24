@@ -40,7 +40,7 @@ const HousekeepingMainteLayout = () => {
         {/* 6. Header: May Toggle Button at Profile */}
         <HousekeepingMainteHeader isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
         
-        <main className="flex-1 overflow-y-auto scrollbar-thin custom-housekeeping-scroll">
+        <main className="flex-1 overflow-y-auto scrollbar-thin custom-housekeeping-scroll housekeeping-staff-ui">
           <Outlet context={{ isDarkMode }} />
         </main>
       </div>

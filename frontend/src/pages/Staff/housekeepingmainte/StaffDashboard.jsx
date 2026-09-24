@@ -14,15 +14,19 @@ const HousekeepingMainteDashboard = () => {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const response = await fetch(`/api/housekeeping/dashboard-stats${qs}`);
+        if (!response.ok) throw new Error('Dashboard request failed');
         const result = await response.json();
         setData(result);
       } catch (error) {
-        // Fallback Data
+        setLoadError('Unable to load live housekeeping data.');
+        /* Legacy demo payload retained only as documentation; live data is required. */
+        /*
         setData({
           pendingTasks: 5,
           inProgress: 2,
@@ -47,12 +51,15 @@ const HousekeepingMainteDashboard = () => {
             { name: 'Toiletries', current: 28, max: 100, alert: true }
           ]
         });
+        */
+        // Never present demo values when the database is unavailable.
+        setData({ pendingTasks: 0, inProgress: 0, completedToday: 0, roomsNeedingClean: 0, priorityTasks: [], roomGrid: [], supplies: [] });
       } finally {
         setLoading(false);
       }
     };
     fetchStats();
-  }, []);
+  }, [qs]);
 
   // DYNAMIC THEME ENGINE
   const theme = {
@@ -94,6 +101,11 @@ const HousekeepingMainteDashboard = () => {
     <div className={`p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 ${theme.container} min-h-screen text-left`}>
       
       {/* HEADER SECTION */}
+      {loadError && (
+        <div className="border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 rounded">
+          {loadError}
+        </div>
+      )}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className={`text-4xl font-black uppercase tracking-tighter ${theme.textMain}`}>

@@ -109,9 +109,7 @@ const MaintenanceReport = () => {
             {isDarkMode && <div className="absolute top-0 right-0 w-64 h-64 bg-[#6FCF97]/5 blur-[100px] rounded-full" />}
 
             <div className="flex items-center gap-5 mb-10 relative z-10">
-              <div className="p-4 rounded-2xl bg-red-500/10 text-red-500 border border-red-500/20">
-                <AlertOctagon size={28} />
-              </div>
+              
               <div className="text-left">
                 <h2 className="text-2xl font-black uppercase tracking-widest">Record Issue</h2>
                 <p className={`text-[10px] font-black ${theme.textSub} uppercase tracking-widest`}>Immediate dispatch system</p>

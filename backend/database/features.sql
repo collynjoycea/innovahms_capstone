@@ -134,6 +134,26 @@ CREATE TABLE IF NOT EXISTS hk_inventory (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS hk_schedules (
+    id SERIAL PRIMARY KEY,
+    hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+    shift_date DATE NOT NULL,
+    shift_start TIME NOT NULL,
+    shift_end TIME NOT NULL,
+    task_label VARCHAR(160) NOT NULL DEFAULT 'Housekeeping Shift',
+    zone VARCHAR(160) DEFAULT '',
+    staff_id INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+    staff_name VARCHAR(120) DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hk_settings (
+    hotel_id INTEGER PRIMARY KEY REFERENCES hotels(id) ON DELETE CASCADE,
+    average_clean_time INTEGER NOT NULL DEFAULT 42,
+    dispatch_logic VARCHAR(40) NOT NULL DEFAULT 'Performance Based',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Inventory Management
 CREATE TABLE IF NOT EXISTS inventory_items (
     id SERIAL PRIMARY KEY,
@@ -191,6 +211,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_room_member_offers ON room_member_offers(ro
 CREATE UNIQUE INDEX IF NOT EXISTS uq_room_tours_room_id ON room_tours(room_id);
 CREATE INDEX IF NOT EXISTS idx_hk_tasks_hotel_id ON hk_tasks(hotel_id);
 CREATE INDEX IF NOT EXISTS idx_hk_room_status_hotel_id ON hk_room_status(hotel_id);
+CREATE INDEX IF NOT EXISTS idx_hk_schedules_hotel_date ON hk_schedules(hotel_id, shift_date);
 CREATE INDEX IF NOT EXISTS idx_inventory_items_hotel_id ON inventory_items(hotel_id);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_item_id ON stock_movements(item_id);
 CREATE INDEX IF NOT EXISTS idx_purchase_orders_hotel_id ON purchase_orders(hotel_id);

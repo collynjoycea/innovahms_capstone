@@ -1,8 +1,45 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import axios from 'axios';
+import useStaffSession from '../../../hooks/useStaffSession';
 import { Settings, Users, Home, Box, Bell, Save, Moon, Sun } from 'lucide-react';
 
 const HKSettings = ({ isDark, setIsDark }) => {
+  const { isDarkMode } = useOutletContext() || {};
+  const { qs, hotelId } = useStaffSession();
   const [activeTab, setActiveTab] = useState('general');
+  const [averageCleanTime, setAverageCleanTime] = useState(42);
+  const [dispatchLogic, setDispatchLogic] = useState('Performance Based');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const darkMode = isDarkMode ?? isDark ?? false;
+
+  useEffect(() => {
+    if (!hotelId) return;
+    axios.get(`/api/housekeeping/settings${qs}`).then(({ data }) => {
+      setAverageCleanTime(data.averageCleanTime ?? 42);
+      setDispatchLogic(data.dispatchLogic ?? 'Performance Based');
+    }).catch(() => setMessage('Unable to load housekeeping settings.'));
+  }, [hotelId, qs]);
+
+  const saveSettings = async () => {
+    if (!hotelId) return;
+    setSaving(true);
+    setMessage('');
+    try {
+      await axios.put('/api/housekeeping/settings', {
+        hotel_id: hotelId,
+        average_clean_time: Number(averageCleanTime) || 42,
+        dispatch_logic: dispatchLogic,
+      });
+      setMessage('Settings saved successfully.');
+    } catch {
+      setMessage('Unable to save housekeeping settings.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const SidebarItem = ({ id, icon: Icon, label }) => (
     <button
@@ -19,7 +56,7 @@ const HKSettings = ({ isDark, setIsDark }) => {
   );
 
   return (
-    <div className={`${isDark ? 'dark' : ''}`}>
+    <div className={`${darkMode ? 'dark' : ''}`}>
       <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0A] text-[#1A1A1A] dark:text-white p-6 md:p-10 transition-colors duration-500 font-sans">
         
         {/* Header Section */}
@@ -40,15 +77,15 @@ const HKSettings = ({ isDark, setIsDark }) => {
 
           <div className="flex items-center gap-4">
              <button 
-                onClick={() => setIsDark(!isDark)}
+                onClick={() => setIsDark?.(!darkMode)}
                 className="p-2 rounded-full border border-gray-200 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
              >
-                {isDark ? <Sun size={20} className="text-[#6FCF97]" /> : <Moon size={20} className="text-gray-600" />}
+                {darkMode ? <Sun size={20} className="text-[#6FCF97]" /> : <Moon size={20} className="text-gray-600" />}
              </button>
              
-             <button className="flex items-center space-x-2 bg-[#6FCF97] hover:bg-[#2FA084] text-white px-8 py-3 rounded-full font-bold shadow-xl shadow-[#6FCF97]/20 transition-transform active:scale-95">
+             <button onClick={saveSettings} disabled={saving} className="flex items-center space-x-2 bg-[#6FCF97] hover:bg-[#2FA084] text-white px-8 py-3 rounded-full font-bold shadow-xl shadow-[#6FCF97]/20 transition-transform active:scale-95 disabled:opacity-50">
                 <Save size={18} />
-                <span>Publish Changes</span>
+                <span>{saving ? 'Saving...' : 'Publish Changes'}</span>
              </button>
           </div>
         </div>
@@ -77,16 +114,17 @@ const HKSettings = ({ isDark, setIsDark }) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-3">
                       <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 dark:text-gray-500">Average Clean Time (Min)</label>
-                      <input type="number" defaultValue="42" className="w-full bg-gray-50 dark:bg-[#0A0A0A] border border-gray-200 dark:border-white/10 p-4 rounded-2xl focus:ring-2 focus:ring-[#6FCF97] outline-none transition-all dark:text-white" />
+                      <input type="number" value={averageCleanTime} onChange={e => setAverageCleanTime(e.target.value)} className="w-full bg-gray-50 dark:bg-[#0A0A0A] border border-gray-200 dark:border-white/10 p-4 rounded-2xl focus:ring-2 focus:ring-[#6FCF97] outline-none transition-all dark:text-white" />
                     </div>
                     <div className="space-y-3">
                       <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 dark:text-gray-500">Dispatch Logic</label>
-                      <select className="w-full bg-gray-50 dark:bg-[#0A0A0A] border border-gray-200 dark:border-white/10 p-4 rounded-2xl focus:ring-2 focus:ring-[#6FCF97] outline-none dark:text-white">
+                      <select value={dispatchLogic} onChange={e => setDispatchLogic(e.target.value)} className="w-full bg-gray-50 dark:bg-[#0A0A0A] border border-gray-200 dark:border-white/10 p-4 rounded-2xl focus:ring-2 focus:ring-[#6FCF97] outline-none dark:text-white">
                         <option>Performance Based</option>
                         <option>Sequential Order</option>
                       </select>
                     </div>
                   </div>
+                  {message && <p className="mt-4 text-xs font-semibold text-emerald-700 dark:text-emerald-400">{message}</p>}
                 </section>
               </div>
             )}

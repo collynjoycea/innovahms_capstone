@@ -40,7 +40,7 @@ const FrontDesktopLayout = () => {
         <FrontDesktopHeader isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
         
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-6 custom-main-scroll">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-6 custom-main-scroll frontdesk-staff-ui">
           <div className="w-full">
              <Outlet context={{ isDarkMode }} />
           </div>

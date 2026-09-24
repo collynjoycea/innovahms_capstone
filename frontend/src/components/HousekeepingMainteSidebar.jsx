@@ -100,12 +100,7 @@ const HousekeepingSidebar = ({ isDarkMode }) => {
         { name: "Task History", path: "/housekeeping/history", icon: <History /> }
       ]
     },
-    {
-      title: "SYSTEM",
-      items: [
-        { name: "Settings", path: "/housekeeping/settings", icon: <Settings /> }
-      ]
-    }
+ 
   ];
 
   const handleLogout = () => {

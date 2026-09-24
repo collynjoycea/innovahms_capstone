@@ -45,9 +45,7 @@ const HousekeepingMainteHeader = ({ isDarkMode, toggleTheme }) => {
 
         {/* LEFT */}
         <div className="flex items-center gap-4">
-          <div className="p-2 rounded-xl bg-[#2FA084]/10 border border-[#2FA084]/20">
-            <Hammer size={20} color={theme.gold} />
-          </div>
+        
           <div>
             <h1 className={`text-sm font-black uppercase tracking-[0.2em] italic ${theme.textMain}`}>
               INNOVA- <span className="text-[#2FA084]">HMS</span>
@@ -76,7 +74,7 @@ const HousekeepingMainteHeader = ({ isDarkMode, toggleTheme }) => {
           <div className={`h-8 w-[1px] mx-1 ${isDarkMode ? 'bg-zinc-900' : 'bg-zinc-200'}`} />
 
           <ShiftClockWidget isDarkMode={isDarkMode} />
-
+  
           <div className="relative" ref={menuRef}>
             <button onClick={() => setShowProfileMenu(!showProfileMenu)}
               className={`flex items-center gap-3 pl-2 p-1.5 rounded-2xl transition-all ${showProfileMenu ? (isDarkMode ? 'bg-white/5' : 'bg-gray-100') : 'hover:bg-white/5'}`}>
@@ -103,7 +101,8 @@ const HousekeepingMainteHeader = ({ isDarkMode, toggleTheme }) => {
                   <LogOut size={16} /> Logout Portal
                 </button>
               </div>
-            )}
+              
+            )}      
           </div>
         </div>
       </div>

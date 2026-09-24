@@ -32,3 +32,285 @@ html, body {
 .animate-in {
   animation: fadeInZoom 0.4s ease-out forwards;
 }
+
+/* Shared StaffSignUp-style visual language for all Front Desk pages. */
+.frontdesk-staff-ui {
+  background: #f1f5f9 !important;
+  color: #1e293b !important;
+  padding: 2rem 1rem !important;
+}
+
+.dark .frontdesk-staff-ui {
+  background: #020617 !important;
+  color: #f1f5f9 !important;
+}
+
+.frontdesk-staff-ui > div {
+  width: 100%;
+  max-width: 64rem;
+  margin-inline: auto;
+}
+
+.frontdesk-staff-ui h1,
+.frontdesk-staff-ui h2,
+.frontdesk-staff-ui h3,
+.frontdesk-staff-ui h4 {
+  letter-spacing: -0.025em !important;
+  font-style: normal !important;
+}
+
+.frontdesk-staff-ui h1 {
+  font-size: 1.5rem !important;
+  line-height: 2rem !important;
+}
+
+.frontdesk-staff-ui h2 {
+  font-size: 1.125rem !important;
+  line-height: 1.75rem !important;
+}
+
+.frontdesk-staff-ui [class*="rounded-[2rem]"],
+.frontdesk-staff-ui [class*="rounded-[2.5rem]"],
+.frontdesk-staff-ui [class*="rounded-3xl"] {
+  border-radius: 0.5rem !important;
+}
+
+.frontdesk-staff-ui [class*="bg-[#050505]"],
+.frontdesk-staff-ui [class*="bg-[#0c0c0e]"],
+.frontdesk-staff-ui [class*="bg-[#0d0c0a]"],
+.frontdesk-staff-ui [class*="bg-[#111]"] {
+  background: #ffffff !important;
+}
+
+.dark .frontdesk-staff-ui [class*="bg-[#050505]"],
+.dark .frontdesk-staff-ui [class*="bg-[#0c0c0e]"],
+.dark .frontdesk-staff-ui [class*="bg-[#0d0c0a]"],
+.dark .frontdesk-staff-ui [class*="bg-[#111]"] {
+  background: #0f172a !important;
+}
+
+.frontdesk-staff-ui [class*="border-zinc-800"],
+.frontdesk-staff-ui [class*="border-zinc-700"],
+.frontdesk-staff-ui [class*="border-white/5"] {
+  border-color: #e2e8f0 !important;
+}
+
+.dark .frontdesk-staff-ui [class*="border-zinc-800"],
+.dark .frontdesk-staff-ui [class*="border-zinc-700"],
+.dark .frontdesk-staff-ui [class*="border-white/5"] {
+  border-color: #1e293b !important;
+}
+
+.frontdesk-staff-ui input,
+.frontdesk-staff-ui select,
+.frontdesk-staff-ui textarea {
+  border-radius: 0.25rem !important;
+  border-color: #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.75rem !important;
+}
+
+.dark .frontdesk-staff-ui input,
+.dark .frontdesk-staff-ui select,
+.dark .frontdesk-staff-ui textarea {
+  border-color: #334155 !important;
+  background: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+.frontdesk-staff-ui input:focus,
+.frontdesk-staff-ui select:focus,
+.frontdesk-staff-ui textarea:focus {
+  outline: none !important;
+  border-color: #047857 !important;
+  box-shadow: none !important;
+}
+
+.frontdesk-staff-ui button[class*="bg-[#2FA084]"],
+.frontdesk-staff-ui button[class*="bg-emerald-500"] {
+  background: #065f46 !important;
+  color: #ffffff !important;
+  border-radius: 0.25rem !important;
+}
+
+.frontdesk-staff-ui button[class*="bg-[#2FA084]"]:hover,
+.frontdesk-staff-ui button[class*="bg-emerald-500"]:hover {
+  background: #064e3b !important;
+}
+
+.frontdesk-staff-ui [class*="text-zinc-900"],
+.frontdesk-staff-ui [class*="text-gray-900"] {
+  color: #1e293b !important;
+}
+
+.dark .frontdesk-staff-ui [class*="text-zinc-900"],
+.dark .frontdesk-staff-ui [class*="text-gray-900"] {
+  color: #f8fafc !important;
+}
+
+.frontdesk-staff-ui [class*="text-zinc-400"],
+.frontdesk-staff-ui [class*="text-zinc-500"],
+.frontdesk-staff-ui [class*="text-gray-400"] {
+  color: #64748b !important;
+}
+
+.dark .frontdesk-staff-ui [class*="text-zinc-400"],
+.dark .frontdesk-staff-ui [class*="text-zinc-500"],
+.dark .frontdesk-staff-ui [class*="text-gray-400"] {
+  color: #94a3b8 !important;
+}
+
+@media (max-width: 640px) {
+  .frontdesk-staff-ui {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .frontdesk-staff-ui [class*="text-4xl"] {
+    font-size: 1.5rem !important;
+    line-height: 2rem !important;
+  }
+}
+
+/* Keep the Housekeeping and Maintenance pages consistent with StaffSignUp. */
+.housekeeping-staff-ui {
+  background: #f1f5f9 !important;
+  color: #1e293b !important;
+  padding: 2rem 1rem !important;
+}
+
+.dark .housekeeping-staff-ui {
+  background: #020617 !important;
+  color: #f1f5f9 !important;
+}
+
+.housekeeping-staff-ui > div {
+  width: 100%;
+  max-width: 64rem;
+  margin-inline: auto;
+}
+
+.housekeeping-staff-ui h1,
+.housekeeping-staff-ui h2,
+.housekeeping-staff-ui h3,
+.housekeeping-staff-ui h4 {
+  letter-spacing: -0.025em !important;
+  font-style: normal !important;
+}
+
+.housekeeping-staff-ui h1 {
+  font-size: 1.5rem !important;
+  line-height: 2rem !important;
+}
+
+.housekeeping-staff-ui h2 {
+  font-size: 1.125rem !important;
+  line-height: 1.75rem !important;
+}
+
+.housekeeping-staff-ui [class*="rounded-[2rem]"],
+.housekeeping-staff-ui [class*="rounded-[2.5rem]"],
+.housekeeping-staff-ui [class*="rounded-[3rem]"],
+.housekeeping-staff-ui [class*="rounded-3xl"] {
+  border-radius: 0.5rem !important;
+}
+
+.housekeeping-staff-ui [class*="bg-[#050505]"],
+.housekeeping-staff-ui [class*="bg-[#0A0A0A]"],
+.housekeeping-staff-ui [class*="bg-[#0a0a0a]"],
+.housekeeping-staff-ui [class*="bg-[#0c0c0e]"],
+.housekeeping-staff-ui [class*="bg-[#141414]"],
+.housekeeping-staff-ui [class*="bg-[#111]"] {
+  background: #ffffff !important;
+}
+
+.dark .housekeeping-staff-ui [class*="bg-[#050505]"],
+.dark .housekeeping-staff-ui [class*="bg-[#0A0A0A]"],
+.dark .housekeeping-staff-ui [class*="bg-[#0a0a0a]"],
+.dark .housekeeping-staff-ui [class*="bg-[#0c0c0e]"],
+.dark .housekeeping-staff-ui [class*="bg-[#141414]"],
+.dark .housekeeping-staff-ui [class*="bg-[#111]"] {
+  background: #0f172a !important;
+}
+
+.housekeeping-staff-ui [class*="border-white/5"],
+.housekeeping-staff-ui [class*="border-white/10"],
+.housekeeping-staff-ui [class*="border-zinc-800"],
+.housekeeping-staff-ui [class*="border-gray-200"] {
+  border-color: #e2e8f0 !important;
+}
+
+.dark .housekeeping-staff-ui [class*="border-white/5"],
+.dark .housekeeping-staff-ui [class*="border-white/10"],
+.dark .housekeeping-staff-ui [class*="border-zinc-800"],
+.dark .housekeeping-staff-ui [class*="border-gray-200"] {
+  border-color: #1e293b !important;
+}
+
+.housekeeping-staff-ui input,
+.housekeeping-staff-ui select,
+.housekeeping-staff-ui textarea {
+  border-radius: 0.25rem !important;
+  border-color: #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.75rem !important;
+}
+
+.dark .housekeeping-staff-ui input,
+.dark .housekeeping-staff-ui select,
+.dark .housekeeping-staff-ui textarea {
+  border-color: #334155 !important;
+  background: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+.housekeeping-staff-ui input:focus,
+.housekeeping-staff-ui select:focus,
+.housekeeping-staff-ui textarea:focus {
+  outline: none !important;
+  border-color: #047857 !important;
+  box-shadow: none !important;
+}
+
+.housekeeping-staff-ui button[class*="bg-[#6FCF97]"],
+.housekeeping-staff-ui button[class*="bg-[#2FA084]"],
+.housekeeping-staff-ui button[class*="bg-emerald-500"] {
+  background: #065f46 !important;
+  color: #ffffff !important;
+  border-radius: 0.25rem !important;
+}
+
+.housekeeping-staff-ui button[class*="bg-[#6FCF97]"]:hover,
+.housekeeping-staff-ui button[class*="bg-[#2FA084]"]:hover,
+.housekeeping-staff-ui button[class*="bg-emerald-500"]:hover {
+  background: #064e3b !important;
+}
+
+.housekeeping-staff-ui [class*="text-zinc-900"],
+.housekeeping-staff-ui [class*="text-[#1A1A1A]"],
+.housekeeping-staff-ui [class*="text-gray-900"] {
+  color: #1e293b !important;
+}
+
+.dark .housekeeping-staff-ui [class*="text-zinc-900"],
+.dark .housekeeping-staff-ui [class*="text-[#1A1A1A]"],
+.dark .housekeeping-staff-ui [class*="text-gray-900"] {
+  color: #f8fafc !important;
+}
+
+.housekeeping-staff-ui [class*="text-zinc-400"],
+.housekeeping-staff-ui [class*="text-zinc-500"],
+.housekeeping-staff-ui [class*="text-gray-400"],
+.housekeeping-staff-ui [class*="text-gray-500"] {
+  color: #64748b !important;
+}
+
+.dark .housekeeping-staff-ui [class*="text-zinc-400"],
+.dark .housekeeping-staff-ui [class*="text-zinc-500"],
+.dark .housekeeping-staff-ui [class*="text-gray-400"],
+.dark .housekeeping-staff-ui [class*="text-gray-500"] {
+  color: #94a3b8 !important;
+}
