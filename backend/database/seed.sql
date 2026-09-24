@@ -251,3 +251,94 @@ FROM staff s
 JOIN LATERAL (SELECT id, room_number FROM rooms WHERE hotel_id = s.hotel_id ORDER BY id LIMIT 3) r ON TRUE
 WHERE s.email = 'hk.test@innovahms.test'
   AND NOT EXISTS (SELECT 1 FROM hk_tasks t WHERE t.hotel_id = s.hotel_id);
+
+-- Sample guest requests for the front desk and housekeeping request boards.
+DO $$
+DECLARE
+    hid INTEGER;
+    rid INTEGER;
+    cid INTEGER;
+    requester_id INTEGER;
+    hk_id INTEGER;
+    room_label VARCHAR(50);
+    reservation_id_value INTEGER;
+    towel_id INTEGER;
+    water_id INTEGER;
+BEGIN
+    SELECT id INTO hid FROM hotels ORDER BY id LIMIT 1;
+    SELECT id, room_number INTO rid, room_label FROM rooms WHERE hotel_id = hid ORDER BY id LIMIT 1;
+    SELECT id INTO cid FROM customers ORDER BY id LIMIT 1;
+    SELECT id INTO requester_id FROM staff WHERE hotel_id = hid ORDER BY id LIMIT 1;
+    SELECT id INTO hk_id FROM staff WHERE hotel_id = hid AND role ILIKE '%housekeeping%' ORDER BY id LIMIT 1;
+
+    IF hid IS NOT NULL AND rid IS NOT NULL AND cid IS NOT NULL THEN
+        INSERT INTO inventory_items
+            (hotel_id, sku_id, item_name, category, unit, stock_level, min_stock, max_stock, reorder_point)
+        VALUES
+            (hid, 'DEMO-TOWEL', 'Bath Towel', 'Linen', 'pcs', 24, 8, 40, 10),
+            (hid, 'DEMO-WATER', 'Bottled Water', 'Guest Supplies', 'bottles', 30, 10, 60, 12)
+        ON CONFLICT (sku_id) DO UPDATE SET hotel_id = EXCLUDED.hotel_id;
+
+        SELECT id INTO towel_id FROM inventory_items WHERE sku_id = 'DEMO-TOWEL';
+        SELECT id INTO water_id FROM inventory_items WHERE sku_id = 'DEMO-WATER';
+
+        INSERT INTO reservations (
+            booking_number, customer_id, room_id, hotel_id, check_in_date, check_out_date,
+            total_nights, total_amount, deposit_amount, payment_method, status, payment_status
+        )
+        VALUES (
+            'DEMO-GUEST-REQUEST-' || hid, cid, rid, hid, CURRENT_DATE, CURRENT_DATE + 1,
+            1, 5000.00, 5000.00, 'cash', 'CHECKED_IN', 'PAID'
+        )
+        ON CONFLICT (booking_number) DO NOTHING;
+
+        SELECT id INTO reservation_id_value
+        FROM reservations
+        WHERE booking_number = 'DEMO-GUEST-REQUEST-' || hid;
+
+        IF reservation_id_value IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM guest_requests WHERE reservation_id = reservation_id_value
+        ) THEN
+            INSERT INTO guest_requests
+                (hotel_id, reservation_id, guest_name, room_number, inventory_id, item_name,
+                 quantity, priority, notes, status, requested_by, relayed_by, hk_staff_id,
+                 relayed_at, started_at, delivered_at)
+            SELECT hid, reservation_id_value,
+                   COALESCE(c.first_name, '') || ' ' || COALESCE(c.last_name, ''), room_label,
+                   towel_id, 'Bath Towel', 2, 'NORMAL', 'Demo request waiting for front desk relay.',
+                   'RECEIVED', requester_id, NULL, NULL, NULL, NULL, NULL
+            FROM customers c WHERE c.id = cid;
+
+            INSERT INTO guest_requests
+                (hotel_id, reservation_id, guest_name, room_number, inventory_id, item_name,
+                 quantity, priority, notes, status, requested_by, relayed_by, relayed_at)
+            SELECT hid, reservation_id_value,
+                   COALESCE(c.first_name, '') || ' ' || COALESCE(c.last_name, ''), room_label,
+                   water_id, 'Bottled Water', 2, 'HIGH', 'Demo request already relayed to housekeeping.',
+                   'RELAYED', requester_id, requester_id, NOW() - INTERVAL '8 minutes'
+            FROM customers c WHERE c.id = cid;
+
+            INSERT INTO guest_requests
+                (hotel_id, reservation_id, guest_name, room_number, inventory_id, item_name,
+                 quantity, priority, notes, status, requested_by, relayed_by, hk_staff_id,
+                 relayed_at, started_at)
+            SELECT hid, reservation_id_value,
+                   COALESCE(c.first_name, '') || ' ' || COALESCE(c.last_name, ''), room_label,
+                   NULL, 'Baby Crib', 1, 'URGENT', 'Demo custom request currently being prepared.',
+                   'IN_PROGRESS', requester_id, requester_id, hk_id,
+                   NOW() - INTERVAL '18 minutes', NOW() - INTERVAL '7 minutes'
+            FROM customers c WHERE c.id = cid;
+
+            INSERT INTO guest_requests
+                (hotel_id, reservation_id, guest_name, room_number, item_name,
+                 quantity, priority, notes, status, requested_by, relayed_by, hk_staff_id,
+                 relayed_at, started_at, delivered_at)
+            SELECT hid, reservation_id_value,
+                   COALESCE(c.first_name, '') || ' ' || COALESCE(c.last_name, ''), room_label,
+                   'Extra Pillow', 1, 'NORMAL', 'Demo custom request completed without inventory deduction.',
+                   'DELIVERED', requester_id, requester_id, hk_id,
+                   NOW() - INTERVAL '1 hour', NOW() - INTERVAL '50 minutes', NOW() - INTERVAL '40 minutes'
+            FROM customers c WHERE c.id = cid;
+        END IF;
+    END IF;
+END $$;

@@ -22,6 +22,7 @@ import GuestProfile from "./pages/Staff/frontdesktop/GuestProfile";
 import MyShiftProfile from "./pages/Staff/frontdesktop/MyShiftProfile";
 import NewReservation from "./pages/Staff/frontdesktop/NewReservation";
 import RoomMaspAssign from "./pages/Staff/frontdesktop/RoomMaspAssign";
+import GuestRequests from "./pages/Staff/frontdesktop/GuestRequests";
 
 // --- HR & PAYROLL PAGES ---
 import HrPayrollDashboard from "./pages/Staff/HrPayrollStaff/HrPayrollStaffDashboard"; 
@@ -46,6 +47,7 @@ import LinenInventory from "./pages/Staff/housekeepingmainte/LinenInventory";
 import MaintenanceReport from "./pages/Staff/housekeepingmainte/MaintenanceReport";
 import HKHistory from "./pages/Staff/housekeepingmainte/HKHistory";
 import HKSettings from "./pages/Staff/housekeepingmainte/HKSettings";
+import HKGuestRequests from "./pages/Staff/housekeepingmainte/HKGuestRequests";
 
 import HotelManagerDashboard from "./pages/Staff/hotelmanager/StaffDashboard";
 
@@ -249,6 +251,7 @@ function App() {
           <Route path="room-map" element={<RoomMaspAssign />} />
           <Route path="my-shift" element={<MyShiftProfile />} />
           <Route path="new-reservation" element={<NewReservation />} />
+          <Route path="guest-requests" element={<GuestRequests />} />
         </Route>
 
       {/* GROUP 4: HR & PAYROLL MODULE */}
@@ -281,6 +284,7 @@ function App() {
             <Route path="maintenance" element={<MaintenanceReport />} />
             <Route path="history" element={<HKHistory />} />
             <Route path="settings" element={<HKSettings />} />
+            <Route path="guest-requests" element={<HKGuestRequests />} />
           </Route>
 
         <Route path="/manager" element={<ProtectedRole><ManagerLayout /></ProtectedRole>}>

@@ -35,13 +35,13 @@ const HKSchedule = () => {
   });
 
   const shiftIcons = { Morning: <Sun size={14}/>, Break: <Coffee size={14}/>, Afternoon: <Moon size={14}/> };
-  const displayShifts = shifts.length > 0
-    ? shifts.map(s => ({ time: `${s.shift_start} - ${s.shift_end}`, task: s.task_label || 'Shift', zone: s.zone || '', type: 'Morning', icon: <Sun size={14}/> }))
-    : [
-        { time: '08:00 AM - 12:00 PM', task: 'Morning Deep Clean',              zone: 'Level 1 & 2',      type: 'Morning',   icon: <Sun size={14}/> },
-        { time: '12:00 PM - 01:00 PM', task: 'Staff Break / Handover',           zone: 'Staff Lounge',     type: 'Break',     icon: <Coffee size={14}/> },
-        { time: '01:00 PM - 05:00 PM', task: 'General Maintenance & Turn-down',  zone: 'Level 3 & Suite',  type: 'Afternoon', icon: <Moon size={14}/> },
-      ];
+  const displayShifts = shifts.map(s => ({
+    time: `${s.shift_start} - ${s.shift_end}`,
+    task: s.task_label || 'Shift',
+    zone: s.zone || '',
+    type: s.task_label?.toLowerCase().includes('break') ? 'Break' : 'Morning',
+    icon: s.task_label?.toLowerCase().includes('break') ? <Coffee size={14}/> : <Sun size={14}/>,
+  }));
 
   const theme = {
     bg: isDarkMode ? "bg-[#0c0c0e]" : "bg-[#f0f0f3]",
@@ -130,6 +130,11 @@ const HKSchedule = () => {
                 <MoreHorizontal size={18} className={theme.textSub} />
               </div>
             ))}
+            {displayShifts.length === 0 && (
+              <div className={`${theme.card} border ${theme.border} rounded-lg p-8 text-center`}>
+                <p className={`text-xs font-semibold ${theme.textSub}`}>No shifts scheduled for this date.</p>
+              </div>
+            )}
           </div>
         </div>
 

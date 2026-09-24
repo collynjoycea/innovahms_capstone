@@ -29,20 +29,24 @@ const HousekeepingSidebar = ({ isDarkMode }) => {
   // Live badge counts (open tasks / unresolved repair reports)
   const [activeTasksCount, setActiveTasksCount] = useState(0);
   const [urgentRepairsCount, setUrgentRepairsCount] = useState(0);
+  const [newGuestRequestsCount, setNewGuestRequestsCount] = useState(0);
 
   useEffect(() => {
     let alive = true;
     const loadCounts = async () => {
       try {
-        const [tRes, mRes] = await Promise.all([
+        const [tRes, mRes, gRes] = await Promise.all([
           fetch(`/api/housekeeping/tasks${qs}`),
           fetch(`/api/housekeeping/maintenance${qs}`),
+          fetch(`/api/housekeeping/guest-requests${qs}`),
         ]);
         const tData = await tRes.json();
         const mData = await mRes.json();
+        const gData = await gRes.json();
         if (!alive) return;
         if (tRes.ok) setActiveTasksCount((tData.tasks || []).filter(t => t.status === 'Pending' || t.status === 'In Progress').length);
         if (mRes.ok) setUrgentRepairsCount((mData.reports || []).filter(r => r.status !== 'Resolved').length);
+        if (gRes.ok) setNewGuestRequestsCount((gData.requests || []).filter(r => r.status === 'RELAYED').length);
       } catch { /* ignore */ }
     };
     loadCounts();
@@ -78,7 +82,8 @@ const HousekeepingSidebar = ({ isDarkMode }) => {
           icon: <ClipboardList />, 
           badge: activeTasksCount > 0 ? activeTasksCount.toString() : null 
         },
-        { name: "Schedule", path: "/housekeeping/schedule", icon: <CalendarCheck /> }
+        { name: "Schedule", path: "/housekeeping/schedule", icon: <CalendarCheck /> },
+        { name: "Guest Requests", path: "/housekeeping/guest-requests", icon: <ArrowLeftRight />, badge: newGuestRequestsCount > 0 ? newGuestRequestsCount.toString() : null }
       ]
     },
     {
@@ -100,12 +105,7 @@ const HousekeepingSidebar = ({ isDarkMode }) => {
         { name: "Task History", path: "/housekeeping/history", icon: <History /> }
       ]
     },
-    {
-      title: "SYSTEM",
-      items: [
-        { name: "Settings", path: "/housekeeping/settings", icon: <Settings /> }
-      ]
-    }
+ 
   ];
 
   const handleLogout = () => {
