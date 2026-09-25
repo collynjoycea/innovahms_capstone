@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios'; // Siguraduhing naka-install ito
+import useStaffSession from '../hooks/useStaffSession';
 import { 
   LayoutDashboard, ClipboardList, PlusCircle, 
   LogIn, LogOut, Map, 
-  Wallet, Users, Layers, Clock
+  Wallet, Users, Layers, Clock, UserCircle
 } from 'lucide-react';
 
 const FrontDesktopSidebar = ({ isDarkMode }) => {
@@ -12,6 +13,8 @@ const FrontDesktopSidebar = ({ isDarkMode }) => {
   const navigate = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [time, setTime] = useState(new Date());
+  const { firstName, lastName, role, hotelName, profileImage } = useStaffSession();
+  const displayName = `${firstName || ''} ${lastName || ''}`.trim() || 'Staff';
 
   // Logging out only ends the browser session — it does NOT clock the staff
   // out of their shift. Shift time-in/time-out is handled separately on the
@@ -124,6 +127,7 @@ const FrontDesktopSidebar = ({ isDarkMode }) => {
           <Link to="/staff/dashboard" className="transition-transform hover:scale-105 text-left">
             <img src="/images/logo.png" alt="Innova HMS" className="h-8 w-auto object-contain" />
           </Link>
+          <span className={`max-w-[105px] truncate text-right text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`} title={hotelName}>{hotelName || 'Assigned Hotel'}</span>
           <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full border transition-colors ${isOnline ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-red-500/20 bg-red-500/5'}`}>
             <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
             <span className={`text-[8px] font-black uppercase ${isOnline ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -134,15 +138,22 @@ const FrontDesktopSidebar = ({ isDarkMode }) => {
 
         {/* PROFILE MINI-CARD */}
         <div className="px-4 mb-6 shrink-0">
-          <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${isDarkMode ? 'bg-[#2FA084]/5 border-[#2FA084]/10' : 'bg-white border-gray-200 shadow-sm'}`}>
+          <Link
+            to="/staff/profile"
+            className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+              location.pathname === '/staff/profile'
+                ? 'bg-[#2FA084]/10 border-[#2FA084]/30'
+                : (isDarkMode ? 'bg-[#2FA084]/5 border-[#2FA084]/10 hover:border-[#2FA084]/30' : 'bg-white border-gray-200 shadow-sm hover:border-[#2FA084]/40')
+            }`}
+          >
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#2FA084] to-[#1F6F5F] flex items-center justify-center text-black text-sm shadow-lg">
-              <span className="font-black">CF</span>
+              {profileImage ? <img src={profileImage} alt={displayName} className="h-full w-full rounded-lg object-cover" /> : <UserCircle size={19} />}
             </div>
             <div className="overflow-hidden">
-              <h4 className={`text-[11px] font-black uppercase tracking-tight leading-none ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Collyn Fernandez</h4>
-              <p className="text-[8px] font-bold text-[#2FA084] uppercase tracking-widest mt-1.5 opacity-80">Front Desk Staff</p>
+              <h4 className={`text-[11px] font-black uppercase tracking-tight leading-none ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>{displayName}</h4>
+              <p className="text-[8px] font-bold text-[#2FA084] uppercase tracking-widest mt-1.5 opacity-80">{role || 'Front Desk Staff'}</p>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* NAVIGATION LINKS */}

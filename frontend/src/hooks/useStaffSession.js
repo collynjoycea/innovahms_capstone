@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 function readSession() {
   try {
     const raw = localStorage.getItem('staffUser');
-    if (!raw) return { staffId: null, hotelId: null, hotelName: '', firstName: '', lastName: '', role: '', qs: '' };
+    if (!raw) return { staffId: null, hotelId: null, hotelName: '', firstName: '', lastName: '', email: '', contactNumber: '', profileImage: '', role: '', qs: '' };
     const s = JSON.parse(raw);
     const hotelId = s.hotelId || s.hotel_id || null;
     return {
@@ -12,11 +12,14 @@ function readSession() {
       hotelName: s.hotelName || s.hotel_name || '',
       firstName: s.firstName || s.first_name || '',
       lastName:  s.lastName  || s.last_name  || '',
+      email: s.email || '',
+      contactNumber: s.contactNumber || s.contact_number || '',
+      profileImage: s.profileImage || s.profile_image || '',
       role:      s.role      || '',
       qs:        hotelId ? `?hotel_id=${hotelId}` : '',
     };
   } catch {
-    return { staffId: null, hotelId: null, hotelName: '', firstName: '', lastName: '', role: '', qs: '' };
+    return { staffId: null, hotelId: null, hotelName: '', firstName: '', lastName: '', email: '', contactNumber: '', profileImage: '', role: '', qs: '' };
   }
 }
 

@@ -33,6 +33,8 @@ const getBookingBucket = (booking) => {
   // A PayMongo booking is only a real booking after payment confirmation.
   // Keep abandoned/unpaid attempts out of Upcoming even if the API still has PENDING.
   if (status === "cancelled" || status === "failed" || (status === "pending" && onlinePayment)) return "cancelled";
+  // A reservation is only an active stay after Front Desk checks the guest in.
+  // The date alone must not move a pending/confirmed reservation to Active.
   if (status === "checked_in") return "active";
 
   const today = new Date();
@@ -40,10 +42,6 @@ const getBookingBucket = (booking) => {
 
   const checkIn = booking.checkInDate ? new Date(`${booking.checkInDate}T00:00:00`) : null;
   const checkOut = booking.checkOutDate ? new Date(`${booking.checkOutDate}T00:00:00`) : null;
-
-  if (checkIn && checkOut && checkIn <= today && checkOut >= today) {
-    return "active";
-  }
 
   if (["completed", "checked_out"].includes(status) || (checkOut && checkOut < today)) {
     return "completed";
@@ -404,7 +402,7 @@ export default function CustomerBookings() {
                             className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-4 py-2 text-xs font-medium text-rose-600 transition-colors hover:bg-rose-50"
                           >
                             <XCircle size={14} />
-                            Cancel Reservation
+                            Cancel Booking
                           </button>
                         ) : null}
 

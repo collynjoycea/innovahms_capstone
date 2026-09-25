@@ -359,18 +359,28 @@ def ensure_reservation_operational_columns(cur):
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS payment_method VARCHAR(30) DEFAULT 'cash'",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS special_requests TEXT DEFAULT ''",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'DOWNPAYMENT'",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS paymongo_payment_id TEXT",
     ]
     for statement in statements:
         _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="reservation_operational_alter")
-    cur.execute("""
+    # Older installations used total_amount_php. Do not reference that
+    # legacy column unless it actually exists in the current database.
+    has_legacy_amount = _table_has_column(cur, "reservations", "total_amount_php")
+    has_legacy_check_in = _table_has_column(cur, "reservations", "check_in")
+    has_legacy_check_out = _table_has_column(cur, "reservations", "check_out")
+    legacy_amount = "total_amount_php" if has_legacy_amount else "0"
+    legacy_check_in = "check_in" if has_legacy_check_in else "check_in_date"
+    legacy_check_out = "check_out" if has_legacy_check_out else "check_out_date"
+    effective_total = f"COALESCE(NULLIF(total_amount, 0), {legacy_amount}, 0)"
+    cur.execute(f"""
         UPDATE reservations
-        SET check_in_date = COALESCE(check_in_date, check_in),
-            check_out_date = COALESCE(check_out_date, check_out),
-            total_amount = CASE WHEN COALESCE(total_amount, 0) = 0 THEN total_amount_php ELSE total_amount END,
-            total_nights = CASE WHEN COALESCE(total_nights, 0) = 0 THEN GREATEST(COALESCE(check_out, check_in) - check_in, 1) ELSE total_nights END,
+        SET check_in_date = COALESCE(check_in_date, {legacy_check_in}),
+            check_out_date = COALESCE(check_out_date, {legacy_check_out}),
+            total_amount = {effective_total},
+            total_nights = CASE WHEN COALESCE(total_nights, 0) = 0 THEN GREATEST(COALESCE({legacy_check_out}, {legacy_check_in}) - {legacy_check_in}, 1) ELSE total_nights END,
             booking_number = COALESCE(booking_number, 'INV-' || id),
-            payment_status = CASE WHEN COALESCE(deposit_amount, 0) >= COALESCE(total_amount, total_amount_php) THEN 'FULLY_PAID' ELSE 'DOWNPAYMENT' END
-        WHERE check_in_date IS NULL OR check_out_date IS NULL OR total_amount IS NULL OR booking_number IS NULL OR payment_status IS NULL OR payment_status <> CASE WHEN COALESCE(deposit_amount, 0) >= COALESCE(total_amount, total_amount_php) THEN 'FULLY_PAID' ELSE 'DOWNPAYMENT' END
+            payment_status = CASE WHEN COALESCE(deposit_amount, 0) >= {effective_total} THEN 'FULLY_PAID' ELSE 'DOWNPAYMENT' END
+        WHERE check_in_date IS NULL OR check_out_date IS NULL OR total_amount IS NULL OR booking_number IS NULL OR payment_status IS NULL OR payment_status <> CASE WHEN COALESCE(deposit_amount, 0) >= {effective_total} THEN 'FULLY_PAID' ELSE 'DOWNPAYMENT' END
     """)
     cur.execute("UPDATE reservations SET status = UPPER(status) WHERE status <> UPPER(status)")
     _execute_in_savepoint(cur, "ALTER TABLE reservations DROP CONSTRAINT IF EXISTS reservations_status_check", ignore_errors=True, prefix="reservation_status_constraint")
@@ -530,6 +540,7 @@ def ensure_profile_media_columns(cur):
         "ALTER TABLE owners ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP",
         "ALTER TABLE owners ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP",
         "ALTER TABLE customers ADD COLUMN IF NOT EXISTS profile_image TEXT",
+        "ALTER TABLE staff ADD COLUMN IF NOT EXISTS profile_image TEXT",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_logo TEXT",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_building_image TEXT",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_description TEXT",

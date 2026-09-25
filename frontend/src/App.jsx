@@ -15,6 +15,7 @@ import HrPayrollStaffLayout from "./layouts/HrPayrollStaffLayout";
 import StaffLogin from "./pages/Staff/StaffLogIn"; 
 import StaffSignUp from "./pages/Staff/StaffSignUp";
 import StaffDashboard from "./pages/Staff/frontdesktop/StaffDashboard";
+import StaffProfile from "./pages/Staff/frontdesktop/StaffProfile";
 import AllReservation from "./pages/Staff/frontdesktop/AllReservation";
 import CheckIn from "./pages/Staff/frontdesktop/CheckIn";
 import CheckOut from "./pages/Staff/frontdesktop/CheckOut";
@@ -244,6 +245,7 @@ function App() {
           element={<ProtectedStaff><StaffLayout /></ProtectedStaff>}
         >
           <Route path="dashboard" element={<StaffDashboard />} />
+          <Route path="profile" element={<StaffProfile />} />
           <Route path="reservations" element={<AllReservation />} />
           <Route path="check-in" element={<CheckIn />} />
           <Route path="check-out" element={<CheckOut />} />
@@ -277,6 +279,8 @@ function App() {
           >
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<HKDashboard />} />
+            <Route path="profile" element={<StaffProfile />} />
+            <Route path="my-shift" element={<MyShiftProfile />} />
             <Route path="tasks" element={<HKTasks />} />
             <Route path="schedule" element={<HKSchedule />} />
             <Route path="rooms" element={<RoomStatusMap />} />

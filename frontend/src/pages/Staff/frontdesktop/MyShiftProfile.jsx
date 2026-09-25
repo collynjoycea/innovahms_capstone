@@ -72,7 +72,7 @@ export default function MyShiftProfile() {
   const isIn  = shift?.clockIn && !shift?.clockOut;
   const isDone = shift?.clockIn && shift?.clockOut;
 
-  // Live elapsed time
+  // Live elapsed time for top banner
   const elapsed = (() => {
     if (!shift?.clockIn) return null;
     const [h, m, s] = shift.clockIn.split(':').map(Number);
@@ -143,7 +143,7 @@ export default function MyShiftProfile() {
             {[
               { label: 'Clock In',  val: shift.clockIn  || '—' },
               { label: 'Clock Out', val: shift.clockOut || '—' },
-              { label: 'Hours',     val: shift.hoursWorked != null ? `${shift.hoursWorked}h` : elapsed ? elapsed.split(':').slice(0,2).join('h ') + 'm' : '—' },
+              { label: 'Hours',     val: shift.clockOut && shift.hoursWorked != null ? `${shift.hoursWorked}h` : '—' },
             ].map(({ label, val }) => (
               <div key={label} className="text-center">
                 <p className={`text-[9px] font-black uppercase tracking-[0.2em] mb-1 ${sub}`}>{label}</p>

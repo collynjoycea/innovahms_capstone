@@ -6,7 +6,7 @@ import useStaffSession from '../hooks/useStaffSession';
 import StaffNotificationBell from './StaffNotificationBell';
 
 const FrontDesktopHeader = ({ isDarkMode, toggleTheme }) => {
-  const { firstName, lastName, role } = useStaffSession();
+  const { firstName, lastName, role, hotelName, profileImage } = useStaffSession();
   const navigate = useNavigate();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const menuRef = useRef(null);
@@ -44,7 +44,8 @@ const FrontDesktopHeader = ({ isDarkMode, toggleTheme }) => {
         </h2>
         <p className={`text-[10px] font-medium tracking-widest mt-0.5 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
           FRONT DESK <span className="text-[#2FA084]">OPERATIONS</span> · {currentDate}
-        </p>
+          </p>
+          <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>{hotelName || 'Assigned Hotel'}</p>
       </div>
 
       {/* RIGHT: ACTIONS */}
@@ -73,7 +74,7 @@ const FrontDesktopHeader = ({ isDarkMode, toggleTheme }) => {
           >
             <div className="w-9 h-9 rounded-xl border border-[#2FA084]/30 p-0.5 bg-gradient-to-tr from-[#2FA084]/20 to-transparent">
               <div className={`w-full h-full rounded-lg flex items-center justify-center text-[#2FA084] ${isDarkMode ? 'bg-[#14130f]' : 'bg-white shadow-sm'}`}>
-                <User size={18} />
+                {profileImage ? <img src={profileImage} alt="Staff profile" className="w-full h-full object-cover" /> : <User size={18} />}
               </div>
             </div>
             <div className="text-left hidden sm:block">
@@ -92,8 +93,11 @@ const FrontDesktopHeader = ({ isDarkMode, toggleTheme }) => {
                 <p className="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em]">Staff Actions</p>
               </div>
               
-              <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#2FA084]/10 hover:text-[#2FA084] text-xs transition-all">
-                <UserCircle size={16} /> My Shift Profile
+              <button
+                onClick={() => { setShowProfileMenu(false); navigate('/staff/profile'); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#2FA084]/10 hover:text-[#2FA084] text-xs transition-all"
+              >
+                <UserCircle size={16} /> My Profile
               </button>
 
               <button 
