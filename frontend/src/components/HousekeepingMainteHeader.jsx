@@ -6,7 +6,7 @@ import useStaffSession from '../hooks/useStaffSession';
 import StaffNotificationBell from './StaffNotificationBell';
 
 const HousekeepingMainteHeader = ({ isDarkMode, toggleTheme }) => {
-  const { firstName, lastName, role } = useStaffSession();
+  const { firstName, lastName, role, hotelName, profileImage } = useStaffSession();
   const navigate = useNavigate();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const menuRef = useRef(null);
@@ -53,6 +53,7 @@ const HousekeepingMainteHeader = ({ isDarkMode, toggleTheme }) => {
             <p className={`text-[9px] font-bold ${theme.textSub} uppercase tracking-widest`}>
               Housekeeping & Maintenance Â· {new Date().toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
+            <p className={`text-[8px] font-black ${theme.textSub} uppercase tracking-widest mt-1`}>{hotelName || 'Assigned Hotel'}</p>
           </div>
         </div>
 
@@ -84,7 +85,7 @@ const HousekeepingMainteHeader = ({ isDarkMode, toggleTheme }) => {
               </div>
               <div className="w-10 h-10 rounded-xl bg-zinc-950 border border-[#2FA084]/30 flex items-center justify-center overflow-hidden hover:border-[#2FA084] transition-all">
                 <div className={`w-full h-full flex items-center justify-center font-black text-xs transition-all ${showProfileMenu ? 'bg-[#2FA084] text-black' : 'bg-[#2FA084]/10 text-[#2FA084]'}`}>
-                  {initials}
+                  {profileImage ? <img src={profileImage} alt={displayName} className="w-full h-full object-cover" /> : initials}
                 </div>
               </div>
               <ChevronDown size={14} className={`${theme.textSub} transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
@@ -94,8 +95,8 @@ const HousekeepingMainteHeader = ({ isDarkMode, toggleTheme }) => {
                 <div className={`px-3 py-2 border-b mb-1 ${isDarkMode ? 'border-white/5' : 'border-gray-100'}`}>
                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em]">Operational Actions</p>
                 </div>
-                <button className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#2FA084]/10 hover:text-[#2FA084] text-xs transition-all ${theme.textMain}`}>
-                  <ClipboardList size={16} /> My Task Logs
+                <button onClick={() => { setShowProfileMenu(false); navigate('/housekeeping/profile'); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#2FA084]/10 hover:text-[#2FA084] text-xs transition-all ${theme.textMain}`}>
+                  <User size={16} /> My Profile
                 </button>
                 <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/10 text-red-500 text-xs transition-all font-bold">
                   <LogOut size={16} /> Logout Portal

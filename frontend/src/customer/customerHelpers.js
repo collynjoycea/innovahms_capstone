@@ -74,11 +74,13 @@ export const getBookingPolicy = (booking) => {
   const daysUntil = getDaysUntilCheckIn(booking.checkInDate);
   const normalizedStatus = String(booking.status || "").toLowerCase();
   const isLocked = ["cancelled", "completed", "checked_out"].includes(normalizedStatus);
+  const canCancelStatus = ["pending", "confirmed"].includes(normalizedStatus);
 
   return {
     daysUntil,
     canModify: !isLocked && daysUntil >= 2,
-    canCancel: !isLocked && daysUntil >= 1,
+    // Upcoming reservations may be cancelled up to the check-in date itself.
+    canCancel: !isLocked && canCancelStatus && daysUntil >= 0,
   };
 };
 
@@ -95,4 +97,3 @@ export const formatCurrency = (value) =>
     currency: "PHP",
     maximumFractionDigits: 0,
   }).format(Number(value || 0));
-

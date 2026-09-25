@@ -82,9 +82,12 @@ OWNER_DOCUMENT_FIELDS = {
     'validId': 'valid_id_path',
 }
 OWNER_DOCUMENT_ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'webp'}
+HK_MAINTENANCE_UPLOAD_FOLDER = os.path.join(_BACKEND_BASE_DIR, 'static', 'uploads', 'housekeeping-maintenance')
+HK_PHOTO_ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OWNER_DOCUMENT_UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(HK_MAINTENANCE_UPLOAD_FOLDER, exist_ok=True)
 
 
 def _safe_close(conn=None, cur=None):
@@ -7570,10 +7573,13 @@ def staff_login():
                     "id": staff['id'],
                     "firstName": staff['first_name'],
                     "lastName": staff.get('last_name') or '',
+                    "email": staff.get('email') or '',
+                    "contactNumber": staff.get('contact_number') or '',
                     "role": staff['role'],
                     "hotelId": staff['hotel_id'],
                     "hotelName": staff['hotel_name'],
                     "hotelCode": staff.get('hotel_code') or '',
+                    "profileImage": staff.get('profile_image') or '',
                 }
             }), 200
             
@@ -7761,6 +7767,18 @@ def _save_room_images(files, hotel_id, room_num):
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             paths.append(f"/static/uploads/rooms/{filename}")
     return paths
+
+
+def _save_hk_maintenance_photo(file_storage, hotel_id):
+    """Save a captured/uploaded maintenance photo and return its public path, or None."""
+    if not file_storage or not getattr(file_storage, 'filename', ''):
+        return None
+    ext = str(file_storage.filename).rsplit('.', 1)[-1].lower() if '.' in file_storage.filename else ''
+    if ext not in HK_PHOTO_ALLOWED_EXTENSIONS:
+        return None
+    stored_name = secure_filename(f"hkm_h{hotel_id or 0}_{uuid.uuid4().hex[:12]}.{ext}")
+    file_storage.save(os.path.join(HK_MAINTENANCE_UPLOAD_FOLDER, stored_name))
+    return f"/static/uploads/housekeeping-maintenance/{stored_name}"
 
 
 def _to_pg_array(items):
@@ -8006,6 +8024,7 @@ def create_payment_link():
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_reservation_pricing_columns(cur)
         cur.execute(
             'SELECT id, booking_number, total_amount, status FROM reservations WHERE id = %s',
             (reservation_id,)
@@ -8205,6 +8224,7 @@ def verify_payment(link_id):
         if is_paid:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=RealDictCursor)
+            _ensure_reservation_pricing_columns(cur)
             cur.execute(
                 "UPDATE reservations SET status = 'CONFIRMED', payment_method = 'online' WHERE paymongo_payment_id = %s RETURNING id, booking_number",
                 (link_id,)
@@ -8221,6 +8241,7 @@ def verify_payment(link_id):
         if str(status).lower() in {'failed', 'cancelled', 'canceled', 'expired'}:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=RealDictCursor)
+            _ensure_reservation_pricing_columns(cur)
             cur.execute(
                 """UPDATE reservations
                       SET status = 'CANCELLED'
@@ -8248,6 +8269,7 @@ def mark_failed_payment(reservation_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_reservation_pricing_columns(cur)
         cur.execute(
             """UPDATE reservations
                   SET status = 'CANCELLED'
@@ -8303,6 +8325,7 @@ def paymongo_webhook():
             if payment_intent_id:
                 conn = get_db_connection()
                 cur = conn.cursor()
+                _ensure_reservation_pricing_columns(cur)
                 cur.execute(
                     "UPDATE reservations SET status = 'CONFIRMED', payment_method = 'online' WHERE paymongo_payment_id = %s",
                     (payment_intent_id,)
@@ -8507,6 +8530,9 @@ def create_reservation():
         room = cur.fetchone()
         if not room:
             return jsonify({'error': 'Room not found'}), 404
+        # Serialize reservations for this room so concurrent requests cannot
+        # both pass the availability check before either one is inserted.
+        cur.execute('SELECT id FROM rooms WHERE id = %s FOR UPDATE', (room_id,))
         max_adults = _to_int(room.get('max_adults'), 0)
         max_children = _to_int(room.get('max_children'), 0)
         if adults > max_adults or children > max_children:
@@ -8541,7 +8567,6 @@ def create_reservation():
             cur.execute("""
                 SELECT id, booking_number, check_in_date, check_out_date FROM reservations
                 WHERE room_id = %s AND status NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
-                  AND NOT (status = 'PENDING' AND LOWER(COALESCE(payment_method, 'cash')) IN ('card', 'gcash', 'maya', 'qrph', 'online'))
                   AND (check_in_date + COALESCE(check_in_time, TIME '00:00')) < (%s::date + %s::time)
                   AND (check_out_date + COALESCE(check_out_time, TIME '00:00')) > (%s::date + %s::time)
                 LIMIT 1
@@ -8550,7 +8575,6 @@ def create_reservation():
             cur.execute("""
                 SELECT id, booking_number, check_in_date, check_out_date FROM reservations
                 WHERE room_id = %s AND status NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
-                  AND NOT (status = 'PENDING' AND LOWER(COALESCE(payment_method, 'cash')) IN ('card', 'gcash', 'maya', 'qrph', 'online'))
                   AND check_in_date < %s AND check_out_date > %s LIMIT 1
             """, (room_id, co, ci))
         conflict = cur.fetchone()
@@ -8730,6 +8754,114 @@ def room_availability(room_id):
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/staff/profile/<int:staff_id>', methods=['GET'])
+def staff_get_profile(staff_id):
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_profile_media_columns(cur)
+        cur.execute(
+            """
+            SELECT s.id, s.first_name, s.last_name, s.email, s.contact_number,
+                   s.role, s.hotel_id, s.hotel_code, s.profile_image,
+                   h.hotel_name
+            FROM staff s
+            LEFT JOIN hotels h ON h.id = s.hotel_id
+            WHERE s.id = %s
+            LIMIT 1
+            """,
+            (staff_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'error': 'Staff profile not found.'}), 404
+        return jsonify({
+            'id': row.get('id'),
+            'firstName': row.get('first_name') or '',
+            'lastName': row.get('last_name') or '',
+            'email': row.get('email') or '',
+            'contactNumber': row.get('contact_number') or '',
+            'role': row.get('role') or '',
+            'hotelId': row.get('hotel_id'),
+            'hotelCode': row.get('hotel_code') or '',
+            'hotelName': row.get('hotel_name') or '',
+            'profileImage': row.get('profile_image') or '',
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/staff/profile/<int:staff_id>', methods=['PATCH'])
+def staff_update_profile(staff_id):
+    data = request.get_json(silent=True) or {}
+    first_name = str(data.get('firstName') or '').strip()
+    last_name = str(data.get('lastName') or '').strip()
+    email = _normalize_email(data.get('email'))
+    contact_number = str(data.get('contactNumber') or '').strip()
+    profile_image = data.get('profileImage')
+
+    if not first_name or not _is_valid_name(first_name):
+        return jsonify({'error': 'Enter a valid first name.'}), 400
+    if last_name and not _is_valid_name(last_name):
+        return jsonify({'error': 'Enter a valid last name.'}), 400
+    if not _is_valid_email(email):
+        return jsonify({'error': 'Enter a valid email address.'}), 400
+    if not contact_number or not _is_valid_phone(contact_number):
+        return jsonify({'error': 'Enter a valid contact number.'}), 400
+    if profile_image is not None and profile_image and len(str(profile_image)) > 5 * 1024 * 1024:
+        return jsonify({'error': 'Image must be under 5MB.'}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_profile_media_columns(cur)
+        cur.execute(
+            """
+            UPDATE staff
+            SET first_name = %s,
+                last_name = %s,
+                email = %s,
+                contact_number = %s,
+                profile_image = COALESCE(%s, profile_image)
+            WHERE id = %s
+            RETURNING id, first_name, last_name, email, contact_number,
+                      role, hotel_id, hotel_code, profile_image
+            """,
+            (first_name, last_name, email, contact_number, profile_image, staff_id),
+        )
+        row = cur.fetchone()
+        if not row:
+            conn.rollback()
+            return jsonify({'error': 'Staff profile not found.'}), 404
+        cur.execute("SELECT hotel_name FROM hotels WHERE id = %s LIMIT 1", (row.get('hotel_id'),))
+        hotel = cur.fetchone() or {}
+        conn.commit()
+        return jsonify({
+            'id': row.get('id'),
+            'firstName': row.get('first_name') or '',
+            'lastName': row.get('last_name') or '',
+            'email': row.get('email') or '',
+            'contactNumber': row.get('contact_number') or '',
+            'role': row.get('role') or '',
+            'hotelId': row.get('hotel_id'),
+            'hotelCode': row.get('hotel_code') or '',
+            'hotelName': hotel.get('hotel_name') or '',
+            'profileImage': row.get('profile_image') or '',
+        }), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)
 
@@ -11794,7 +11926,10 @@ def cancel_booking(booking_id):
             """
             UPDATE reservations
             SET status = 'CANCELLED'
-            WHERE id = %s AND customer_id = %s
+            WHERE id = %s
+              AND customer_id = %s
+              AND status IN ('PENDING', 'CONFIRMED')
+              AND check_in_date >= CURRENT_DATE
             RETURNING id
             """,
             (booking_id, customer_id),
@@ -11817,6 +11952,11 @@ def cancel_booking(booking_id):
 @app.route('/static/uploads/rooms/<path:filename>')
 def serve_room_images(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+@app.route('/static/uploads/housekeeping-maintenance/<path:filename>')
+def serve_hk_maintenance_photo(filename):
+    return send_from_directory(HK_MAINTENANCE_UPLOAD_FOLDER, filename)
 
 
 @app.route('/static/uploads/owner-documents/<path:filename>')
@@ -11897,6 +12037,9 @@ def staff_dashboard():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         today = datetime.now().date()
+        period = request.args.get('period', 'today').lower()
+        if period not in {'today', 'month', 'year'}:
+            period = 'today'
 
         hotel_filter = "AND rm.hotel_id = %s" if hotel_id else ""
         hotel_params = [hotel_id] if hotel_id else []
@@ -11940,6 +12083,37 @@ def staff_dashboard():
         cur.execute(f"SELECT COUNT(*) AS c FROM reservations r LEFT JOIN rooms rm ON rm.id=r.room_id WHERE r.status = 'CHECKED_IN' {hotel_filter}", hotel_params)
         in_house = _to_int((cur.fetchone() or {}).get('c'), 0)
 
+        trend = []
+        if period == 'today':
+            cur.execute(f"""
+                SELECT EXTRACT(HOUR FROM COALESCE(r.created_at, NOW()))::int AS bucket, COUNT(*) AS c
+                FROM reservations r LEFT JOIN rooms rm ON rm.id = r.room_id
+                WHERE r.check_in_date = %s AND r.status NOT IN ('CANCELLED','FAILED') {hotel_filter}
+                GROUP BY bucket ORDER BY bucket
+            """, [today] + hotel_params)
+            values = {int(row['bucket']): _to_int(row.get('c'), 0) for row in cur.fetchall() or []}
+            trend = [{'label': f'{hour % 12 or 12} ' + ('AM' if hour < 12 else 'PM'), 'value': values.get(hour, 0)} for hour in (6, 9, 12, 15, 18, 21)]
+        elif period == 'month':
+            cur.execute(f"""
+                SELECT EXTRACT(DAY FROM r.check_in_date)::int AS bucket, COUNT(*) AS c
+                FROM reservations r LEFT JOIN rooms rm ON rm.id = r.room_id
+                WHERE DATE_TRUNC('month', r.check_in_date) = DATE_TRUNC('month', CURRENT_DATE)
+                  AND r.status NOT IN ('CANCELLED','FAILED') {hotel_filter}
+                GROUP BY bucket ORDER BY bucket
+            """, hotel_params)
+            values = {int(row['bucket']): _to_int(row.get('c'), 0) for row in cur.fetchall() or []}
+            trend = [{'label': f'Day {day}', 'value': values.get(day, 0)} for day in range(1, 32) if day <= 31]
+        else:
+            cur.execute(f"""
+                SELECT EXTRACT(MONTH FROM r.check_in_date)::int AS bucket, COUNT(*) AS c
+                FROM reservations r LEFT JOIN rooms rm ON rm.id = r.room_id
+                WHERE EXTRACT(YEAR FROM r.check_in_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+                  AND r.status NOT IN ('CANCELLED','FAILED') {hotel_filter}
+                GROUP BY bucket ORDER BY bucket
+            """, hotel_params)
+            values = {int(row['bucket']): _to_int(row.get('c'), 0) for row in cur.fetchall() or []}
+            trend = [{'label': datetime(2000, month, 1).strftime('%b'), 'value': values.get(month, 0)} for month in range(1, 13)]
+
         return jsonify({
             'arrivalsToday': len(arrivals),
             'departuresToday': departures_today,
@@ -11947,6 +12121,7 @@ def staff_dashboard():
             'inHouse': in_house,
             'pendingBalance': round(pending_balance, 2),
             'arrivals': arrivals,
+            'trend': trend,
         }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -12765,6 +12940,30 @@ def staff_check_in(reservation_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         hotel_id = request.args.get('hotel_id', type=int)
+        # Lock the reservation and room, then re-check its date range. This also
+        # protects check-in when older data already contains an overlap.
+        cur.execute(
+            "SELECT room_id, check_in_date, check_out_date FROM reservations WHERE id = %s FOR UPDATE",
+            (reservation_id,),
+        )
+        target = cur.fetchone()
+        if not target:
+            return jsonify({'error': 'Reservation not found.'}), 404
+        if target.get('room_id'):
+            cur.execute("SELECT id FROM rooms WHERE id = %s FOR UPDATE", (target['room_id'],))
+            cur.execute(
+                """
+                SELECT booking_number FROM reservations
+                WHERE room_id = %s AND id <> %s
+                  AND status NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
+                  AND check_in_date < %s AND check_out_date > %s
+                LIMIT 1
+                """,
+                (target['room_id'], reservation_id, target['check_out_date'], target['check_in_date']),
+            )
+            conflict = cur.fetchone()
+            if conflict:
+                return jsonify({'error': f"Double booking detected with {conflict.get('booking_number')}. Resolve the conflict before check-in."}), 409
         hotel_scope = " AND EXISTS (SELECT 1 FROM rooms scoped_room WHERE scoped_room.id = reservations.room_id AND scoped_room.hotel_id = %s)" if hotel_id else ""
         params = [reservation_id, hotel_id] if hotel_id else [reservation_id]
         cur.execute("""
@@ -13026,14 +13225,65 @@ def hk_room_status():
     finally: _safe_close(conn, cur)
 
 
+def _ensure_hk_cleaning_photos_table(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_cleaning_photos (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            room_number VARCHAR(50) NOT NULL,
+            status VARCHAR(30) NOT NULL,
+            photo_url TEXT NOT NULL,
+            staff_id INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+
+def _save_hk_room_photo(file_storage, hotel_id, room_number):
+    """Save a captured room-status photo and return its public path, or None."""
+    if not file_storage or not getattr(file_storage, 'filename', ''):
+        return None
+    ext = str(file_storage.filename).rsplit('.', 1)[-1].lower() if '.' in file_storage.filename else ''
+    if ext not in HK_PHOTO_ALLOWED_EXTENSIONS:
+        return None
+    safe_room = secure_filename(str(room_number or 'room'))
+    stored_name = secure_filename(f"hkr_h{hotel_id or 0}_{safe_room}_{uuid.uuid4().hex[:12]}.{ext}")
+    file_storage.save(os.path.join(HK_MAINTENANCE_UPLOAD_FOLDER, stored_name))
+    return f"/static/uploads/housekeeping-maintenance/{stored_name}"
+
+
 @app.route('/api/housekeeping/room-status/<room_number>', methods=['PATCH'])
 def hk_update_room_status(room_number):
     conn = None; cur = None
     try:
-        data = request.json or {}
+        if request.files:
+            data = request.form
+            photo_file = request.files.get('photo')
+        else:
+            data = request.json or {}
+            photo_file = None
         new_status = data.get('status', 'Available')
-        hotel_id   = data.get('hotel_id')
+        hotel_id   = _to_int_or_none(data.get('hotel_id'))
+        staff_id   = _to_int_or_none(data.get('staff_id'))
+        require_photo = str(data.get('require_photo', '')).strip().lower() in ('true', '1', 'yes')
+
+        if require_photo and not (photo_file and getattr(photo_file, 'filename', '')):
+            return jsonify({'error': 'Please capture a photo of the room before updating its status.'}), 400
+
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        photo_url = None
+        if photo_file and getattr(photo_file, 'filename', ''):
+            photo_url = _save_hk_room_photo(photo_file, hotel_id, room_number)
+            if require_photo and not photo_url:
+                return jsonify({'error': 'Unsupported photo format. Use JPG, PNG, or WEBP.'}), 400
+            if photo_url:
+                _ensure_hk_cleaning_photos_table(cur)
+                cur.execute("""
+                    INSERT INTO hk_cleaning_photos (hotel_id, room_number, status, photo_url, staff_id)
+                    VALUES (%s,%s,%s,%s,%s)
+                """, [hotel_id, room_number, new_status, photo_url, staff_id])
+
         q = "UPDATE rooms SET status = %s WHERE room_number = %s"
         p = [new_status, room_number]
         if hotel_id: q += " AND hotel_id = %s"; p.append(hotel_id)
@@ -13047,7 +13297,7 @@ def hk_update_room_status(room_number):
                 return jsonify({'error': f'Room {room_number} is occupied or not found.'}), 409
             return jsonify({'error': 'Room not found.'}), 404
         conn.commit()
-        return jsonify({'message': f'Room {room_number} updated to {new_status}.', 'status': new_status}), 200
+        return jsonify({'message': f'Room {room_number} updated to {new_status}.', 'status': new_status, 'photoUrl': photo_url}), 200
     except Exception as e:
         if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
@@ -13886,6 +14136,10 @@ def hk_get_room_status():
         _safe_close(conn, cur)
 
 
+def _ensure_hk_maintenance_photo_column(cur):
+    cur.execute("ALTER TABLE hk_maintenance_reports ADD COLUMN IF NOT EXISTS photo_url TEXT")
+
+
 @app.route('/api/housekeeping/maintenance', methods=['GET'])
 def hk_get_maintenance():
     hotel_id = request.args.get('hotel_id', type=int)
@@ -13893,6 +14147,8 @@ def hk_get_maintenance():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_hk_maintenance_photo_column(cur)
+        conn.commit()
         if hotel_id:
             cur.execute("SELECT * FROM hk_maintenance_reports WHERE hotel_id=%s ORDER BY created_at DESC", [hotel_id])
         else:
@@ -13907,16 +14163,30 @@ def hk_get_maintenance():
 
 @app.route('/api/housekeeping/maintenance', methods=['POST'])
 def hk_create_maintenance():
-    d = request.json
+    # Supports both multipart/form-data (with an optional captured "photo" file)
+    # and plain JSON (backward-compatible, no photo).
+    if request.files:
+        d = request.form
+        photo_file = request.files.get('photo')
+    else:
+        d = request.json or {}
+        photo_file = None
+    is_out_of_order = d.get('is_out_of_order', False)
+    if isinstance(is_out_of_order, str):
+        is_out_of_order = is_out_of_order.strip().lower() in ('true', '1', 'yes', 'on')
     conn = None; cur = None
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_hk_maintenance_photo_column(cur)
+        hotel_id = _to_int_or_none(d.get('hotel_id'))
+        reported_by = _to_int_or_none(d.get('reported_by'))
+        photo_url = _save_hk_maintenance_photo(photo_file, hotel_id)
         cur.execute("""
-            INSERT INTO hk_maintenance_reports (hotel_id, room_label, issue, severity, is_out_of_order, reported_by)
-            VALUES (%s,%s,%s,%s,%s,%s) RETURNING *
-        """, [d.get('hotel_id'), d.get('room_label'), d.get('issue'), d.get('severity','Medium Priority'),
-              d.get('is_out_of_order', False), d.get('reported_by')])
+            INSERT INTO hk_maintenance_reports (hotel_id, room_label, issue, severity, is_out_of_order, reported_by, photo_url)
+            VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *
+        """, [hotel_id, d.get('room_label'), d.get('issue'), d.get('severity','Medium Priority'),
+              is_out_of_order, reported_by, photo_url])
         row = cur.fetchone()
         conn.commit()
         return jsonify({'report': dict(row)}), 201

@@ -23,7 +23,7 @@ const HousekeepingSidebar = ({ isDarkMode }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [time, setTime] = useState(new Date());
 
-  const { qs, firstName, lastName, role } = useStaffSession();
+  const { qs, firstName, lastName, role, hotelName, profileImage } = useStaffSession();
   const displayName = `${firstName || ''} ${lastName || ''}`.trim() || 'Staff';
 
   // Live badge counts (open tasks / unresolved repair reports)
@@ -128,6 +128,7 @@ const HousekeepingSidebar = ({ isDarkMode }) => {
           <Link to="/housekeeping/dashboard" className="transition-transform hover:scale-105 text-left">
             <img src="/images/logo.png" alt="Innova HMS" className="h-8 w-auto object-contain" />
           </Link>
+          <span className={`max-w-[105px] truncate text-right text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`} title={hotelName}>{hotelName || 'Assigned Hotel'}</span>
           <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full border transition-colors ${isOnline ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-red-500/20 bg-red-500/5'}`}>
             <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
             <span className={`text-[8px] font-black uppercase ${isOnline ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -138,9 +139,9 @@ const HousekeepingSidebar = ({ isDarkMode }) => {
 
         {/* 2. PROFILE MINI-CARD (Housekeeping Role) */}
         <div className="px-4 mb-6 shrink-0">
-          <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${isDarkMode ? 'bg-[#2FA084]/5 border-[#2FA084]/10' : 'bg-white border-gray-200 shadow-sm'}`}>
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#2FA084] to-[#1F6F5F] flex items-center justify-center text-black shadow-lg">
-              <Wrench size={18} strokeWidth={2.5} />
+          <Link to="/housekeeping/profile" className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${location.pathname === '/housekeeping/profile' ? 'bg-[#2FA084]/10 border-[#2FA084]/30' : (isDarkMode ? 'bg-[#2FA084]/5 border-[#2FA084]/10' : 'bg-white border-gray-200 shadow-sm')}`}>
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#2FA084] to-[#1F6F5F] flex items-center justify-center text-black shadow-lg overflow-hidden">
+              {profileImage ? <img src={profileImage} alt={displayName} className="h-full w-full object-cover" /> : <Wrench size={18} strokeWidth={2.5} />}
             </div>
             <div className="overflow-hidden">
               <h4 className={`text-[11px] font-black uppercase tracking-tight leading-none ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>{displayName}</h4>
@@ -149,7 +150,7 @@ const HousekeepingSidebar = ({ isDarkMode }) => {
                 <p className="text-[8px] font-bold text-[#2FA084] uppercase tracking-widest opacity-80 italic">{role || 'Housekeeping'}</p>
               </div>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* 3. NAVIGATION LINKS */}
