@@ -821,7 +821,8 @@ export default function Booking() {
         return;
       }
       setShowSuccess(true);
-      window.setTimeout(() => navigate('/customer/bookings'), 700);
+      // Keep the confirmation modal visible long enough for the guest to leave a review.
+      window.setTimeout(() => navigate('/customer/bookings'), 12000);
     } catch (err) {
       setError(err.message || 'Booking failed.');
     } finally {

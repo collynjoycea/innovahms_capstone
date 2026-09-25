@@ -37,7 +37,12 @@ export default function AllReservation() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const today = new Date().toISOString().split('T')[0];
+  // Use the browser's local date. UTC dates can shift the arrival filter by one day.
+  const today = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  })();
+  const dateOnly = (value) => String(value || '').slice(0, 10);
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true); else setRefreshing(true);
@@ -82,12 +87,15 @@ export default function AllReservation() {
       (r.roomNumber || '').toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || r.status === statusFilter;
     let matchDate = true;
-    if (dateFilter === 'today') matchDate = r.checkIn === today;
-    if (dateFilter === 'upcoming') matchDate = r.checkIn > today;
-    if (dateFilter === 'past') matchDate = r.checkIn < today;
-    // The default Arrivals Today view must only show reservations that can
-    // still arrive. Cancelled/failed records belong in their own status view.
-    const matchArrivalStatus = dateFilter !== 'today' || statusFilter !== 'all' || !['CANCELLED', 'FAILED'].includes(r.status);
+    const checkInDate = dateOnly(r.checkIn);
+    if (dateFilter === 'today') matchDate = checkInDate === today;
+    if (dateFilter === 'upcoming') matchDate = checkInDate > today;
+    if (dateFilter === 'past') matchDate = checkInDate < today;
+
+    // Kapag Arrivals Today view (dateFilter === 'today' at statusFilter === 'all'):
+    // Tanging ang mga hindi pa nakakapag-check in, check out, cancel, o fail ang lalabas.
+    const matchArrivalStatus = dateFilter !== 'today' || statusFilter !== 'all' || !['CHECKED_IN', 'CHECKED_OUT', 'CANCELLED', 'FAILED'].includes(r.status);
+    
     return matchSearch && matchStatus && matchDate && matchArrivalStatus;
   });
 
@@ -263,7 +271,7 @@ export default function AllReservation() {
                       <div>
                         <p className={`text-[12px] font-black uppercase tracking-tight ${text}`}>{r.guestName}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          {r.isArrivalToday && (
+                          {r.isArrivalToday && r.status !== 'CHECKED_IN' && (
                             <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-full">Arriving Today</span>
                           )}
                           {r.checkOut === today && r.status === 'CHECKED_IN' && (

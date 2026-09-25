@@ -36,7 +36,8 @@ export default function BookingSuccess() {
     }
 
     if (status === 'paid') {
-      const redirectTimer = setTimeout(() => navigate('/customer/bookings'), 700);
+      if (showReview) return undefined;
+      const redirectTimer = setTimeout(() => navigate('/customer/bookings'), 12000);
       return () => clearTimeout(redirectTimer);
     }
 
@@ -50,6 +51,8 @@ export default function BookingSuccess() {
         if (found) {
           setBookingData({
             bookingNumber: found.booking_number || bookingNumber,
+            roomId: found.room_id,
+            hotelId: found.hotel_id,
             totalNights: found.total_nights,
             totalAmount: found.total_amount,
             status: found.status,
@@ -76,14 +79,14 @@ export default function BookingSuccess() {
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [reservationId, location.pathname]);
+  }, [reservationId, location.pathname, status, showReview]);
 
   const submitReview = async () => {
     if (!rating || !comment.trim()) return;
     await fetch('/api/reviews', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerId: sessionUser?.id, rating, comment }),
+      body: JSON.stringify({ customerId: sessionUser?.id, roomId: bookingData?.roomId, hotelId: bookingData?.hotelId, rating, comment }),
     }).catch(() => {});
     setReviewDone(true);
   };
@@ -139,6 +142,10 @@ export default function BookingSuccess() {
                   <button onClick={() => navigate('/customer/bookings')}
                     className="w-full py-3.5 rounded-xl bg-[#bf9b30] text-[#0d0c0a] text-[11px] font-black uppercase tracking-widest hover:bg-[#d4ac37] transition-all flex items-center justify-center gap-2">
                     <Star size={14} /> View Upcoming Bookings
+                  </button>
+                  <button onClick={() => setShowReview(true)}
+                    className="w-full py-3.5 rounded-xl border border-[#bf9b30]/60 text-[#bf9b30] text-[11px] font-black uppercase tracking-widest hover:bg-[#bf9b30]/10 transition-all flex items-center justify-center gap-2">
+                    <Star size={14} /> Review This Booking
                   </button>
                   <button onClick={() => navigate('/')}
                     className="w-full py-3.5 rounded-xl border border-white/20 text-white/60 text-[11px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">

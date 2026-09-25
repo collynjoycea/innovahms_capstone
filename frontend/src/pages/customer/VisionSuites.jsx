@@ -578,7 +578,7 @@ export default function VisionSuites() {
     }
   };
 
-  const roomTypeOptions = ["Single", "Double", "Suite", "Deluxe"];
+  const roomTypeOptions = ["Standard", "Double", "Suite", "Deluxe", "Family Room"];
 
   const displayHotels = useMemo(() => {
     let list = [];

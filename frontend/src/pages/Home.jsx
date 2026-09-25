@@ -295,7 +295,7 @@ export default function LandingPage() {
     navigate(`/vision-suites?${params.toString()}`);
   };
 
-  const roomTypeOptions = ["Single", "Double", "Suite", "Deluxe"];
+  const roomTypeOptions = ["Standard", "Double", "Suite", "Deluxe", "Family Room"];
 
   const ITEMS_PER_VIEW = 4;
   const totalHotels = featuredHotels.length;

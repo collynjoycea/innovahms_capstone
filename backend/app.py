@@ -366,6 +366,12 @@ def _password_strength_message(password):
 def _ensure_password_reset_tables(cur):
     return db_bootstrap.ensure_password_reset_tables(cur)
 
+def _ensure_room_type_options(cur):
+    return db_bootstrap.ensure_room_type_options(cur)
+
+def _ensure_room_status_options(cur):
+    return db_bootstrap.ensure_room_status_options(cur)
+
 def _ensure_admin_feature_tables(cur):
     return db_bootstrap.ensure_admin_feature_tables(cur)
 
@@ -1088,22 +1094,24 @@ def _normalize_room_status(value):
 def _normalize_room_type(value):
     raw = str(value or "").strip()
     if not raw:
-        return "Single"
+        return "Standard"
 
     lowered = raw.lower().replace("_", " ").replace("-", " ")
+    if "family" in lowered:
+        return "Family Room"
     if "deluxe" in lowered:
         return "Deluxe"
     if "suite" in lowered or "presidential" in lowered or "executive" in lowered:
         return "Suite"
     if "double" in lowered:
         return "Double"
-    if "single" in lowered:
-        return "Single"
+    if "single" in lowered or "standard" in lowered:
+        return "Standard"
 
-    if raw in {"Single", "Double", "Suite", "Deluxe"}:
+    if raw in {"Standard", "Double", "Suite", "Deluxe", "Family Room"}:
         return raw
 
-    return "Single"
+    return "Standard"
 
 
 def _is_truthy(value):
@@ -3911,7 +3919,7 @@ def admin_staff():
         cur.execute("""
             SELECT s.id, s.first_name, s.last_name, s.email, s.contact_number,
                    s.role, s.status, s.date_hired, s.created_at,
-                   h.hotel_name
+                   h.id AS hotel_id, h.hotel_name
             FROM staff s
             LEFT JOIN hotels h ON h.id = s.hotel_id
             ORDER BY s.created_at DESC
@@ -3928,10 +3936,68 @@ def admin_staff():
                 'role': row.get('role') or 'Staff',
                 'status': row.get('status') or 'Active',
                 'hotelName': row.get('hotel_name') or 'Unassigned',
+                'hotelId': row.get('hotel_id'),
                 'dateHired': _serialize_date(row.get('date_hired') or row.get('created_at')),
             })
-        return jsonify({'staff': staff, 'total': len(staff)}), 200
+        cur.execute('SELECT id, hotel_name FROM hotels ORDER BY hotel_name ASC')
+        hotels = [{'id': row.get('id'), 'name': row.get('hotel_name') or 'Unnamed Hotel'} for row in (cur.fetchall() or [])]
+        return jsonify({'staff': staff, 'total': len(staff), 'hotels': hotels}), 200
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/admin/staff', methods=['POST'])
+def admin_create_staff():
+    conn = None
+    cur = None
+    try:
+        data = request.get_json(silent=True) or {}
+        first_name = str(data.get('firstName') or '').strip()
+        last_name = str(data.get('lastName') or '').strip()
+        email = _normalize_email(data.get('email'))
+        contact_number = str(data.get('contactNumber') or '').strip()
+        password = str(data.get('password') or '')
+        role = str(data.get('role') or '').strip()
+        hotel_id = _to_int(data.get('hotelId'), 0)
+        allowed_roles = {'Front Desk Operations', 'Housekeeping & Maintenance'}
+
+        if not all([first_name, last_name, email, contact_number, password, role, hotel_id]):
+            return jsonify({'error': 'Complete all staff account fields.'}), 400
+        if role not in allowed_roles:
+            return jsonify({'error': 'Only Front Desk Operations and Housekeeping & Maintenance accounts can be created here.'}), 400
+        if not _is_valid_name(first_name) or not _is_valid_name(last_name):
+            return jsonify({'error': 'Name contains invalid characters.'}), 400
+        if not _is_valid_email(email) or not _is_valid_phone(contact_number):
+            return jsonify({'error': 'Enter a valid email and contact number.'}), 400
+        password_error = _password_strength_message(password)
+        if password_error:
+            return jsonify({'error': password_error}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute('SELECT id, hotel_code FROM hotels WHERE id = %s', (hotel_id,))
+        hotel = cur.fetchone()
+        if not hotel:
+            return jsonify({'error': 'Selected hotel was not found.'}), 404
+        cur.execute('SELECT 1 FROM staff WHERE LOWER(email) = LOWER(%s) LIMIT 1', (email,))
+        if cur.fetchone():
+            return jsonify({'error': 'This staff email is already registered.'}), 409
+
+        columns = ['hotel_id', 'first_name', 'last_name', 'email', 'contact_number', 'password_hash', 'role', 'hotel_code', 'status']
+        values = [hotel_id, first_name, last_name, email, contact_number, generate_password_hash(password), role, hotel.get('hotel_code') or f'HOTEL-{hotel_id}', 'Active']
+        if _table_has_column(cur, 'staff', 'employee_id'):
+            columns.append('employee_id')
+            values.append(f'EMP-{hotel_id}-{int(datetime.utcnow().timestamp())}'[-20:])
+        placeholders = ', '.join(['%s'] * len(values))
+        cur.execute(f"INSERT INTO staff ({', '.join(columns)}) VALUES ({placeholders}) RETURNING id", tuple(values))
+        row = cur.fetchone()
+        conn.commit()
+        return jsonify({'message': 'Staff account created successfully.', 'staffId': row.get('id')}), 201
+    except Exception as e:
+        if conn:
+            conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)
@@ -7731,6 +7797,9 @@ def get_rooms(hotel_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_room_type_options(cur)
+        _ensure_room_status_options(cur)
+        conn.commit()
         cur.execute("SELECT * FROM rooms WHERE hotel_id = %s ORDER BY room_number", (hotel_id,))
         rows = cur.fetchall() or []
         rooms = []
@@ -7741,7 +7810,7 @@ def get_rooms(hotel_id):
                 'id': r.get('id'),
                 'roomNumber': r.get('room_number') or '',
                 'roomName': r.get('room_name') or '',
-                'roomType': r.get('room_type') or 'Single',
+                'roomType': _normalize_room_type(r.get('room_type')),
                 'price': float(r.get('price_per_night') or 0),
                 'rate3Hours': float(r.get('rate_3_hours') or 0),
                 'rate6Hours': float(r.get('rate_6_hours') or 0),
@@ -7797,7 +7866,7 @@ def add_room():
         hotel_id = _to_int(request.form.get('hotelId'), 0)
         room_num = request.form.get('roomNumber')
         room_name = request.form.get('roomName', '')
-        room_type = _normalize_room_type(request.form.get('roomType', 'Single'))
+        room_type = _normalize_room_type(request.form.get('roomType', 'Standard'))
         price = float(request.form.get('price') or 0)
         rate_3 = float(request.form.get('rate3Hours') or 0)
         rate_6 = float(request.form.get('rate6Hours') or 0)
@@ -7819,6 +7888,8 @@ def add_room():
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_room_type_options(cur)
+        _ensure_room_status_options(cur)
         _ensure_hourly_room_rate_columns(cur)
         owner_id = _hotel_owner_id(cur, hotel_id)
         guard, subscription = _owner_feature_guard(cur, owner_id, 'rooms', mutation=True)
@@ -7855,7 +7926,7 @@ def update_room(room_id):
         hotel_id = _to_int(request.form.get('hotelId'), 0)
         room_num = request.form.get('roomNumber')
         room_name = request.form.get('roomName', '')
-        room_type = _normalize_room_type(request.form.get('roomType', 'Single'))
+        room_type = _normalize_room_type(request.form.get('roomType', 'Standard'))
         price = float(request.form.get('price') or 0)
         rate_3 = float(request.form.get('rate3Hours') or 0)
         rate_6 = float(request.form.get('rate6Hours') or 0)
@@ -7878,6 +7949,8 @@ def update_room(room_id):
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_room_type_options(cur)
+        _ensure_room_status_options(cur)
         _ensure_hourly_room_rate_columns(cur)
         owner_id = _room_owner_id(cur, room_id) or _hotel_owner_id(cur, hotel_id)
         guard, _subscription = _owner_feature_guard(cur, owner_id, 'rooms', mutation=True)
@@ -8681,6 +8754,7 @@ def get_all_reservations():
                 r.status,
                 r.created_at,
                 r.room_id,
+                rm.hotel_id,
                 c.first_name,
                 c.last_name,
                 rm.room_number,
@@ -11972,6 +12046,7 @@ def auto_checkout_overdue():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_room_status_options(cur)
         today = datetime.now().date()
         cur.execute("""
             UPDATE reservations
@@ -12192,6 +12267,7 @@ def staff_process_checkout(reservation_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_room_status_options(cur)
         cur.execute("""
             UPDATE reservations SET status = 'CHECKED_OUT'
             WHERE id = %s AND status = 'CHECKED_IN'
@@ -12844,10 +12920,11 @@ def staff_reservations():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_room_status_options(cur)
         today = datetime.now().date()
 
         hotel_id = request.args.get('hotel_id', type=int)
-        hf = "AND h.id = %s" if hotel_id else ""
+        hf = "AND COALESCE(h.id, r.hotel_id) = %s" if hotel_id else ""
         hp = [hotel_id] if hotel_id else []
         cur.execute(f"""
             SELECT
@@ -12861,7 +12938,7 @@ def staff_reservations():
             FROM reservations r
             LEFT JOIN customers c ON c.id = r.customer_id
             LEFT JOIN rooms rm ON rm.id = r.room_id
-            LEFT JOIN hotels h ON h.id = rm.hotel_id
+            LEFT JOIN hotels h ON h.id = COALESCE(r.hotel_id, rm.hotel_id)
             WHERE 1=1 {hf}
             ORDER BY r.check_in_date ASC, r.created_at DESC
         """, hp)
@@ -12871,9 +12948,9 @@ def staff_reservations():
         for row in rows:
             ci_date = row.get('check_in_date')
             co_date = row.get('check_out_date')
-            ci_str = ci_date.isoformat() if ci_date else None
-            co_str = co_date.isoformat() if co_date else None
-            is_today = ci_date == today if ci_date else False
+            ci_str = (ci_date.date().isoformat() if hasattr(ci_date, 'date') else str(ci_date)[:10]) if ci_date else None
+            co_str = (co_date.date().isoformat() if hasattr(co_date, 'date') else str(co_date)[:10]) if co_date else None
+            is_today = ci_str == today.isoformat() if ci_str else False
             status = str(row.get('status') or 'PENDING').upper()
 
             reservations.append({
@@ -13013,6 +13090,7 @@ def staff_check_out(reservation_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_room_status_options(cur)
         cur.execute("""
             UPDATE reservations SET status = 'CHECKED_OUT'
             WHERE id = %s AND status = 'CHECKED_IN'
@@ -13279,6 +13357,7 @@ def hk_update_room_status(room_number):
             return jsonify({'error': 'Please capture a photo of the room before updating its status.'}), 400
 
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_room_status_options(cur)
 
         photo_url = None
         if photo_file and getattr(photo_file, 'filename', ''):

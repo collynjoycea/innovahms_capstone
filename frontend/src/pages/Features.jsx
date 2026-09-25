@@ -3,7 +3,7 @@ import {
   Sparkles, 
   View, 
   MessageSquare, 
-  Map, 
+  CreditCard, 
   ArrowUpRight 
 } from "lucide-react";
 
@@ -28,8 +28,8 @@ export default function Features() {
 
   const smartFeatures = [
     { 
-      title: "AI Recommendations", 
-      desc: "Personalized dining, spa, and activity suggestions based on guest behavioral patterns.", 
+      title: "Smart Room Booking", 
+      desc: "Search available accommodations, view room details, and make reservations through one convenient platform.", 
       icon: <Sparkles className="w-5 h-5 text-[#1F6F5F] dark:text-[#6FCF97]" />,
       img: "/images/Ai-recommendations.jpg"
     },
@@ -40,15 +40,15 @@ export default function Features() {
       img: "/images/virtual-360-tours.jpg"
     },
     { 
-      title: "AI Concierge", 
-      desc: "24/7 automated assistance for room service, local info, and instant guest requests.", 
+      title: "AI Guest Assistant", 
+      desc: "Get automated assistance for common hotel inquiries and booking-related questions through an AI-powered chatbot.", 
       icon: <MessageSquare className="w-5 h-5 text-[#1F6F5F] dark:text-[#6FCF97]" />,
       img: "/images/AI-concierge.jpg"
     },
     { 
-      title: "Indoor Navigation", 
-      desc: "Dynamic, interactive property maps guiding guests seamlessly through large hotels.", 
-      icon: <Map className="w-5 h-5 text-[#1F6F5F] dark:text-[#6FCF97]" />,
+      title: "Seamless Online Payments", 
+      desc: "Complete hotel reservations securely through integrated online payment processing.", 
+      icon: <CreditCard className="w-5 h-5 text-[#1F6F5F] dark:text-[#6FCF97]" />,
       img: "/images/indoor-navigation.jpg"
     }
   ];
@@ -71,7 +71,7 @@ export default function Features() {
         <div className="relative z-10 w-full max-w-5xl px-6 py-16 text-center">
          
           <h1 className="mt-6 text-4xl sm:text-5xl md:text-6xl font-light tracking-tight text-white leading-tight">
-            Next-Gen <span className="font-semibold text-[#6FCF97]">Capabilities</span>
+            Next-Generation <span className="font-semibold text-[#6FCF97]">Hotel Management</span>
           </h1>
           
           <p className="mt-4 max-w-xl mx-auto text-sm sm:text-base text-gray-300 font-normal leading-relaxed">
@@ -93,9 +93,6 @@ export default function Features() {
               Intelligent Suite Features
             </h2>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md leading-relaxed">
-            Designed to seamlessly integrate with daily guest touchpoints without cluttering the physical room interface.
-          </p>
         </div>
 
         {/* Feature Cards Grid */}

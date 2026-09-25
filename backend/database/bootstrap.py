@@ -44,6 +44,84 @@ def _table_has_column(cur, table_name, column_name):
     return cur.fetchone() is not None
 
 
+def ensure_room_type_options(cur):
+    """Keep room types consistent with the public room-type list."""
+    if not _table_has_column(cur, "rooms", "room_type"):
+        return
+
+    # Normalize old values before replacing the legacy CHECK constraint.
+    cur.execute(
+        """
+        UPDATE rooms
+        SET room_type = CASE
+            WHEN LOWER(COALESCE(room_type, '')) LIKE '%family%' THEN 'Family Room'
+            WHEN LOWER(COALESCE(room_type, '')) LIKE '%deluxe%' THEN 'Deluxe'
+            WHEN LOWER(COALESCE(room_type, '')) LIKE '%suite%'
+              OR LOWER(COALESCE(room_type, '')) LIKE '%executive%'
+              OR LOWER(COALESCE(room_type, '')) LIKE '%presidential%' THEN 'Suite'
+            WHEN LOWER(COALESCE(room_type, '')) LIKE '%double%' THEN 'Double'
+            ELSE 'Standard'
+        END
+        WHERE room_type IS NULL
+           OR room_type NOT IN ('Standard', 'Double', 'Suite', 'Deluxe', 'Family Room')
+        """
+    )
+
+    cur.execute(
+        """
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'public.rooms'::regclass
+          AND contype = 'c'
+          AND pg_get_constraintdef(oid) ILIKE '%room_type%'
+        """
+    )
+    constraints = cur.fetchall() or []
+    for row in constraints:
+        constraint_name = row.get("conname") if hasattr(row, "get") else row[0]
+        if constraint_name:
+            safe_name = str(constraint_name).replace('"', '""')
+            cur.execute(f'ALTER TABLE rooms DROP CONSTRAINT IF EXISTS "{safe_name}"')
+
+    cur.execute(
+        """
+        ALTER TABLE rooms
+        ADD CONSTRAINT rooms_room_type_check
+        CHECK (room_type IN ('Standard', 'Double', 'Suite', 'Deluxe', 'Family Room'))
+        """
+    )
+
+
+def ensure_room_status_options(cur):
+    """Allow the statuses used by front desk and housekeeping workflows."""
+    if not _table_has_column(cur, "rooms", "status"):
+        return
+
+    cur.execute(
+        """
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'public.rooms'::regclass
+          AND contype = 'c'
+          AND pg_get_constraintdef(oid) ILIKE '%status%'
+        """
+    )
+    constraints = cur.fetchall() or []
+    for row in constraints:
+        constraint_name = row.get("conname") if hasattr(row, "get") else row[0]
+        if constraint_name:
+            safe_name = str(constraint_name).replace('"', '""')
+            cur.execute(f'ALTER TABLE rooms DROP CONSTRAINT IF EXISTS "{safe_name}"')
+
+    cur.execute(
+        """
+        ALTER TABLE rooms
+        ADD CONSTRAINT rooms_status_check
+        CHECK (status IN ('Available', 'Occupied', 'Maintenance', 'Cleaning', 'Dirty', 'InProgress', 'Clean', 'Reserved'))
+        """
+    )
+
+
 def ensure_password_reset_tables(cur):
     cur.execute(
         """

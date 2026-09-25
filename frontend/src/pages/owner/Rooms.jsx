@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, AlertTriangle, X, Search, Image as ImageIcon, CheckCircle } from 'lucide-react';
 import resolveImg from '../../utils/resolveImg';
 
+const ROOM_TYPES = ['Standard', 'Double', 'Suite', 'Deluxe', 'Family Room'];
+
 const Rooms = () => {
   const [notification, setNotification] = useState({ show: false, message: '' });
   const [rooms, setRooms] = useState([]);
@@ -21,7 +23,7 @@ const Rooms = () => {
   const initialRoomData = {
     roomNumber: '',
     roomName: '',
-    roomType: '',
+    roomType: 'Standard',
     bedType: '',
     price: '',
     rate3Hours: '',
@@ -350,7 +352,7 @@ const Rooms = () => {
           onChange={(e) => setFilters({...filters, roomType: e.target.value})}
         >
             <option value="All">All Types</option>
-            {[...new Set(rooms.map(room => room.roomType).filter(Boolean).concat(['Single', 'Double', 'Suite', 'Deluxe']))].map(t => <option key={t} value={t}>{t}</option>)}
+            {ROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
         <select 
           className="rounded border border-slate-300 bg-white px-3 py-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" 
@@ -502,7 +504,7 @@ const Rooms = () => {
                           className="w-full rounded border border-slate-300 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-800" 
                           onChange={e => updateField('roomType', e.target.value)}
                         >
-                            {[...new Set(rooms.map(room => room.roomType).filter(Boolean).concat(['Single', 'Double', 'Suite', 'Deluxe']))].map(t => <option key={t} value={t}>{t}</option>)}
+                            {ROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                     </div>
                     <div>

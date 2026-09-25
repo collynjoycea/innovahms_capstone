@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Search, Download, Filter, Plus, Edit2, Trash2, 
-  RefreshCw, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, Building2, Layers
+  Search, Download, Filter, Trash2,
+  RefreshCw, CheckCircle2, ArrowLeft, ArrowRight, Building2
 } from 'lucide-react';
 
 const STATUS_BADGES = {
-  AVAILABLE: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
-  OCCUPIED:  'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-  MAINTENANCE: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-  CLEANING:  'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+  PENDING: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+  CONFIRMED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+  CHECKED_IN: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+  CHECKED_OUT: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+  CANCELLED: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700',
 };
 
 const ITEMS_PER_PAGE = 15;
@@ -31,10 +32,10 @@ export default function Rooms() {
   const loadRooms = useCallback(async () => {
     setLoading(true);
     try {
-      const url = ownerId ? `/api/owner/rooms?owner_id=${ownerId}` : '/api/owner/rooms';
+      const url = ownerId ? `/api/owner/reservations?owner_id=${ownerId}` : '/api/owner/reservations';
       const res = await fetch(url);
       const data = await res.json();
-      setRooms(data.rooms || []);
+      setRooms(data.reservations || []);
       setStats(data.stats || {});
     } catch { 
       // Fallback or ignore for network errors
@@ -51,13 +52,13 @@ export default function Rooms() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Permanently delete this room?')) return;
+    if (!window.confirm('Permanently delete this reservation?')) return;
     setActionLoading(id + '-delete');
     try {
-      const res = await fetch(`/api/owner/rooms/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/owner/reservations/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      showToast('Room successfully deleted.');
+      showToast('Reservation successfully deleted.');
       loadRooms();
     } catch (e) { 
       showToast(`Error: ${e.message}`); 
@@ -67,8 +68,8 @@ export default function Rooms() {
   };
 
   const exportCSV = () => {
-    const rows = [['Room No', 'Room Name', 'Category', 'Capacity', 'Price', 'Status']];
-    filteredRooms.forEach(r => rows.push([r.roomNo, r.roomName, r.category, r.capacity, r.price, r.status]));
+    const rows = [['Booking No', 'Guest', 'Room', 'Check-in', 'Check-out', 'Amount', 'Status']];
+    filteredRooms.forEach(r => rows.push([r.bookingNumber, r.customerName, r.roomNo, r.checkIn, r.checkOut, r.amount, r.status]));
     const csv = rows.map(r => r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -79,7 +80,7 @@ export default function Rooms() {
   // Filter Logic
   const filteredRooms = useMemo(() => {
     return rooms.filter(r => {
-      const matchSearch = `${r.roomNo} ${r.roomName} ${r.category}`.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = `${r.bookingNumber} ${r.customerName} ${r.roomNo} ${r.roomName}`.toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter === 'ALL' || r.status === statusFilter;
       return matchSearch && matchStatus;
     });
@@ -100,10 +101,10 @@ export default function Rooms() {
 
   const statCards = [
     { label: 'Total Rooms', value: stats.total ?? rooms.length, filter: 'ALL', color: 'text-slate-900 dark:text-white' },
-    { label: 'Available', value: stats.available ?? 0, filter: 'AVAILABLE', color: 'text-emerald-700 dark:text-emerald-400' },
-    { label: 'Occupied', value: stats.occupied ?? 0, filter: 'OCCUPIED', color: 'text-blue-700 dark:text-blue-400' },
-    { label: 'Maintenance', value: stats.maintenance ?? 0, filter: 'MAINTENANCE', color: 'text-amber-700 dark:text-amber-400' },
-    { label: 'Cleaning', value: stats.cleaning ?? 0, filter: 'CLEANING', color: 'text-purple-700 dark:text-purple-400' },
+    { label: 'Pending', value: stats.pending ?? 0, filter: 'PENDING', color: 'text-amber-700 dark:text-amber-400' },
+    { label: 'Confirmed', value: stats.confirmed ?? 0, filter: 'CONFIRMED', color: 'text-emerald-700 dark:text-emerald-400' },
+    { label: 'Checked In', value: stats.checkedIn ?? 0, filter: 'CHECKED_IN', color: 'text-blue-700 dark:text-blue-400' },
+    { label: 'Cancelled', value: stats.cancelled ?? 0, filter: 'CANCELLED', color: 'text-slate-600 dark:text-slate-400' },
   ];
 
   return (
@@ -127,7 +128,7 @@ export default function Rooms() {
               Rooms Management
             </h2>
             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-              Monitor room availability, structural categories, and active property status.
+              Monitor live bookings, guest stays, and reservation status.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -170,7 +171,7 @@ export default function Rooms() {
             <Search size={15} className="text-slate-400 shrink-0" />
             <input 
               type="text" 
-              placeholder="Search room no, name, category..." 
+              placeholder="Search booking, guest, room..." 
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-200 outline-none placeholder:text-slate-400" 
@@ -186,10 +187,11 @@ export default function Rooms() {
                 className="bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-300 outline-none cursor-pointer"
               >
                 <option value="ALL">All Statuses</option>
-                <option value="AVAILABLE">Available</option>
-                <option value="OCCUPIED">Occupied</option>
-                <option value="MAINTENANCE">Maintenance</option>
-                <option value="CLEANING">Cleaning</option>
+                <option value="PENDING">Pending</option>
+                <option value="CONFIRMED">Confirmed</option>
+                <option value="CHECKED_IN">Checked In</option>
+                <option value="CHECKED_OUT">Checked Out</option>
+                <option value="CANCELLED">Cancelled</option>
               </select>
             </div>
 
@@ -215,7 +217,7 @@ export default function Rooms() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 text-[10px] font-mono uppercase text-slate-400 tracking-wider">
-                    {['Room No', 'Room Name', 'Category', 'Capacity', 'Rate / Night', 'Status', 'Actions'].map(h => (
+                    {['Booking No', 'Guest', 'Room', 'Stay Dates', 'Amount', 'Status', 'Actions'].map(h => (
                       <th key={h} className="px-4 py-3 font-semibold">{h}</th>
                     ))}
                   </tr>
@@ -223,11 +225,11 @@ export default function Rooms() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                   {paginatedRooms.map(r => (
                     <tr key={r.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="px-4 py-3 font-mono font-bold text-emerald-800 dark:text-emerald-400">{r.roomNo}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{r.roomName}</td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{r.category}</td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{r.capacity} Persons</td>
-                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">₱{Number(r.price || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 font-mono font-bold text-emerald-800 dark:text-emerald-400">{r.bookingNumber}</td>
+                      <td className="px-4 py-3"><p className="font-semibold text-slate-900 dark:text-white">{r.customerName}</p><p className="text-[10px] text-slate-500">{r.customerEmail}</p></td>
+                      <td className="px-4 py-3"><p className="text-slate-700 dark:text-slate-300">Room {r.roomNo}</p><p className="text-[10px] text-slate-500">{r.roomName}</p></td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{r.checkIn} → {r.checkOut}<p className="text-[10px] text-slate-500">{r.nights} night(s)</p></td>
+                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">₱{Number(r.amount || 0).toLocaleString()}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${STATUS_BADGES[r.status] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                           {r.status}
@@ -235,13 +237,6 @@ export default function Rooms() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          <button 
-                            onClick={() => showToast(`Edit modal for room ${r.roomNo} opened.`)}
-                            title="Edit Room"
-                            className="p-1.5 border border-slate-200 dark:border-slate-700 rounded text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                          >
-                            <Edit2 size={13} />
-                          </button>
                           <button 
                             onClick={() => handleDelete(r.id)}
                             disabled={actionLoading === r.id + '-delete'}
