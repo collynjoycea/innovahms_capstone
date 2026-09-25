@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import useStaffSession from '../../../hooks/useStaffSession';
-import { Search, Filter, CheckCircle2, Clock, RefreshCw, Loader2 } from 'lucide-react';
+import { Search, Filter, CheckCircle2, Clock, RefreshCw, Loader2, Camera, X, ArrowRight } from 'lucide-react';
 
 const STATUS_COLORS = {
   Available:   { border: 'border-emerald-500/50', text: 'text-emerald-500', bg: 'bg-emerald-500/5',  dot: 'bg-emerald-500',  label: 'Available' },
@@ -20,15 +20,22 @@ const nextStatus = (current) => STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1)
 
 export default function RoomStatusMap() {
   const { isDarkMode } = useOutletContext() || { isDarkMode: true };
-  const { qs, hotelId } = useStaffSession();
+  const { qs, hotelId, staffId } = useStaffSession();
   const [rooms, setRooms] = useState([]);
   const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [lastSync, setLastSync] = useState(null);
   const [error, setError] = useState('');
+
+  // Capture-before-status-change modal
+  const [captureRoom, setCaptureRoom] = useState(null); // room object currently pending a photo
+  const [capturePhoto, setCapturePhoto] = useState(null);
+  const [capturePreview, setCapturePreview] = useState(null);
+  const [captureError, setCaptureError] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const fileInputRef = useRef(null);
 
   const fetchRooms = useCallback(async () => {
     setError('');
@@ -55,15 +62,62 @@ export default function RoomStatusMap() {
     return () => clearInterval(t);
   }, [fetchRooms]);
 
-  const handleStatusChange = async (room) => {
+  // Revoke the object URL when it's replaced or the component unmounts, to avoid leaking memory.
+  useEffect(() => () => { if (capturePreview) URL.revokeObjectURL(capturePreview); }, [capturePreview]);
+
+  const openCaptureModal = (room) => {
+    setCaptureError('');
+    setCaptureRoom(room);
+  };
+
+  const closeCaptureModal = () => {
+    if (capturePreview) URL.revokeObjectURL(capturePreview);
+    setCaptureRoom(null);
+    setCapturePhoto(null);
+    setCapturePreview(null);
+    setCaptureError('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (capturePreview) URL.revokeObjectURL(capturePreview);
+    setCapturePhoto(file);
+    setCapturePreview(URL.createObjectURL(file));
+    setCaptureError('');
+  };
+
+  const clearPhoto = () => {
+    if (capturePreview) URL.revokeObjectURL(capturePreview);
+    setCapturePhoto(null);
+    setCapturePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const confirmStatusChange = async () => {
+    if (!captureRoom) return;
+    if (!capturePhoto) {
+      setCaptureError('Capture a photo of the room before you can update its status.');
+      return;
+    }
+    const room = captureRoom;
     const next = nextStatus(room.status);
-    setUpdating(room.id);
+    setConfirming(true);
+    setCaptureError('');
     try {
+      const fd = new FormData();
+      fd.append('status', next);
+      fd.append('require_photo', 'true');
+      if (hotelId) fd.append('hotel_id', hotelId);
+      if (staffId) fd.append('staff_id', staffId);
+      fd.append('photo', capturePhoto);
+
       const res = await fetch(`/api/housekeeping/room-status/${room.room_label}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hotel_id: hotelId, status: next }),
+        body: fd,
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setRooms(prev => prev.map(r => r.id === room.id ? { ...r, status: next } : r));
         setCounts(prev => {
@@ -72,9 +126,15 @@ export default function RoomStatusMap() {
           n[next] = (n[next] || 0) + 1;
           return n;
         });
+        closeCaptureModal();
+      } else {
+        setCaptureError(data.error || 'Unable to update room status.');
       }
-    } catch { /* ignore */ }
-    finally { setUpdating(null); }
+    } catch {
+      setCaptureError('Cannot connect to server.');
+    } finally {
+      setConfirming(false);
+    }
   };
 
   const filtered = rooms.filter(r => {
@@ -92,8 +152,82 @@ export default function RoomStatusMap() {
     input:    isDarkMode ? 'bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-600' : 'bg-white border-zinc-200 text-zinc-900 placeholder:text-zinc-400',
   };
 
+  const currentStyle = captureRoom ? getStyle(captureRoom.status) : null;
+  const nextStyle = captureRoom ? getStyle(nextStatus(captureRoom.status)) : null;
+
   return (
     <div className={`p-8 min-h-screen transition-all duration-500 ${theme.bg}`}>
+
+      {/* CAPTURE-BEFORE-CHANGE MODAL */}
+      {captureRoom && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className={`${theme.card} border ${theme.border} w-full max-w-md rounded-2xl overflow-hidden shadow-2xl`}>
+            <div className={`px-6 py-4 border-b ${theme.border} flex justify-between items-center bg-white/5`}>
+              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-[#6FCF97]">Verify Room {captureRoom.room_label}</h2>
+              <button onClick={closeCaptureModal} className={`${theme.textSub} hover:text-white transition-colors`}><X size={18} /></button>
+            </div>
+            <div className="p-6 space-y-5 text-left">
+              <div className="flex items-center justify-center gap-3">
+                <span className={`px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest ${currentStyle.border} ${currentStyle.text} ${currentStyle.bg}`}>
+                  {currentStyle.label}
+                </span>
+                <ArrowRight size={16} className={theme.textSub} />
+                <span className={`px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest ${nextStyle.border} ${nextStyle.text} ${nextStyle.bg}`}>
+                  {nextStyle.label}
+                </span>
+              </div>
+              <p className={`text-[11px] font-bold text-center ${theme.textSub}`}>
+                Capture a photo of the room to confirm its condition before the status changes.
+              </p>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoChange}
+                className="hidden"
+              />
+
+              {capturePreview ? (
+                <div className={`relative rounded-2xl border ${theme.border} overflow-hidden`}>
+                  <img src={capturePreview} alt={`Room ${captureRoom.room_label}`} className="w-full h-48 object-cover" />
+                  <button
+                    type="button"
+                    onClick={clearPhoto}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white hover:bg-red-500 transition-all"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`w-full p-8 rounded-2xl border-2 border-dashed ${theme.border} text-[#6FCF97] flex flex-col items-center justify-center gap-3 hover:bg-[#6FCF97]/5 transition-all`}
+                >
+                  <Camera size={28} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Capture Photo</span>
+                </button>
+              )}
+
+              {captureError && <p className="text-[10px] font-bold text-red-500 text-center">{captureError}</p>}
+
+              <div className="flex gap-3">
+                <button onClick={closeCaptureModal} disabled={confirming} className={`flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest border ${theme.border} ${theme.textMain} disabled:opacity-50`}>Cancel</button>
+                <button
+                  onClick={confirmStatusChange}
+                  disabled={!capturePhoto || confirming}
+                  className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest bg-[#6FCF97] text-black disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {confirming ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {confirming ? 'Saving...' : 'Confirm & Update'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HEADER */}
       <div className={`flex flex-col md:flex-row justify-between items-end border-b pb-6 ${theme.border} mb-8`}>
@@ -160,19 +294,12 @@ export default function RoomStatusMap() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
             {filtered.map((room) => {
               const sc = getStyle(room.status);
-              const isUpdating = updating === room.id;
               return (
                 <button
                   key={room.id}
-                  onClick={() => !isUpdating && handleStatusChange(room)}
-                  disabled={isUpdating}
-                  className={`relative p-4 rounded-2xl border-2 transition-all duration-300 hover:scale-105 active:scale-95 group disabled:opacity-60 ${sc.border} ${sc.bg}`}
+                  onClick={() => openCaptureModal(room)}
+                  className={`relative p-4 rounded-2xl border-2 transition-all duration-300 hover:scale-105 active:scale-95 group ${sc.border} ${sc.bg}`}
                 >
-                  {isUpdating && (
-                    <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/30">
-                      <Loader2 size={16} className="animate-spin text-[#6FCF97]" />
-                    </div>
-                  )}
                   <div className="text-center space-y-1">
                     <h4 className={`text-xl font-black uppercase tracking-tighter ${theme.textMain} group-hover:text-[#6FCF97] transition-colors`}>
                       {room.room_label}

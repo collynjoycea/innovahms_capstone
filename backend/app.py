@@ -82,9 +82,12 @@ OWNER_DOCUMENT_FIELDS = {
     'validId': 'valid_id_path',
 }
 OWNER_DOCUMENT_ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'webp'}
+HK_MAINTENANCE_UPLOAD_FOLDER = os.path.join(_BACKEND_BASE_DIR, 'static', 'uploads', 'housekeeping-maintenance')
+HK_PHOTO_ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OWNER_DOCUMENT_UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(HK_MAINTENANCE_UPLOAD_FOLDER, exist_ok=True)
 
 
 def _safe_close(conn=None, cur=None):
@@ -7766,6 +7769,18 @@ def _save_room_images(files, hotel_id, room_num):
     return paths
 
 
+def _save_hk_maintenance_photo(file_storage, hotel_id):
+    """Save a captured/uploaded maintenance photo and return its public path, or None."""
+    if not file_storage or not getattr(file_storage, 'filename', ''):
+        return None
+    ext = str(file_storage.filename).rsplit('.', 1)[-1].lower() if '.' in file_storage.filename else ''
+    if ext not in HK_PHOTO_ALLOWED_EXTENSIONS:
+        return None
+    stored_name = secure_filename(f"hkm_h{hotel_id or 0}_{uuid.uuid4().hex[:12]}.{ext}")
+    file_storage.save(os.path.join(HK_MAINTENANCE_UPLOAD_FOLDER, stored_name))
+    return f"/static/uploads/housekeeping-maintenance/{stored_name}"
+
+
 def _to_pg_array(items):
     """Convert a list of strings to a PostgreSQL TEXT[] literal."""
     if not items:
@@ -11939,6 +11954,11 @@ def serve_room_images(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
+@app.route('/static/uploads/housekeeping-maintenance/<path:filename>')
+def serve_hk_maintenance_photo(filename):
+    return send_from_directory(HK_MAINTENANCE_UPLOAD_FOLDER, filename)
+
+
 @app.route('/static/uploads/owner-documents/<path:filename>')
 def serve_owner_documents(filename):
     return send_from_directory(OWNER_DOCUMENT_UPLOAD_FOLDER, filename)
@@ -13213,14 +13233,65 @@ def hk_room_status():
     finally: _safe_close(conn, cur)
 
 
+def _ensure_hk_cleaning_photos_table(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_cleaning_photos (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            room_number VARCHAR(50) NOT NULL,
+            status VARCHAR(30) NOT NULL,
+            photo_url TEXT NOT NULL,
+            staff_id INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+
+def _save_hk_room_photo(file_storage, hotel_id, room_number):
+    """Save a captured room-status photo and return its public path, or None."""
+    if not file_storage or not getattr(file_storage, 'filename', ''):
+        return None
+    ext = str(file_storage.filename).rsplit('.', 1)[-1].lower() if '.' in file_storage.filename else ''
+    if ext not in HK_PHOTO_ALLOWED_EXTENSIONS:
+        return None
+    safe_room = secure_filename(str(room_number or 'room'))
+    stored_name = secure_filename(f"hkr_h{hotel_id or 0}_{safe_room}_{uuid.uuid4().hex[:12]}.{ext}")
+    file_storage.save(os.path.join(HK_MAINTENANCE_UPLOAD_FOLDER, stored_name))
+    return f"/static/uploads/housekeeping-maintenance/{stored_name}"
+
+
 @app.route('/api/housekeeping/room-status/<room_number>', methods=['PATCH'])
 def hk_update_room_status(room_number):
     conn = None; cur = None
     try:
-        data = request.json or {}
+        if request.files:
+            data = request.form
+            photo_file = request.files.get('photo')
+        else:
+            data = request.json or {}
+            photo_file = None
         new_status = data.get('status', 'Available')
-        hotel_id   = data.get('hotel_id')
+        hotel_id   = _to_int_or_none(data.get('hotel_id'))
+        staff_id   = _to_int_or_none(data.get('staff_id'))
+        require_photo = str(data.get('require_photo', '')).strip().lower() in ('true', '1', 'yes')
+
+        if require_photo and not (photo_file and getattr(photo_file, 'filename', '')):
+            return jsonify({'error': 'Please capture a photo of the room before updating its status.'}), 400
+
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        photo_url = None
+        if photo_file and getattr(photo_file, 'filename', ''):
+            photo_url = _save_hk_room_photo(photo_file, hotel_id, room_number)
+            if require_photo and not photo_url:
+                return jsonify({'error': 'Unsupported photo format. Use JPG, PNG, or WEBP.'}), 400
+            if photo_url:
+                _ensure_hk_cleaning_photos_table(cur)
+                cur.execute("""
+                    INSERT INTO hk_cleaning_photos (hotel_id, room_number, status, photo_url, staff_id)
+                    VALUES (%s,%s,%s,%s,%s)
+                """, [hotel_id, room_number, new_status, photo_url, staff_id])
+
         q = "UPDATE rooms SET status = %s WHERE room_number = %s"
         p = [new_status, room_number]
         if hotel_id: q += " AND hotel_id = %s"; p.append(hotel_id)
@@ -13234,7 +13305,7 @@ def hk_update_room_status(room_number):
                 return jsonify({'error': f'Room {room_number} is occupied or not found.'}), 409
             return jsonify({'error': 'Room not found.'}), 404
         conn.commit()
-        return jsonify({'message': f'Room {room_number} updated to {new_status}.', 'status': new_status}), 200
+        return jsonify({'message': f'Room {room_number} updated to {new_status}.', 'status': new_status, 'photoUrl': photo_url}), 200
     except Exception as e:
         if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
@@ -14073,6 +14144,10 @@ def hk_get_room_status():
         _safe_close(conn, cur)
 
 
+def _ensure_hk_maintenance_photo_column(cur):
+    cur.execute("ALTER TABLE hk_maintenance_reports ADD COLUMN IF NOT EXISTS photo_url TEXT")
+
+
 @app.route('/api/housekeeping/maintenance', methods=['GET'])
 def hk_get_maintenance():
     hotel_id = request.args.get('hotel_id', type=int)
@@ -14080,6 +14155,8 @@ def hk_get_maintenance():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_hk_maintenance_photo_column(cur)
+        conn.commit()
         if hotel_id:
             cur.execute("SELECT * FROM hk_maintenance_reports WHERE hotel_id=%s ORDER BY created_at DESC", [hotel_id])
         else:
@@ -14094,16 +14171,30 @@ def hk_get_maintenance():
 
 @app.route('/api/housekeeping/maintenance', methods=['POST'])
 def hk_create_maintenance():
-    d = request.json
+    # Supports both multipart/form-data (with an optional captured "photo" file)
+    # and plain JSON (backward-compatible, no photo).
+    if request.files:
+        d = request.form
+        photo_file = request.files.get('photo')
+    else:
+        d = request.json or {}
+        photo_file = None
+    is_out_of_order = d.get('is_out_of_order', False)
+    if isinstance(is_out_of_order, str):
+        is_out_of_order = is_out_of_order.strip().lower() in ('true', '1', 'yes', 'on')
     conn = None; cur = None
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_hk_maintenance_photo_column(cur)
+        hotel_id = _to_int_or_none(d.get('hotel_id'))
+        reported_by = _to_int_or_none(d.get('reported_by'))
+        photo_url = _save_hk_maintenance_photo(photo_file, hotel_id)
         cur.execute("""
-            INSERT INTO hk_maintenance_reports (hotel_id, room_label, issue, severity, is_out_of_order, reported_by)
-            VALUES (%s,%s,%s,%s,%s,%s) RETURNING *
-        """, [d.get('hotel_id'), d.get('room_label'), d.get('issue'), d.get('severity','Medium Priority'),
-              d.get('is_out_of_order', False), d.get('reported_by')])
+            INSERT INTO hk_maintenance_reports (hotel_id, room_label, issue, severity, is_out_of_order, reported_by, photo_url)
+            VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *
+        """, [hotel_id, d.get('room_label'), d.get('issue'), d.get('severity','Medium Priority'),
+              is_out_of_order, reported_by, photo_url])
         row = cur.fetchone()
         conn.commit()
         return jsonify({'report': dict(row)}), 201

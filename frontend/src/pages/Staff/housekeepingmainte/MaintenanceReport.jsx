@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import axios from 'axios';
 import useStaffSession from '../../../hooks/useStaffSession';
@@ -14,6 +14,10 @@ const MaintenanceReport = () => {
   const { qs, hotelId, staffId } = useStaffSession();
   const [reports, setReports] = useState([]);
   const [form, setForm] = useState({ room_label: '', severity: 'High Priority', issue: '', is_out_of_order: false });
+  const [photo, setPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const fetchReports = async () => {
     try {
@@ -24,14 +28,46 @@ const MaintenanceReport = () => {
 
   useEffect(() => { fetchReports(); }, [qs]);
 
+  // Revoke the object URL when it's replaced or the component unmounts, to avoid leaking memory.
+  useEffect(() => () => { if (photoPreview) URL.revokeObjectURL(photoPreview); }, [photoPreview]);
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhoto(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const clearPhoto = () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhoto(null);
+    setPhotoPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
     try {
-      await axios.post('/api/housekeeping/maintenance', { ...form, hotel_id: hotelId, reported_by: staffId });
+      const fd = new FormData();
+      fd.append('room_label', form.room_label);
+      fd.append('severity', form.severity);
+      fd.append('issue', form.issue);
+      fd.append('is_out_of_order', form.is_out_of_order);
+      fd.append('hotel_id', hotelId);
+      fd.append('reported_by', staffId);
+      if (photo) fd.append('photo', photo);
+
+      await axios.post('/api/housekeeping/maintenance', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       setActiveModal('success');
       setForm({ room_label: '', severity: 'High Priority', issue: '', is_out_of_order: false });
+      clearPhoto();
       fetchReports();
     } catch {}
+    finally { setSubmitting(false); }
   };
 
   const theme = {
@@ -62,6 +98,7 @@ const MaintenanceReport = () => {
   const recentHistory = reports.slice(0, 5).map(r => ({
     id: r.room_label, issue: r.issue, status: r.status,
     time: r.created_at ? new Date(r.created_at).toLocaleString() : '',
+    photoUrl: r.photo_url || null,
   }));
 
   return (
@@ -168,15 +205,40 @@ const MaintenanceReport = () => {
                 </div>
                 <div className="space-y-3">
                   <label className="text-[10px] font-black uppercase tracking-widest text-[#6FCF97] ml-1">Attachment</label>
-                  <button type="button" className={`w-full p-4 rounded-2xl border-2 border-dashed ${theme.border} text-[#6FCF97] flex items-center justify-center gap-3 hover:bg-[#6FCF97]/5 transition-all`}>
-                    <Camera size={20} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Capture Image</span>
-                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                  />
+                  {photoPreview ? (
+                    <div className={`relative rounded-2xl border ${theme.border} overflow-hidden`}>
+                      <img src={photoPreview} alt="Captured issue" className="w-full h-32 object-cover" />
+                      <button
+                        type="button"
+                        onClick={clearPhoto}
+                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white hover:bg-red-500 transition-all"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`w-full p-4 rounded-2xl border-2 border-dashed ${theme.border} text-[#6FCF97] flex items-center justify-center gap-3 hover:bg-[#6FCF97]/5 transition-all`}
+                    >
+                      <Camera size={20} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Capture Image</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <button type="submit" className="w-full py-5 rounded-2xl bg-[#6FCF97] text-black font-black uppercase tracking-[0.3em] text-[12px] flex items-center justify-center gap-4 shadow-xl shadow-[#6FCF97]/20 hover:brightness-110 active:scale-95 transition-all mt-4">
-                <Send size={18} strokeWidth={3} /> Dispatch Report
+              <button type="submit" disabled={submitting} className="w-full py-5 rounded-2xl bg-[#6FCF97] text-black font-black uppercase tracking-[0.3em] text-[12px] flex items-center justify-center gap-4 shadow-xl shadow-[#6FCF97]/20 hover:brightness-110 active:scale-95 transition-all mt-4 disabled:opacity-50">
+                <Send size={18} strokeWidth={3} /> {submitting ? 'Dispatching...' : 'Dispatch Report'}
               </button>
             </form>
           </div>
@@ -197,16 +259,23 @@ const MaintenanceReport = () => {
                 <p className={`text-center py-8 text-[11px] ${theme.textSub}`}>No reports yet.</p>
               ) : recentHistory.map((item, i) => (
                 <div key={i} className={`p-6 rounded-[2rem] border ${theme.border} ${theme.innerCard} text-left relative overflow-hidden group transition-all hover:scale-[1.02]`}>
-                  <div className="flex justify-between items-start mb-2 relative z-10">
-                    <h4 className="text-[15px] font-black uppercase tracking-tight">{item.id}</h4>
-                    <span className={`text-[8px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border ${theme.border} ${
-                      item.status === 'Pending' ? 'bg-orange-500/10 text-orange-500' : item.status === 'Resolved' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-[#6FCF97]/10 text-[#6FCF97]'
-                    }`}>â— {item.status}</span>
-                  </div>
-                  <p className={`text-[11px] font-medium ${theme.textSub} mb-4`}>{item.issue}</p>
-                  <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-widest opacity-60">
-                    <Clock size={12} className="text-[#6FCF97]" />
-                    <span>{item.time}</span>
+                  <div className="flex gap-5 relative z-10">
+                    {item.photoUrl && (
+                      <img src={item.photoUrl} alt={`${item.id} issue`} className={`w-16 h-16 rounded-xl object-cover border ${theme.border} shrink-0`} />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="text-[15px] font-black uppercase tracking-tight">{item.id}</h4>
+                        <span className={`text-[8px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border ${theme.border} ${
+                          item.status === 'Pending' ? 'bg-orange-500/10 text-orange-500' : item.status === 'Resolved' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-[#6FCF97]/10 text-[#6FCF97]'
+                        }`}>● {item.status}</span>
+                      </div>
+                      <p className={`text-[11px] font-medium ${theme.textSub} mb-4`}>{item.issue}</p>
+                      <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-widest opacity-60">
+                        <Clock size={12} className="text-[#6FCF97]" />
+                        <span>{item.time}</span>
+                      </div>
+                    </div>
                   </div>
                   <Wrench size={60} className="absolute -bottom-4 -right-4 opacity-[0.05] text-[#6FCF97] group-hover:rotate-12 transition-transform" />
                 </div>
