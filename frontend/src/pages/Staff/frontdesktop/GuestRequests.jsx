@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Search, Plus, RefreshCw, Send, X, Loader2, Package, AlertTriangle, CheckCircle2, Clock, Ban } from 'lucide-react';
+import { Search, Plus, RefreshCw, Send, X, Loader2, Package, AlertTriangle, CheckCircle2, Clock, Ban, UserCheck } from 'lucide-react';
 import useStaffSession from '../../../hooks/useStaffSession';
 
 
@@ -47,6 +47,11 @@ export default function GuestRequests() {
   const [formMsg, setFormMsg] = useState('');
   const [actingId, setActingId] = useState(null);
   const [rowMsg, setRowMsg] = useState({});
+  const [housekeepers, setHousekeepers] = useState([]);
+  const [assigningRequest, setAssigningRequest] = useState(null);
+  const [selectedHousekeeper, setSelectedHousekeeper] = useState('');
+  const [assignMsg, setAssignMsg] = useState('');
+  const [assigning, setAssigning] = useState(false);
 
   const fetchRequests = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true);
@@ -77,6 +82,47 @@ export default function GuestRequests() {
       if (gRes.ok) setGuests(g.guests || []);
       if (iRes.ok) setInventory(i.inventory || []);
     } catch { setFormMsg('Could not load guests or inventory.'); }
+  };
+
+  const openAssignModal = async (request) => {
+    setAssigningRequest(request);
+    setSelectedHousekeeper('');
+    setAssignMsg('');
+    try {
+      const res = await fetch(`/api/staff/list${qs}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not load housekeeping staff.');
+      const available = (data.staff || []).filter((staff) =>
+        staff.role === 'Housekeeping & Maintenance' &&
+        String(staff.status).toLowerCase() === 'active'
+      );
+      setHousekeepers(available);
+      if (!available.length) setAssignMsg('No active housekeeper is available for assignment.');
+    } catch (error) {
+      setHousekeepers([]);
+      setAssignMsg(error.message || 'Could not load housekeeping staff.');
+    }
+  };
+
+  const assignHousekeeper = async () => {
+    if (!assigningRequest || !selectedHousekeeper) {
+      setAssignMsg('Select a housekeeper first.');
+      return;
+    }
+    setAssigning(true);
+    setAssignMsg('');
+    try {
+      const querySeparator = qs ? '&' : '?';
+      const res = await fetch(`/api/staff/guest-requests/${assigningRequest.id}/relay${qs}${querySeparator}staff_id=${selectedHousekeeper}`, { method: 'PUT' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to assign housekeeper.');
+      setAssigningRequest(null);
+      fetchRequests();
+    } catch (error) {
+      setAssignMsg(error.message || 'Failed to assign housekeeper.');
+    } finally {
+      setAssigning(false);
+    }
   };
 
   const selectedGuest = guests.find(g => String(g.id) === form.guestId);
@@ -152,6 +198,43 @@ export default function GuestRequests() {
 
   return (
     <div className={`p-8 min-h-screen ${isDarkMode ? 'bg-[#050505] text-white' : 'bg-[#f8f9fa] text-zinc-900'}`}>
+
+      {assigningRequest && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800' : 'bg-white border-zinc-200'}`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className={`text-[10px] font-black uppercase tracking-widest ${sub}`}>Assign housekeeping</p>
+                <h2 className={`mt-1 text-xl font-black ${text}`}>Room {assigningRequest.roomNumber}</h2>
+                <p className={`mt-1 text-xs ${sub}`}>{assigningRequest.quantity} x {assigningRequest.itemName}</p>
+              </div>
+              <button onClick={() => setAssigningRequest(null)} disabled={assigning} className={`${sub} hover:text-red-500 disabled:opacity-50`}><X size={20} /></button>
+            </div>
+            <label className={`mt-6 block text-[10px] font-black uppercase tracking-widest ${sub}`}>
+              Available housekeeper
+              <select
+                value={selectedHousekeeper}
+                onChange={e => setSelectedHousekeeper(e.target.value)}
+                className={`mt-2 w-full rounded-xl border p-3 text-xs font-bold outline-none ${inp}`}
+              >
+                <option value="">Select housekeeper...</option>
+                {housekeepers.map(staff => (
+                  <option key={staff.id} value={staff.id}>{staff.name} — {staff.shiftStatus || staff.status}</option>
+                ))}
+              </select>
+            </label>
+            {assignMsg && <p className="mt-3 text-xs font-bold text-red-500">{assignMsg}</p>}
+            <button
+              onClick={assignHousekeeper}
+              disabled={assigning || !selectedHousekeeper}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#2FA084] px-4 py-3 text-xs font-black uppercase tracking-widest text-black disabled:opacity-50"
+            >
+              {assigning ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}
+              {assigning ? 'Assigning...' : 'Assign & Relay to HK'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
@@ -232,9 +315,9 @@ export default function GuestRequests() {
                     <div className="flex flex-col items-end gap-1">
                       <div className="flex gap-2">
                         {r.status === 'RECEIVED' && (
-                          <button onClick={() => act(r, 'relay')} disabled={actingId === r.id}
+                          <button onClick={() => openAssignModal(r)} disabled={actingId === r.id}
                             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2FA084] text-black text-[9px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all disabled:opacity-50">
-                            {actingId === r.id ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} strokeWidth={3} />} Relay to HK
+                            <UserCheck size={12} strokeWidth={3} /> Assign Housekeeper
                           </button>
                         )}
                         {['RECEIVED', 'RELAYED', 'UNAVAILABLE'].includes(r.status) && (

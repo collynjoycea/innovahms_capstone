@@ -68,7 +68,7 @@ def get_db_connection():
         host=os.getenv("DB_HOST", "localhost"),
         database=os.getenv("DB_NAME", "innovahmsdb"),
         user=os.getenv("DB_USER", "postgres"),
-        password=os.getenv("DB_PASSWORD", "lily1245"),
+        password=os.getenv("DB_PASSWORD", "password1"),
         port=os.getenv("DB_PORT", "5432"),
     )
 
@@ -10523,6 +10523,8 @@ def get_customer_dashboard(customer_id):
                         r.payment_method,
                         rm.room_name,
                         rm.room_type,
+                        rm.room_number,
+                        h.id AS hotel_id,
                         h.hotel_name
                     FROM reservations r
                     LEFT JOIN rooms rm ON rm.id = r.room_id
@@ -10560,7 +10562,9 @@ def get_customer_dashboard(customer_id):
                         "totalPrice": total_amount,
                         "status": status_text,
                         "roomType": row.get("room_name") or row.get("room_type") or "Suite",
+                        "roomNumber": row.get("room_number") or "",
                         "hotelName": row.get("hotel_name") or "Innova HMS",
+                        "hotelId": row.get("hotel_id"),
                         "roomId": row.get("room_id"),
                         "paymentMethod": row.get("payment_method") or "cash",
                     })
@@ -10598,6 +10602,31 @@ def get_customer_dashboard(customer_id):
             except Exception:
                 rewards = []
 
+        guest_requests = []
+        if _table_exists(cur, "guest_requests"):
+            try:
+                cur.execute(
+                    """
+                    SELECT gr.id, gr.item_name, gr.quantity, gr.status, gr.notes, gr.created_at
+                    FROM guest_requests gr
+                    JOIN reservations r ON r.id = gr.reservation_id
+                    WHERE r.customer_id = %s
+                    ORDER BY gr.created_at DESC
+                    LIMIT 10
+                    """,
+                    (customer_id,),
+                )
+                guest_requests = [{
+                    "id": row.get("id"),
+                    "itemName": row.get("item_name") or "Room item",
+                    "quantity": row.get("quantity") or 1,
+                    "status": row.get("status") or "RECEIVED",
+                    "notes": row.get("notes") or "",
+                    "createdAt": _serialize_date(row.get("created_at")),
+                } for row in cur.fetchall() or []]
+            except Exception:
+                guest_requests = []
+
         return jsonify({
             "user": {
                 "id": customer.get("id"),
@@ -10612,6 +10641,7 @@ def get_customer_dashboard(customer_id):
                 "preferredRoomType": preferred_room_type,
                 "bookings": bookings,
                 "rewards": rewards,
+                "guestRequests": guest_requests,
             }
         }), 200
     except Exception as e:
@@ -12448,14 +12478,23 @@ def staff_room_map():
         hotel_id = request.args.get('hotel_id', type=int)
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_hk_cleaning_photos_table(cur)
+        conn.commit()
         hf = "WHERE r.hotel_id = %s" if hotel_id else ""
         hp = [hotel_id] if hotel_id else []
         cur.execute(f"""
             SELECT r.id, r.room_number, r.room_name, r.room_type,
                    r.status, r.price_per_night, r.max_adults, r.max_children,
-                   h.hotel_name
+                   h.hotel_name, clean_photo.photo_url AS clean_photo_url
             FROM rooms r
             LEFT JOIN hotels h ON h.id = r.hotel_id
+            LEFT JOIN LATERAL (
+                SELECT photo_url
+                FROM hk_cleaning_photos
+                WHERE room_number = r.room_number AND status = 'Clean'
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) clean_photo ON TRUE
             {hf}
             ORDER BY r.room_number ASC
         """, hp)
@@ -12471,6 +12510,7 @@ def staff_room_map():
                 'price': _to_float(row.get('price_per_night'), 0),
                 'capacity': _to_int(row.get('max_adults'), 0) + _to_int(row.get('max_children'), 0),
                 'hotelName': row.get('hotel_name') or '',
+                'cleanPhotoUrl': row.get('clean_photo_url'),
             })
         counts = {}
         for r in rooms:
@@ -13910,12 +13950,28 @@ def staff_guest_request_action(request_id, action):
     conn = None; cur = None
     try:
         hotel_id = request.args.get('hotel_id', type=int)
+        housekeeper_id = request.args.get('staff_id', type=int) if action == 'relay' else None
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
         target_status = 'RELAYED' if action == 'relay' else 'CANCELLED'
         timestamp_field = 'relayed_at' if action == 'relay' else 'cancelled_at'
-        cur.execute(f"""UPDATE guest_requests SET status = %s, {timestamp_field} = NOW()
-                      WHERE id = %s AND (%s IS NULL OR hotel_id = %s)
-                        AND status = %s RETURNING id""", (target_status, request_id, hotel_id, hotel_id, 'RECEIVED' if action == 'relay' else 'RECEIVED'))
+        if action == 'relay':
+            if not housekeeper_id:
+                return jsonify({'error': 'A housekeeper must be assigned before relaying the request.'}), 400
+            cur.execute("""
+                SELECT id FROM staff
+                WHERE id = %s AND hotel_id = %s
+                  AND role = 'Housekeeping & Maintenance'
+                  AND status = 'Active'
+            """, (housekeeper_id, hotel_id))
+            if not cur.fetchone():
+                return jsonify({'error': 'Selected housekeeper is not available at this hotel.'}), 400
+            cur.execute(f"""UPDATE guest_requests SET status = %s, {timestamp_field} = NOW(), hk_staff_id = %s
+                          WHERE id = %s AND hotel_id = %s AND status = %s RETURNING id""",
+                        (target_status, housekeeper_id, request_id, hotel_id, 'RECEIVED'))
+        else:
+            cur.execute(f"""UPDATE guest_requests SET status = %s, {timestamp_field} = NOW()
+                          WHERE id = %s AND (%s IS NULL OR hotel_id = %s)
+                            AND status = %s RETURNING id""", (target_status, request_id, hotel_id, hotel_id, 'RECEIVED'))
         if not cur.fetchone():
             return jsonify({'error': 'Request is no longer in an actionable state.'}), 409
         conn.commit()

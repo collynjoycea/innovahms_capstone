@@ -19,29 +19,24 @@ export const extractCustomerSession = () => {
 
 export const resolveCustomerId = async (savedUser) => {
   const rawId = savedUser?.id || savedUser?.customer_id || savedUser?.user_id;
-  if (rawId) {
-    return String(rawId).split(":")[0];
+  if (savedUser?.email) {
+    const resolveResponse = await fetch(`/api/customers/resolve?email=${encodeURIComponent(savedUser.email)}`);
+    const resolvePayload = await resolveResponse.json().catch(() => ({}));
+    if (resolveResponse.ok && resolvePayload?.user?.id) {
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          ...savedUser,
+          ...resolvePayload.user,
+        })
+      );
+      return String(resolvePayload.user.id);
+    }
   }
 
-  if (!savedUser?.email) {
-    throw new Error("Customer ID is missing from session.");
-  }
+  if (rawId) return String(rawId).split(":")[0];
 
-  const resolveResponse = await fetch(`/api/customers/resolve?email=${encodeURIComponent(savedUser.email)}`);
-  const resolvePayload = await resolveResponse.json().catch(() => ({}));
-  if (!resolveResponse.ok || !resolvePayload?.user?.id) {
-    throw new Error(resolvePayload?.error || "Unable to resolve customer session.");
-  }
-
-  localStorage.setItem(
-    "user",
-    JSON.stringify({
-      ...savedUser,
-      ...resolvePayload.user,
-    })
-  );
-
-  return String(resolvePayload.user.id);
+  throw new Error("Customer ID is missing from session.");
 };
 
 export const normalizeRoomType = (value) => {
