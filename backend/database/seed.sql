@@ -40,13 +40,13 @@ END $$;
 INSERT INTO membership_packages (name, slug, description, monthly_price, annual_price, max_rooms, features, is_active)
 VALUES
     ('Starter', 'starter', 'Perfect for small hotels just getting started', 2999.00, 29990.00, 10,
-     '{"dashboard": true, "room_management": true, "basic_reservations": true, "staff_management": true}',
+     ARRAY['Dashboard overview', 'Room management', 'Reservations and customers', 'Guest reviews', 'Up to 30 rooms'],
      true),
     ('Professional', 'professional', 'Ideal for growing hotels with advanced needs', 5999.00, 59990.00, 50,
-     '{"dashboard": true, "room_management": true, "advanced_reservations": true, "staff_management": true, "inventory": true, "housekeeping": true, "reports": true}',
+     ARRAY['Dashboard overview', 'Room management', 'Advanced reservations', 'Staff management', 'Inventory', 'Housekeeping', 'Reports', 'Up to 50 rooms'],
      true),
     ('Enterprise', 'enterprise', 'Complete solution for large hotel chains', 9999.00, 99990.00, 200,
-     '{"dashboard": true, "room_management": true, "advanced_reservations": true, "staff_management": true, "inventory": true, "housekeeping": true, "reports": true, "multi_property": true, "api_access": true}',
+     ARRAY['Dashboard overview', 'Room management', 'Advanced reservations', 'Staff management', 'Inventory', 'Housekeeping', 'Reports', 'Multi-property', 'API access', 'Up to 200 rooms'],
      true)
 ON CONFLICT (slug) DO NOTHING;
 

@@ -85,7 +85,10 @@ export default function AllReservation() {
     if (dateFilter === 'today') matchDate = r.checkIn === today;
     if (dateFilter === 'upcoming') matchDate = r.checkIn > today;
     if (dateFilter === 'past') matchDate = r.checkIn < today;
-    return matchSearch && matchStatus && matchDate;
+    // The default Arrivals Today view must only show reservations that can
+    // still arrive. Cancelled/failed records belong in their own status view.
+    const matchArrivalStatus = dateFilter !== 'today' || statusFilter !== 'all' || !['CANCELLED', 'FAILED'].includes(r.status);
+    return matchSearch && matchStatus && matchDate && matchArrivalStatus;
   });
 
   // Pagination Logic (Max 10 per page)

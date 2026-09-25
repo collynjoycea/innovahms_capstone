@@ -65,25 +65,28 @@ const MiniStat = ({ label, value, tone = "slate" }) => {
   );
 };
 
-const BarTrend = ({ labels = [], series = [], tone = "emerald", formatter = (value) => value }) => {
-  const values = (series || []).map((value) => Number(value || 0));
-  const max = Math.max(...values, 1);
+const BarTrend = ({ labels = [], series = [], tone = "emerald", formatter = (value) => value, limit = 6 }) => {
+  // Siguraduhing huling N items (hal. 6) ang maipapakita
+  const displayLabels = (labels || []).slice(-limit);
+  const displayValues = (series || []).slice(-limit).map((value) => Number(value || 0));
+  
+  const max = Math.max(...displayValues, 1);
   const barColor = tone === "emerald" ? "bg-emerald-800 dark:bg-emerald-600" : "bg-slate-700 dark:bg-slate-600";
   return (
     <div>
       <div className="flex h-32 items-end gap-2">
-        {values.length ? values.map((value, index) => (
-          <div key={`${labels[index]}-${index}`} className="flex flex-1 flex-col items-center gap-2">
+        {displayValues.length ? displayValues.map((value, index) => (
+          <div key={`${displayLabels[index]}-${index}`} className="flex flex-1 flex-col items-center gap-2">
             <div className="flex h-24 w-full items-end rounded bg-slate-100 p-1 dark:bg-slate-800/60">
               <div className={`w-full rounded-sm ${barColor} transition-all duration-500`} style={{ height: `${Math.max(8, (value / max) * 88)}px` }} />
             </div>
-            <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500">{shortLabel(labels[index])}</span>
+            <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500">{shortLabel(displayLabels[index])}</span>
           </div>
         )) : <div className="flex h-full w-full items-center justify-center rounded border border-dashed border-slate-200 text-xs text-slate-400 dark:border-slate-800 dark:text-slate-500">No trend data yet.</div>}
       </div>
       <div className="mt-3 flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-        <span>{formatter(values[0] || 0)}</span>
-        <span>{formatter(values[values.length - 1] || 0)}</span>
+        <span>{formatter(displayValues[0] || 0)}</span>
+        <span>{formatter(displayValues[displayValues.length - 1] || 0)}</span>
       </div>
     </div>
   );
@@ -138,13 +141,11 @@ export default function Dashboard() {
       if (!silent) setLoading(true);
       setError("");
       try {
-        const [dashRes, forecastRes, analyticsRes] = await Promise.all([
+        const [dashRes, analyticsRes] = await Promise.all([
           fetch(`/api/owner/dashboard/${ownerId}?period=${period}`, { signal: controller.signal }),
-          fetch(`/api/owner/forecast/${ownerId}?period=${period}`, { signal: controller.signal }),
           fetch(`/api/owner/analytics/${ownerId}?period=${period}`, { signal: controller.signal }),
         ]);
         const dash = await dashRes.json().catch(() => ({}));
-        const forecast = await forecastRes.json().catch(() => ({}));
         const analytics = await analyticsRes.json().catch(() => ({}));
         if (!dashRes.ok) {
           setError(dash?.error || `Failed to load dashboard (HTTP ${dashRes.status}).`);
@@ -154,7 +155,7 @@ export default function Dashboard() {
           return;
         }
         setData(dash);
-        setForecastData(forecastRes.ok ? forecast : dash?.forecast || null);
+        setForecastData(analyticsRes.ok ? analytics?.forecast || null : null);
         setAnalyticsData(analyticsRes.ok ? analytics : null);
         setLastSynced(new Date());
       } catch (e) {
@@ -169,7 +170,7 @@ export default function Dashboard() {
     };
 
     load();
-    const interval = window.setInterval(() => load(true), 15000);
+    const interval = window.setInterval(() => load(true), 30000);
     const onFocus = () => load(true);
     window.addEventListener("focus", onFocus);
     return () => {
@@ -191,7 +192,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans">
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         
-        {/* HEADER SECTION (Match OwnerSignUp UI Style) */}
+        {/* HEADER SECTION */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200 dark:border-slate-800 pb-4 gap-4 bg-white dark:bg-slate-900 p-6 rounded-lg shadow-sm border">
           <div>
             <div className="flex items-center gap-2">
@@ -265,7 +266,7 @@ export default function Dashboard() {
                   </div>
                   <span className="text-xs font-bold text-slate-900 dark:text-white">{Math.round(summary.currentOccupancyRate || 0)}%</span>
                 </div>
-                <BarTrend labels={trends.labels} series={trends.occupancyRate} tone="emerald" formatter={(value) => `${Math.round(value)}%`} />
+                <BarTrend labels={trends.labels} series={trends.occupancyRate} tone="emerald" formatter={(value) => `${Math.round(value)}%`} limit={6} />
               </div>
               
               <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-4">
@@ -276,7 +277,7 @@ export default function Dashboard() {
                   </div>
                   <span className="text-xs font-bold text-slate-900 dark:text-white">{formatPhp(summary.currentRevenuePhp)}</span>
                 </div>
-                <BarTrend labels={trends.labels} series={trends.revenuePhp} tone="slate" formatter={(value) => formatPhp(value)} />
+                <BarTrend labels={trends.labels} series={trends.revenuePhp} tone="slate" formatter={(value) => formatPhp(value)} limit={6} />
               </div>
             </div>
 
@@ -414,7 +415,7 @@ export default function Dashboard() {
         </div>
 
         {/* FOOTER WIDGETS */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Room Status Matrix</p>
@@ -458,28 +459,6 @@ export default function Dashboard() {
               </div>
             </div>
             <button type="button" onClick={() => navigate("/owner/reservations")} className="mt-4 w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">View All Transactions</button>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Customer Origins</p>
-              <span className="text-[10px] font-mono uppercase text-slate-400">OSM Map</span>
-            </div>
-            <div className="relative mt-4 h-[110px] overflow-hidden rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(16,185,129,0.25)_0%,transparent_55%)] opacity-60" />
-              {(data?.customerOrigins?.points || []).slice(0, 10).map((point) => (
-                <span key={`${point.label}-${point.lat}-${point.lng}`} className="absolute h-2 w-2 rounded-full bg-emerald-700 shadow-xs" style={{ left: `${Math.min(88, Math.max(8, ((Number(point.lng) + 180) / 360) * 100))}%`, top: `${Math.min(82, Math.max(8, ((90 - Number(point.lat)) / 180) * 100))}%` }} title={point.label} />
-              ))}
-            </div>
-            <div className="mt-3 space-y-1.5 text-xs">
-              {(data?.customerOrigins?.top || []).slice(0, 3).map((origin) => (
-                <div key={origin.label} className="flex items-center justify-between text-[11px]">
-                  <span className="font-medium text-slate-700 dark:text-slate-300">{origin.label}</span>
-                  <span className="font-bold text-slate-500">{origin.count}</span>
-                </div>
-              ))}
-              {(!data?.customerOrigins?.top || data.customerOrigins.top.length === 0) && !loading ? <p className="text-xs text-slate-500">No origin data yet.</p> : null}
-            </div>
           </div>
         </div>
 

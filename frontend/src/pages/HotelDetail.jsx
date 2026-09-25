@@ -127,6 +127,10 @@ export default function HotelDetail() {
       ? `PHP ${minRoomPrice.toLocaleString()}`
       : `PHP ${minRoomPrice.toLocaleString()} - PHP ${maxRoomPrice.toLocaleString()}`;
 
+  // The hotel rating is aggregated from its published room reviews by the API.
+  const hotelRating = Number(hotel?.avgRating || 0);
+  const hotelReviewCount = Number(hotel?.reviewCount || 0);
+
   const handleGetDirections = () => {
     setRouteLoading(true);
     setRouteError("");
@@ -278,8 +282,22 @@ export default function HotelDetail() {
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-white/5">
               <h2 className="text-sm font-bold text-slate-900 dark:text-white">Hotel Highlights</h2>
               <div className="flex items-center gap-1.5">
-                <Star size={14} fill="#1F6F5F" className="text-[#1F6F5F] dark:text-[#2FA084]" />
-                <span className="text-xs font-bold text-slate-800 dark:text-zinc-100">4.8</span>
+                {hotelReviewCount > 0 ? (
+                  [1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      size={13}
+                      fill={star <= Math.round(hotelRating) ? "#1F6F5F" : "transparent"}
+                      className={star <= Math.round(hotelRating) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
+                    />
+                  ))
+                ) : (
+                  <Star size={14} className="text-slate-300 dark:text-zinc-700" />
+                )}
+                <span className="text-xs font-bold text-slate-800 dark:text-zinc-100">
+                  {hotelReviewCount > 0 ? hotelRating.toFixed(1) : "No ratings yet"}
+                </span>
+                <span className="text-[11px] text-slate-400">({hotelReviewCount})</span>
               </div>
             </div>
 
@@ -371,7 +389,16 @@ export default function HotelDetail() {
                 return (
                   <article
                     key={room.id}
-                    className="overflow-hidden rounded-2xl border border-gray-200 dark:border-[#243B33] bg-white dark:bg-[#0f1715] shadow-md"
+                    onClick={() => navigate(`/roomdetail/${room.id}`)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        navigate(`/roomdetail/${room.id}`);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    className="cursor-pointer overflow-hidden rounded-2xl border border-gray-200 dark:border-[#243B33] bg-white dark:bg-[#0f1715] shadow-md transition-shadow hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#2FA084]"
                   >
                     <div className="relative h-44 overflow-hidden">
                       <img
@@ -413,10 +440,10 @@ export default function HotelDetail() {
 
                         <button
                           type="button"
-                          onClick={() => navigate(`/booking?roomId=${room.id}`)}
+                          onClick={() => navigate(`/roomdetail/${room.id}`)}
                           className="rounded-xl bg-[#1F6F5F] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#288B77] dark:bg-[#2FA084] dark:hover:bg-[#288B77]"
                         >
-                          Reserve Room
+                          View Room
                         </button>
                       </div>
                     </div>

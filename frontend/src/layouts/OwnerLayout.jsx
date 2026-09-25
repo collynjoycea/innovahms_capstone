@@ -54,7 +54,13 @@ const PLAN_FEATURES = {
 const OwnerLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('ownerSidebarOpen') || 'false') === true;
+    } catch {
+      return false;
+    }
+  });
   const [isDarkMode, setIsDarkMode] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('ownerDarkMode') || 'false');
@@ -90,6 +96,10 @@ const OwnerLayout = () => {
       document.documentElement.classList.remove('dark');
     }
   }, [isDarkMode]);
+
+  useEffect(() => {
+    localStorage.setItem('ownerSidebarOpen', JSON.stringify(isSidebarOpen));
+  }, [isSidebarOpen]);
 
   useEffect(() => {
     const session = localStorage.getItem('ownerSession'); 
@@ -204,7 +214,11 @@ const OwnerLayout = () => {
           isDarkMode={isDarkMode}
           toggleTheme={toggleTheme}
           isSidebarOpen={isSidebarOpen}
-          toggleSidebar={() => setIsSidebarOpen((open) => !open)}
+          toggleSidebar={() => setIsSidebarOpen((open) => {
+            const next = !open;
+            localStorage.setItem('ownerSidebarOpen', JSON.stringify(next));
+            return next;
+          })}
         />
 
         <main className={`flex-1 overflow-y-auto transition-colors duration-300 ${isDarkMode ? 'bg-[#0f1117]' : 'bg-slate-50'}`}>

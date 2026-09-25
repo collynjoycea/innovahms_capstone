@@ -1497,7 +1497,9 @@ def _seed_membership_packages(cur):
                 package["monthly_price"],
                 package["annual_price"],
                 package["max_rooms"],
-                Json(package["features"]),
+                # membership_packages.features is PostgreSQL TEXT[], so pass
+                # the Python list directly instead of serializing it as JSON.
+                package["features"],
                 package["is_popular"],
                 package["display_order"],
             ),
@@ -4285,7 +4287,7 @@ def get_reviews():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         query = """
-            SELECT r.id, r.rating, r.title, r.comment, r.status, r.created_at,
+            SELECT r.id, r.room_id, r.rating, r.title, r.comment, r.status, r.created_at,
                    c.first_name, c.last_name,
                    rm.room_name, rm.room_type,
                    h.hotel_name
@@ -4311,6 +4313,7 @@ def get_reviews():
         for row in rows:
             reviews.append({
                 'id': row.get('id'),
+                'roomId': row.get('room_id'),
                 'rating': row.get('rating'),
                 'title': row.get('title') or '',
                 'comment': row.get('comment') or '',
@@ -7074,8 +7077,6 @@ def owner_dashboard(owner_id):
                     "role": row.get("role") or "Staff",
                 })
 
-        forecast = _build_forecast_payload(reservations, total_rooms, period)
-
         return jsonify({
             "ownerId": owner_id,
             "hotelId": hotel_id,
@@ -7103,7 +7104,6 @@ def owner_dashboard(owner_id):
                 "top": top_origins,
                 "points": points,
             },
-            "forecast": forecast,
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -12122,6 +12122,7 @@ def staff_checkout_queue():
         hotel_params = [hotel_id] if hotel_id else []
         cur.execute(f"""
             SELECT r.id, r.booking_number, r.check_in_date, r.check_out_date,
+                   r.check_out_time,
                    r.total_amount, r.deposit_amount, r.status, r.payment_method,
                    c.first_name, c.last_name, c.email, c.contact_number,
                    rm.room_number, rm.room_name, rm.room_type, rm.id AS room_id
@@ -12150,6 +12151,7 @@ def staff_checkout_queue():
                 'roomType': row.get('room_type') or '--',
                 'checkIn': _serialize_date(row.get('check_in_date')),
                 'checkOut': _serialize_date(row.get('check_out_date')),
+                'checkOutTime': str(row.get('check_out_time') or '12:00')[:5],
                 'totalAmount': total,
                 'deposit': deposit,
                 'balance': max(0, total - deposit),
@@ -12712,6 +12714,7 @@ def staff_pay_reservation_balance(reservation_id):
         data = request.json or {}
         payment_method = (data.get('paymentMethod') or 'cash').strip()
         notes = (data.get('notes') or '').strip()
+        amount_received = _to_float(data.get('amountPaid'), 0)
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -12731,11 +12734,14 @@ def staff_pay_reservation_balance(reservation_id):
         balance = max(0, total - deposit)
         if balance <= 0:
             return jsonify({'error': 'Reservation is already fully paid.'}), 400
+        if amount_received < balance:
+            return jsonify({'error': f'Payment must be at least ₱{balance:,.2f} to complete the balance.'}), 400
 
         cur.execute("""
             UPDATE reservations
             SET deposit_amount = total_amount,
                 payment_method = %s,
+                payment_status = 'FULLY_PAID',
                 special_requests = COALESCE(special_requests, '') || %s
             WHERE id = %s
             RETURNING id, booking_number, total_amount, deposit_amount, status
@@ -12751,6 +12757,8 @@ def staff_pay_reservation_balance(reservation_id):
             'bookingNumber': row.get('booking_number'),
             'status': row.get('status'),
             'amountPaid': balance,
+            'amountReceived': amount_received,
+            'change': max(0, amount_received - balance),
             'totalAmount': total,
             'balance': 0,
             'isFullyPaid': True,

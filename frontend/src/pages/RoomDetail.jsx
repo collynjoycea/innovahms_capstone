@@ -85,7 +85,7 @@ export default function RoomDetail() {
       .catch((err) => { if (mounted) setError(err?.message || "Unable to load room."); })
       .finally(() => { if (mounted) setLoading(false); });
 
-    fetch("/api/reviews")
+    fetch(`/api/reviews?room_id=${encodeURIComponent(id)}`)
       .then((r) => r.json())
       .then((data) => { if (mounted) setReviews(data.reviews || []); })
       .catch(() => {});
@@ -129,7 +129,7 @@ export default function RoomDetail() {
   }, [room, reviews]);
 
   const reviewStats = useMemo(() => {
-    if (!roomReviews.length) return { average: 5.0, count: 0, countsByStar: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };
+    if (!roomReviews.length) return { average: 0, count: 0, countsByStar: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };
     const countsByStar = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
     let sum = 0;
     roomReviews.forEach((rev) => {
@@ -347,7 +347,7 @@ export default function RoomDetail() {
               </h1>
               
               <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed mb-4 line-clamp-3">
-                {room.description || "Designed for ultimate corporate or leisure comfort with high-end fixtures and smart integration."}
+                {room.description || "No room description has been added by the owner yet."}
               </p>
 
               <div className="space-y-1.5 border-t border-slate-100 dark:border-white/5 pt-3 mb-4 text-xs text-slate-600 dark:text-zinc-300">
@@ -404,6 +404,13 @@ export default function RoomDetail() {
 
         </div>
 
+        <section className="mb-6 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0f1a17] p-5 shadow-sm">
+          <h2 className="mb-2 text-sm font-bold text-slate-900 dark:text-white">Room Description</h2>
+          <p className="text-sm leading-7 text-slate-600 dark:text-zinc-300">
+            {room.description || "No room description has been added by the owner yet."}
+          </p>
+        </section>
+
         {/* BOTTOM SECTION: REVIEWS & INTERACTIVE MAP SIDE-BY-SIDE */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           
@@ -413,8 +420,21 @@ export default function RoomDetail() {
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-white/5">
               <h2 className="text-sm font-bold text-slate-900 dark:text-white">Guest Reviews & Ratings</h2>
               <div className="flex items-center gap-1.5">
-                <Star size={14} fill="#1F6F5F" className="text-[#1F6F5F] dark:text-[#2FA084]" />
-                <span className="text-xs font-bold text-slate-800 dark:text-zinc-100">{reviewStats.average}</span>
+                {reviewStats.count > 0 ? (
+                  [1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      size={13}
+                      fill={star <= Math.round(Number(reviewStats.average)) ? "#1F6F5F" : "transparent"}
+                      className={star <= Math.round(Number(reviewStats.average)) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
+                    />
+                  ))
+                ) : (
+                  <Star size={14} className="text-slate-300 dark:text-zinc-700" />
+                )}
+                <span className="text-xs font-bold text-slate-800 dark:text-zinc-100">
+                  {reviewStats.count > 0 ? reviewStats.average : "No ratings yet"}
+                </span>
                 <span className="text-[11px] text-slate-400">({reviewStats.count})</span>
               </div>
             </div>
