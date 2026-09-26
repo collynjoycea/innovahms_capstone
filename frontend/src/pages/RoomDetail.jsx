@@ -4,17 +4,14 @@ import {
   ArrowLeft,
   MapPin,
   Users,
-  Wifi,
-  Waves,
-  Utensils,
-  CalendarDays,
   Star,
   X,
   ScanEye,
   ThumbsUp,
-  User,
   Maximize2,
   Navigation,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Marzipano from "marzipano";
 import resolveImg from "../utils/resolveImg";
@@ -50,6 +47,7 @@ export default function RoomDetail() {
   const [reviews, setReviews] = useState([]);
   const [activeFilter, setActiveFilter] = useState("All");
   const [helpfulCounts, setHelpfulCounts] = useState({});
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // 360 tour state
   const [tourOpen, setTourOpen] = useState(false);
@@ -102,6 +100,15 @@ export default function RoomDetail() {
       list: parsed.length ? parsed : ["smart controls", "premium comfort", "24/7 support"],
     };
   }, [room]);
+
+  const roomHighlights = toList(room?.highlights);
+  const roomFeatures = toList(room?.features);
+  
+  const detailSections = [
+    { title: "Room Facilities", items: roomHighlights },
+    { title: "Amenities", items: toList(room?.amenities) },
+    { title: "Room Features", items: roomFeatures },
+  ];
 
   const roomImg = useMemo(() => {
     const raw = Array.isArray(room?.images) ? room.images.filter(Boolean) : [];
@@ -193,7 +200,6 @@ export default function RoomDetail() {
     }
   };
 
-  // Handler to fetch user location and compute/open navigation directions to the hotel
   const handleGetDirections = () => {
     setRouteLoading(true);
     setRouteError("");
@@ -346,7 +352,7 @@ export default function RoomDetail() {
                 {room.roomName || room.name || "Innova Room"}
               </h1>
               
-              <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed mb-4 line-clamp-3">
+              <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed mb-4 line-clamp-3 whitespace-pre-line">
                 {room.description || "No room description has been added by the owner yet."}
               </p>
 
@@ -356,7 +362,6 @@ export default function RoomDetail() {
                     <MapPin size={14} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
                     <span className="truncate">{room.location_description || "Innova Smart Hotel Main Property"}</span>
                   </div>
-                  {/* SHARE / DIRECTIONS BUTTON */}
                   <button
                     onClick={handleGetDirections}
                     disabled={routeLoading}
@@ -404,11 +409,49 @@ export default function RoomDetail() {
 
         </div>
 
+        {/* DESCRIPTION SECTION WITH INLINE SEE MORE */}
         <section className="mb-6 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0f1a17] p-5 shadow-sm">
-          <h2 className="mb-2 text-sm font-bold text-slate-900 dark:text-white">Room Description</h2>
-          <p className="text-sm leading-7 text-slate-600 dark:text-zinc-300">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Room Description</h2>
+          <p className="whitespace-pre-line text-sm leading-7 text-slate-600 dark:text-zinc-300">
             {room.description || "No room description has been added by the owner yet."}
           </p>
+
+          {/* SEE MORE / SEE LESS TOGGLE TEXT */}
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
+            >
+              <span>{isExpanded ? "See Less" : "See More"}</span>
+              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          </div>
+
+          {/* EXPANDED CONTENT UNDER SEE MORE (Room Highlights, Amenities, Room Features) */}
+          {isExpanded && (
+            <div className="mt-5 space-y-4 border-t border-slate-100 dark:border-white/5 pt-4">
+              {detailSections.map((section) => (
+                <div key={section.title} className="rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] p-4">
+                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[#1F6F5F] dark:text-[#2FA084]">
+                    {section.title}
+                  </h3>
+                  {section.items && section.items.length > 0 ? (
+                    <ul className="space-y-1.5 text-sm text-slate-600 dark:text-zinc-300">
+                      {section.items.map((item, index) => (
+                        <li key={`${section.title}-${index}`} className="flex items-start gap-2">
+                          <span className="text-[#1F6F5F] dark:text-[#2FA084] font-bold">•</span>
+                          <span className="whitespace-pre-line">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-slate-400">No {section.title.toLowerCase()} listed.</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* BOTTOM SECTION: REVIEWS & INTERACTIVE MAP SIDE-BY-SIDE */}

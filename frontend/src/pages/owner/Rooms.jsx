@@ -30,6 +30,7 @@ const Rooms = () => {
     rate6Hours: '',
     rate12Hours: '',
     description: '',
+    highlights: [],
     maxAdults: 2,
     maxChildren: 0,
     amenities: [],
@@ -42,8 +43,9 @@ const Rooms = () => {
   const ownerSession = JSON.parse(localStorage.getItem('ownerSession'));
   const hotelId = ownerSession?.hotelId || ownerSession?.hotel_id || ownerSession?.id;
 
-  const AMENITY_OPTIONS = ["Free Wi-Fi", "Air Conditioning", "Smart TV", "Mini Bar", "Coffee Maker", "Safe Box", "Balcony"];
-  const FEATURE_OPTIONS = ["No Windows view", "Private bathroom", "Hair dryer", "Shower", "Free bottled water", "Non-smoking"];
+  const AMENITY_OPTIONS = ["Bedding","Free Wi-Fi","Smart TV","Cable TV","Flat-Screen TV","Mini Refrigerator","Mini Bar ","Electric Kettle","Coffee Maker","Coffee and Tea Kit","Complimentary Bottled Water","Telephone","Alarm Clock","Safe","Hair Dryer","Iron","Ironing Board","Bathrobe","Slippers","Toiletries","Dental Kit","Shower Cap","Towels","Bath Towels","Hand Towels"];
+  const FEATURE_OPTIONS = ["Dining Table","Air Conditioning","Non-Smoking Room","Soundproofing","Blackout Curtains","Balcony","City View","Pool View","Garden View","Sea View","Connecting Room","Extra Bed","Baby Cot","Crib","Seating Area","Sofa","Work Desk"];
+  const HIGHLIGHT_OPTIONS = ["Private Entrance","Video and audio", "Internet and telephony", "Electronic devices", "Outdoor area and window view", "Furniture","Private Bathroom","Toilet","Bidet","Hot and Cold Shower","Bathtub","Bathroom Mirror","Wardrobe","Closet","Clothes Rack","Hangers","Bedside Table","Reading Lamp","Desk Chair","Luggage Rack","Full-Length Mirror","Trash Bin","Power Outlets","USB Charging Ports","Universal Power Adapter","Smoke Detector","Fire Extinguisher","Emergency Information"];
 
   const showStatus = (msg) => {
     setNotification({ show: true, message: msg });
@@ -119,6 +121,7 @@ const Rooms = () => {
       rate6Hours: room.rate6Hours || '',
       rate12Hours: room.rate12Hours || '',
       description: room.description || '',
+      highlights: room.highlights || [],
       maxAdults: room.maxAdults || 2,
       maxChildren: room.maxChildren || 0,
       amenities: room.amenities || [],
@@ -251,6 +254,7 @@ const Rooms = () => {
       formData.append('rate6Hours', parseFloat(roomData.rate6Hours) || 0);
       formData.append('rate12Hours', parseFloat(roomData.rate12Hours) || 0);
       formData.append('description', roomData.description || '');
+      formData.append('highlights', JSON.stringify(roomData.highlights || []));
       formData.append('maxAdults', parseInt(roomData.maxAdults) || 2);
       formData.append('maxChildren', parseInt(roomData.maxChildren) || 0);
 
@@ -591,13 +595,37 @@ const Rooms = () => {
                       onChange={e => updateField('description', e.target.value)}
                     ></textarea>
                 </div>
+
+                <div>
+                  <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Room Facilities</label>
+                  <textarea
+                    rows="5"
+                    placeholder="One highlight per line, e.g. Video and audio\nSmart TV with YouTube and Netflix\nNo pets allowed"
+                    className="w-full resize-y rounded border border-slate-300 p-2.5 outline-none dark:border-slate-700 dark:bg-slate-800"
+                    value={(roomData.highlights || []).join('\n')}
+                    onChange={(e) => updateField('highlights', e.target.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean))}
+                  />
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {HIGHLIGHT_OPTIONS.filter((option) => !(roomData.highlights || []).includes(option)).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => updateField('highlights', [...(roomData.highlights || []), option])}
+                        className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                      >
+                        + {option}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-[10px] text-slate-400">These highlights appear in the room details under More Details.</p>
+                </div>
               </div>
 
               {/* Right Column: Features, Amenities & Images */}
               <div className="space-y-4">
                 {/* Room Features / Inclusions (Gaya ng No windows view, private bathroom, etc.) */}
                 <div>
-                  <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Room Features & Facilities</label>
+                  <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Room Features </label>
                   <div className="relative mb-2">
                     <input 
                       type="text" 

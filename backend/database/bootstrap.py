@@ -472,6 +472,9 @@ def ensure_hourly_room_rate_columns(cur):
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_3_hours NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_6_hours NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_12_hours NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS bed_type VARCHAR(50)",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS features TEXT[] DEFAULT '{}'::text[]",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS highlights TEXT[] DEFAULT '{}'::text[]",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS stay_duration_hours INTEGER",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS rate_type VARCHAR(20) DEFAULT 'overnight'",
     ]
@@ -622,6 +625,7 @@ def ensure_profile_media_columns(cur):
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_logo TEXT",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_building_image TEXT",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_description TEXT",
+        "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_highlights TEXT[] DEFAULT '{}'::text[]",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS contact_phone TEXT",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS check_in_policy TEXT",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS check_out_policy TEXT",

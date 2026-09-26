@@ -27,6 +27,7 @@ const getStatusTone = (status) => {
 export default function Housekeeping() {
   const { isDarkMode } = useOutletContext() || { isDarkMode: false };
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [summary, setSummary] = useState({ totalRooms: 0, cleanedToday: 0, pending: 0, inProgress: 0 });
   const [tasks, setTasks] = useState([]);
   const [activeFilter, setActiveFilter] = useState("all");
@@ -43,6 +44,7 @@ export default function Housekeeping() {
   const fetchHousekeepingData = async () => {
     const hotelId = ownerSession?.hotelId || ownerSession?.hotel_id;
     if (!hotelId) {
+      setError("Owner hotel is not linked to this session.");
       setTasks([]);
       setSummary({ totalRooms: 0, cleanedToday: 0, pending: 0, inProgress: 0 });
       setLoading(false);
@@ -50,6 +52,7 @@ export default function Housekeeping() {
     }
 
     setLoading(true);
+    setError("");
     try {
       const [statsResponse, tasksResponse] = await Promise.all([
         fetch(`/api/housekeeping/dashboard-stats?hotel_id=${hotelId}`),
@@ -57,6 +60,9 @@ export default function Housekeeping() {
       ]);
       const statsData = await statsResponse.json().catch(() => ({}));
       const tasksData = await tasksResponse.json().catch(() => ({}));
+      if (!statsResponse.ok || !tasksResponse.ok) {
+        throw new Error(statsData.error || tasksData.error || "Unable to load housekeeping data from the database.");
+      }
       const nextTasks = Array.isArray(tasksData.tasks) ? tasksData.tasks : [];
 
       setSummary({
@@ -77,8 +83,9 @@ export default function Housekeeping() {
           updatedAt: task.completed_at || task.scheduled_time || task.created_at || "",
         }))
       );
-    } catch {
+    } catch (requestError) {
       setTasks([]);
+      setError(requestError.message || "Unable to load housekeeping data from the database.");
     } finally {
       setLoading(false);
     }
@@ -125,6 +132,12 @@ export default function Housekeeping() {
             <RefreshCcw size={14} /> Refresh Data
           </button>
         </div>
+
+        {error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+            Housekeeping database connection error: {error}
+          </div>
+        ) : null}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

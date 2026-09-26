@@ -13,10 +13,10 @@ const STATUS_COLORS = {
   Cleaning:    { border: 'border-orange-500/50',  text: 'text-orange-500',  bg: 'bg-orange-500/5',   dot: 'bg-orange-500',   label: 'Cleaning' },
 };
 
-// Cleaning flow first: Dirty -> InProgress -> Clean -> Available (then Occupied / Maintenance)
+// The room filter keeps every operational status; the modal only exposes housekeeping statuses.
 const STATUS_CYCLE = ['Dirty', 'InProgress', 'Clean', 'Available', 'Occupied', 'Maintenance'];
+const HOUSEKEEPING_STATUSES = ['Dirty', 'InProgress', 'Clean', 'Maintenance'];
 const getStyle = (s) => STATUS_COLORS[s] || { border: 'border-zinc-700', text: 'text-zinc-400', bg: '', dot: 'bg-zinc-500', label: s || '—' };
-const nextStatus = (current) => STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
 
 export default function RoomStatusMap() {
   const { isDarkMode } = useOutletContext() || { isDarkMode: true };
@@ -31,6 +31,7 @@ export default function RoomStatusMap() {
 
   // Capture-before-status-change modal
   const [captureRoom, setCaptureRoom] = useState(null); // room object currently pending a photo
+  const [selectedStatus, setSelectedStatus] = useState('Dirty');
   const [capturePhoto, setCapturePhoto] = useState(null);
   const [capturePreview, setCapturePreview] = useState(null);
   const [captureError, setCaptureError] = useState('');
@@ -68,11 +69,13 @@ export default function RoomStatusMap() {
   const openCaptureModal = (room) => {
     setCaptureError('');
     setCaptureRoom(room);
+    setSelectedStatus(HOUSEKEEPING_STATUSES.includes(room.status) ? room.status : 'Dirty');
   };
 
   const closeCaptureModal = () => {
     if (capturePreview) URL.revokeObjectURL(capturePreview);
     setCaptureRoom(null);
+    setSelectedStatus('Dirty');
     setCapturePhoto(null);
     setCapturePreview(null);
     setCaptureError('');
@@ -97,12 +100,12 @@ export default function RoomStatusMap() {
 
   const confirmStatusChange = async () => {
     if (!captureRoom) return;
-    if (!capturePhoto) {
+    if (selectedStatus === 'Clean' && !capturePhoto) {
       setCaptureError('Capture a photo of the room before you can update its status.');
       return;
     }
     const room = captureRoom;
-    const next = nextStatus(room.status);
+    const next = selectedStatus;
     setConfirming(true);
     setCaptureError('');
     try {
@@ -153,7 +156,7 @@ export default function RoomStatusMap() {
   };
 
   const currentStyle = captureRoom ? getStyle(captureRoom.status) : null;
-  const nextStyle = captureRoom ? getStyle(nextStatus(captureRoom.status)) : null;
+  const nextStyle = captureRoom ? getStyle(selectedStatus) : null;
 
   return (
     <div className={`p-8 min-h-screen transition-all duration-500 ${theme.bg}`}>
@@ -167,6 +170,23 @@ export default function RoomStatusMap() {
               <button onClick={closeCaptureModal} className={`${theme.textSub} hover:text-white transition-colors`}><X size={18} /></button>
             </div>
             <div className="p-6 space-y-5 text-left">
+              <label className={`block text-[10px] font-black uppercase tracking-widest ${theme.textSub}`}>
+                Update housekeeping status
+                <select
+                  value={selectedStatus}
+                  onChange={e => {
+                    const status = e.target.value;
+                    setSelectedStatus(status);
+                    if (status !== 'Clean') clearPhoto();
+                  }}
+                  className={`mt-2 w-full rounded-xl border px-4 py-3 text-[11px] font-black uppercase tracking-widest outline-none ${theme.input}`}
+                >
+                  {HOUSEKEEPING_STATUSES.map(status => (
+                    <option key={status} value={status}>{getStyle(status).label}</option>
+                  ))}
+                </select>
+              </label>
+
               <div className="flex items-center justify-center gap-3">
                 <span className={`px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest ${currentStyle.border} ${currentStyle.text} ${currentStyle.bg}`}>
                   {currentStyle.label}
@@ -176,39 +196,43 @@ export default function RoomStatusMap() {
                   {nextStyle.label}
                 </span>
               </div>
-              <p className={`text-[11px] font-bold text-center ${theme.textSub}`}>
-                Capture a photo of the room to confirm its condition before the status changes.
-              </p>
+              {selectedStatus === 'Clean' && (
+                <>
+                  <p className={`text-[11px] font-bold text-center ${theme.textSub}`}>
+                    Capture a photo of the room to confirm its condition before the status changes.
+                  </p>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handlePhotoChange}
-                className="hidden"
-              />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                  />
 
-              {capturePreview ? (
-                <div className={`relative rounded-2xl border ${theme.border} overflow-hidden`}>
-                  <img src={capturePreview} alt={`Room ${captureRoom.room_label}`} className="w-full h-48 object-cover" />
-                  <button
-                    type="button"
-                    onClick={clearPhoto}
-                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white hover:bg-red-500 transition-all"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`w-full p-8 rounded-2xl border-2 border-dashed ${theme.border} text-[#6FCF97] flex flex-col items-center justify-center gap-3 hover:bg-[#6FCF97]/5 transition-all`}
-                >
-                  <Camera size={28} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Capture Photo</span>
-                </button>
+                  {capturePreview ? (
+                    <div className={`relative rounded-2xl border ${theme.border} overflow-hidden`}>
+                      <img src={capturePreview} alt={`Room ${captureRoom.room_label}`} className="w-full h-48 object-cover" />
+                      <button
+                        type="button"
+                        onClick={clearPhoto}
+                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white hover:bg-red-500 transition-all"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`w-full p-8 rounded-2xl border-2 border-dashed ${theme.border} text-[#6FCF97] flex flex-col items-center justify-center gap-3 hover:bg-[#6FCF97]/5 transition-all`}
+                    >
+                      <Camera size={28} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Capture Photo</span>
+                    </button>
+                  )}
+                </>
               )}
 
               {captureError && <p className="text-[10px] font-bold text-red-500 text-center">{captureError}</p>}
@@ -217,7 +241,7 @@ export default function RoomStatusMap() {
                 <button onClick={closeCaptureModal} disabled={confirming} className={`flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest border ${theme.border} ${theme.textMain} disabled:opacity-50`}>Cancel</button>
                 <button
                   onClick={confirmStatusChange}
-                  disabled={!capturePhoto || confirming}
+                  disabled={(selectedStatus === 'Clean' && !capturePhoto) || confirming}
                   className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest bg-[#6FCF97] text-black disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {confirming ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -236,7 +260,7 @@ export default function RoomStatusMap() {
             Room Status <span className="text-[#6FCF97]">Map</span>
           </h1>
           <p className={`text-[10px] font-bold ${theme.textSub} uppercase tracking-[0.3em] mt-1`}>
-            Live Room Status · Click a room to cycle status
+            Live Room Status · Select a housekeeping status per room
           </p>
         </div>
         <div className="flex items-center gap-3 mt-4 md:mt-0">

@@ -72,9 +72,9 @@ export default function HotelDetail() {
           id,
           name: "Innova Hotel",
           location: "Innova Smart Hotel",
-          description: "A connected hotel experience powered by Innova HMS.",
+           description: "Comfortable rooms, modern amenities, and a relaxing stay await you.",
           image: "/images/signup-img.png",
-          tag: "Connected Hotel",
+           tag: "Hotel",
         });
 
         setRooms(hotelRooms);
@@ -109,6 +109,8 @@ export default function HotelDetail() {
     const items = toList(hotel?.amenities || hotel?.features || []).map((item) => String(item).trim());
     return items.length ? items : ["Wi‑Fi", "Breakfast", "Pool", "Concierge", "Parking", "24/7 Support"];
   }, [hotel]);
+
+  const hotelHighlights = toList(hotel?.highlights);
 
   const roomPrices = rooms
     .map((room) => Number(room.price ?? room.base_price_php ?? room.price_per_night ?? room.basePricePhp ?? 0))
@@ -302,6 +304,12 @@ export default function HotelDetail() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {hotelHighlights.length > 0 && hotelHighlights.map((highlight, index) => (
+                <div key={`${highlight}-${index}`} className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0d1714] p-4 sm:col-span-2">
+                  <p className="whitespace-pre-line text-xs leading-relaxed text-slate-600 dark:text-zinc-300">{highlight}</p>
+                </div>
+              ))}
+
               <div className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0d1714] p-4">
                 <div className="mb-2 flex items-center gap-2 text-[#1F6F5F] dark:text-[#2FA084]">
                   <Wifi size={15} />

@@ -64,6 +64,7 @@ const emptyProfile = {
     hotelCode: "",
     hotelAddress: "",
     hotelDescription: "",
+    hotelHighlights: [],
     contactPhone: "",
     hotelProfilePicture: "",
     businessImage: "",
@@ -79,6 +80,9 @@ const emptyProfile = {
 const normalizeOwnerProfile = (data = {}) => {
   const owner = { ...emptyProfile.owner, ...(data.owner || {}) };
   const hotelSeed = { ...emptyProfile.hotel, ...(data.hotel || {}) };
+  const hotelHighlights = Array.isArray(hotelSeed.hotelHighlights)
+    ? hotelSeed.hotelHighlights
+    : String(hotelSeed.hotelHighlights || "").split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
   const hotelProfilePicture =
     hotelSeed.hotelProfilePicture || hotelSeed.businessImage || hotelSeed.hotelLogo || "";
 
@@ -86,6 +90,7 @@ const normalizeOwnerProfile = (data = {}) => {
     owner,
     hotel: {
       ...hotelSeed,
+      hotelHighlights,
       hotelProfilePicture,
       businessImage: hotelProfilePicture,
       hotelLogo: hotelProfilePicture,
@@ -471,6 +476,16 @@ export default function OwnerProfile({ section = "owner" }) {
                   </div>
 
                   <Field label="Hotel Description"><textarea value={draft.hotel.hotelDescription} onChange={(e) => onFieldChange("hotel", "hotelDescription", e.target.value)} readOnly={readOnly} className={textareaBase} /></Field>
+                  <Field label="Hotel Highlights">
+                    <textarea
+                      value={(draft.hotel.hotelHighlights || []).join("\n")}
+                      onChange={(e) => onFieldChange("hotel", "hotelHighlights", e.target.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean))}
+                      readOnly={readOnly}
+                      placeholder="One highlight per line"
+                      className={textareaBase}
+                    />
+                    <p className="mt-1 text-[10px] text-slate-400">One highlight per line. These appear on the hotel details page.</p>
+                  </Field>
                 </div>
               </SectionShell>}
 

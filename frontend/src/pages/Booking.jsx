@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Loader2, MapPin, QrCode, Sparkles, Star, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Loader2, MapPin, QrCode, Sparkles, Star, X } from 'lucide-react';
 import resolveImg from '../utils/resolveImg';
 
 const peso = (v) => `PHP ${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -402,7 +402,7 @@ function BookingConfirmationModal({ open, room, checkIn, checkOut, checkInTime, 
   );
 }
 
-function DatePickerField({ label, value, onChange, helperText, isDateDisabled, disabled, minMonthValue }) {
+function DatePickerField({ label, value, onChange, helperText, errorText, isDateDisabled, disabled, minMonthValue }) {
   const pickerRef = useRef(null);
   const buttonRef = useRef(null);
   const panelRef = useRef(null);
@@ -529,12 +529,13 @@ function DatePickerField({ label, value, onChange, helperText, isDateDisabled, d
         type="button"
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-left text-sm text-slate-800 shadow-sm transition hover:border-emerald-500 focus:border-emerald-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:disabled:bg-slate-900"
+        className={`flex w-full items-center justify-between rounded-lg border bg-white px-3.5 py-2.5 text-left text-sm text-slate-800 shadow-sm transition hover:border-emerald-500 focus:border-emerald-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 dark:bg-slate-800 dark:text-slate-100 dark:disabled:bg-slate-900 ${errorText ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-700'}`}
       >
         <span>{dateButtonLabel(value)}</span>
         <CalendarDays size={16} className="text-emerald-600 dark:text-emerald-400" />
       </button>
       {helperText ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{helperText}</p> : null}
+      {errorText ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errorText}</p> : null}
       {calendarPanel}
     </div>
   );
@@ -568,6 +569,7 @@ export default function Booking() {
   const [useAllPoints, setUseAllPoints] = useState(false);
   const [pointsToUse, setPointsToUse] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [booking, setBooking] = useState(null);
@@ -755,6 +757,33 @@ export default function Booking() {
   const inputCls = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 placeholder:text-slate-400';
   const selectCls = 'w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
 
+  const roomStatus = String(room?.status || '').trim().toLowerCase();
+  const roomStatusBookable = !roomStatus || ['available', 'vacant', 'clean', 'ready'].includes(roomStatus);
+  const roomUnavailableMessage = room && !roomStatusBookable
+    ? `This room is currently ${room.status}. Please choose another room.`
+    : '';
+  const fieldError = (name) => fieldErrors[name] || '';
+  const invalidClass = (name, base) => `${base} ${fieldError(name) ? 'border-red-400 focus:border-red-500 dark:border-red-500' : ''}`;
+
+  const validateFields = () => {
+    const next = {};
+    const checkInDate = parseDateValue(checkIn);
+    const checkOutDate = parseDateValue(checkOut);
+    if (!checkInDate || isCheckInDateDisabled(checkInDate)) next.checkIn = 'Choose an available check-in date.';
+    if (!durationHours && (!checkOutDate || isCheckOutDateDisabled(checkOutDate, checkIn))) next.checkOut = 'Choose an available check-out date after check-in.';
+    if (!checkInTime) next.checkInTime = 'Check-in time is required.';
+    if (!durationHours && !checkOutTime) next.checkOutTime = 'Check-out time is required.';
+    if (durationHours && selectedHourlyRate <= 0) next.durationHours = `The ${durationHours}-hour rate is not available for this room.`;
+    if (!Number.isInteger(Number(adults)) || Number(adults) < 1 || Number(adults) > Number(room?.maxAdults || 0)) next.adults = `Adults must be between 1 and ${room?.maxAdults || 0}.`;
+    if (!Number.isInteger(Number(children)) || Number(children) < 0 || Number(children) > Number(room?.maxChildren || 0)) next.children = `Children must be between 0 and ${room?.maxChildren || 0}.`;
+    if (!paymentMethod) next.paymentMethod = 'Select a payment method.';
+    if (!paymentPlan) next.paymentPlan = 'Select a payment plan.';
+    if (!useAllPoints && pointsToUse !== '' && (!/^\d+$/.test(String(pointsToUse)) || Number(pointsToUse) > Math.min(availablePoints, Math.floor(totalBeforePoints)))) next.pointsToUse = `Points must be a whole number up to ${Math.min(availablePoints, Math.floor(totalBeforePoints))}.`;
+    if (roomUnavailableMessage) next.room = roomUnavailableMessage;
+    setFieldErrors(next);
+    return next;
+  };
+
   const nextOpenDate = findNextAvailableCheckIn(today);
   const shownBlockedRanges = blockedRanges.slice(0, 3);
 
@@ -767,6 +796,8 @@ export default function Booking() {
       return;
     }
     if (!room) { setError('No room selected.'); return; }
+    const validationErrors = validateFields();
+    if (Object.keys(validationErrors).length > 0) { setError('Please correct the highlighted fields.'); return; }
     if (!durationHours && nights < 1) { setError('Check-out must be after check-in.'); return; }
     if (durationHours && selectedHourlyRate <= 0) { setError(`The ${durationHours}-hour rate is not configured for this room.`); return; }
     if (isCheckInDateDisabled(parseDateValue(checkIn))) { setError('Selected check-in date is no longer available.'); return; }
@@ -839,6 +870,8 @@ export default function Booking() {
       return;
     }
     if (!room) { setError('No room selected.'); return; }
+    const validationErrors = validateFields();
+    if (Object.keys(validationErrors).length > 0) { setError('Please correct the highlighted fields.'); return; }
     if (!durationHours && nights < 1) { setError('Check-out must be after check-in.'); return; }
     if (durationHours && selectedHourlyRate <= 0) { setError(`The ${durationHours}-hour rate is not configured for this room.`); return; }
     if (isCheckInDateDisabled(parseDateValue(checkIn)) || (!durationHours && isCheckOutDateDisabled(parseDateValue(checkOut), checkIn))) {
@@ -897,6 +930,11 @@ export default function Booking() {
       <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
         <div className="mx-auto max-w-3xl px-4 py-7">
           <div className="mb-5 text-center">
+            <div className="mb-4 flex justify-start">
+              <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+                <ArrowLeft size={15} /> Back
+              </button>
+            </div>
             <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Innova HMS</span>
             <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">Room Reservation</h1>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Select your dates, payment mode, and click confirm to review your booking.</p>
@@ -940,6 +978,12 @@ export default function Booking() {
               </div>
             )}
 
+            {roomUnavailableMessage ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+                {roomUnavailableMessage}
+              </div>
+            ) : null}
+
             <form onSubmit={reviewBooking} className="space-y-6">
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <div className="mb-4 flex items-center gap-2">
@@ -949,7 +993,7 @@ export default function Booking() {
 
                 <div className="mb-5">
                   <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Stay Duration</label>
-                  <select value={durationHours} onChange={(e) => setDurationHours(Number(e.target.value))} className={selectCls}>
+                  <select value={durationHours} onChange={(e) => { setDurationHours(Number(e.target.value)); setFieldErrors((current) => ({ ...current, durationHours: '' })); }} onBlur={() => validateFields()} className={invalidClass('durationHours', selectCls)}>
                     <option value={0}>Overnight — {peso(room?.price || 0)} / night</option>
                     {[3, 6, 12].map((hours) => {
                       const rate = Number(room?.[`rate${hours}Hours`] || 0);
@@ -975,15 +1019,17 @@ export default function Booking() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <DatePickerField label="Check-In Date" value={checkIn} onChange={setCheckIn} minMonthValue={today} isDateDisabled={isCheckInDateDisabled} helperText="Unavailable dates are disabled." />
-                  <DatePickerField label="Check-Out Date" value={checkOut} onChange={setCheckOut} minMonthValue={checkIn || today} isDateDisabled={(date) => !durationHours && isCheckOutDateDisabled(date, checkIn)} helperText={durationHours ? 'Calculated from check-in time.' : 'Valid stay durations only.'} disabled={!checkIn || Boolean(durationHours)} />
+                  <DatePickerField label="Check-In Date" value={checkIn} onChange={(value) => { setCheckIn(value); setFieldErrors((current) => ({ ...current, checkIn: '' })); }} minMonthValue={today} isDateDisabled={isCheckInDateDisabled} helperText="Unavailable dates are disabled." errorText={fieldError('checkIn')} />
+                  <DatePickerField label="Check-Out Date" value={checkOut} onChange={(value) => { setCheckOut(value); setFieldErrors((current) => ({ ...current, checkOut: '' })); }} minMonthValue={checkIn || today} isDateDisabled={(date) => !durationHours && isCheckOutDateDisabled(date, checkIn)} helperText={durationHours ? 'Calculated from check-in time.' : 'Valid stay durations only.'} errorText={fieldError('checkOut')} disabled={!checkIn || Boolean(durationHours)} />
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Check-In Time</label>
-                    <input type="time" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} className={inputCls} />
+                    <input type="time" value={checkInTime} onChange={(e) => { setCheckInTime(e.target.value); setFieldErrors((current) => ({ ...current, checkInTime: '' })); }} onBlur={() => validateFields()} className={invalidClass('checkInTime', inputCls)} />
+                    {fieldError('checkInTime') ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldError('checkInTime')}</p> : null}
                   </div>
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Check-Out Time</label>
-                    <input type="time" value={checkOutTime} onChange={(e) => setCheckOutTime(e.target.value)} disabled={Boolean(durationHours)} className={inputCls} />
+                    <input type="time" value={checkOutTime} onChange={(e) => { setCheckOutTime(e.target.value); setFieldErrors((current) => ({ ...current, checkOutTime: '' })); }} onBlur={() => validateFields()} disabled={Boolean(durationHours)} className={invalidClass('checkOutTime', inputCls)} />
+                    {fieldError('checkOutTime') ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldError('checkOutTime')}</p> : null}
                   </div>
                 </div>
 
@@ -1000,7 +1046,10 @@ export default function Booking() {
                     Use all points
                   </label>
                   {!useAllPoints ? (
-                    <input type="number" min="0" max={Math.min(availablePoints, Math.floor(totalBeforePoints))} step="1" value={pointsToUse} onChange={(e) => setPointsToUse(e.target.value)} placeholder="Enter points to use" disabled={availablePoints <= 0} className={`${inputCls} mt-3`} />
+                    <>
+                      <input type="number" min="0" max={Math.min(availablePoints, Math.floor(totalBeforePoints))} step="1" value={pointsToUse} onChange={(e) => { setPointsToUse(e.target.value); setFieldErrors((current) => ({ ...current, pointsToUse: '' })); }} onBlur={() => validateFields()} placeholder="Enter points to use" disabled={availablePoints <= 0} className={`${invalidClass('pointsToUse', inputCls)} mt-3`} />
+                      {fieldError('pointsToUse') ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldError('pointsToUse')}</p> : null}
+                    </>
                   ) : null}
                   {pointsRedeemed > 0 ? <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">Discount applied: -{peso(pointsDiscountAmount)}</p> : null}
                 </div>
@@ -1015,39 +1064,43 @@ export default function Booking() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Adults (max {room?.maxAdults ?? 0})</label>
-                    <div className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
+                    <div onBlur={() => validateFields()} className={`flex items-center overflow-hidden rounded-lg border bg-white dark:bg-slate-800 ${fieldError('adults') ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-700'}`}>
                       <button type="button" onClick={() => setAdults((v) => Math.max(1, v - 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">-</button>
                       <span className="flex-1 text-center text-sm font-semibold text-slate-800 dark:text-slate-100">{adults}</span>
                       <button type="button" onClick={() => setAdults((v) => Math.min(Number(room?.maxAdults || 10), v + 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">+</button>
                     </div>
+                    {fieldError('adults') ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldError('adults')}</p> : null}
                   </div>
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Children (max {room?.maxChildren ?? 0})</label>
-                    <div className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800">
+                    <div onBlur={() => validateFields()} className={`flex items-center overflow-hidden rounded-lg border bg-white dark:bg-slate-800 ${fieldError('children') ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-700'}`}>
                       <button type="button" onClick={() => setChildren((v) => Math.max(0, v - 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">-</button>
                       <span className="flex-1 text-center text-sm font-semibold text-slate-800 dark:text-slate-100">{children}</span>
                       <button type="button" onClick={() => setChildren((v) => Math.min(Number(room?.maxChildren || 0), v + 1))} className="px-3.5 py-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">+</button>
                     </div>
+                    {fieldError('children') ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldError('children')}</p> : null}
                   </div>
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Payment Method</label>
                     <div className="relative">
-                      <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={selectCls}>
+                      <select value={paymentMethod} onChange={(e) => { setPaymentMethod(e.target.value); setFieldErrors((current) => ({ ...current, paymentMethod: '' })); }} onBlur={() => validateFields()} className={invalidClass('paymentMethod', selectCls)}>
                         <option value="cash">Cash on Arrival</option>
                         <option value="qrph">QR Ph (QR Code Payment)</option>
                         <option value="card">Credit / Debit Card</option>
                         <option value="gcash">GCash</option>
                         <option value="maya">Maya</option>
                       </select>
+                      {fieldError('paymentMethod') ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldError('paymentMethod')}</p> : null}
                       <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M6 8L1 3h10z" /></svg>
                       </div>
                     </div>
                     <label className="mt-3 block text-xs font-medium text-slate-700 dark:text-slate-300">Payment Plan</label>
-                    <select value={paymentPlan} onChange={(e) => setPaymentPlan(e.target.value)} className={`${selectCls} mt-1`}>
+                    <select value={paymentPlan} onChange={(e) => { setPaymentPlan(e.target.value); setFieldErrors((current) => ({ ...current, paymentPlan: '' })); }} onBlur={() => validateFields()} className={`${invalidClass('paymentPlan', selectCls)} mt-1`}>
                       <option value="full">Full Payment</option>
                       <option value="deposit">Downpayment (50%)</option>
                     </select>
+                    {fieldError('paymentPlan') ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldError('paymentPlan')}</p> : null}
                   </div>
                 </div>
               </div>
@@ -1060,7 +1113,7 @@ export default function Booking() {
 
               <button
                 type="submit"
-                disabled={submitting || !room || availabilityLoading}
+                disabled={submitting || !room || !roomStatusBookable || availabilityLoading}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:opacity-50"
               >
                 {sessionUser?.id ? 'Confirm Booking' : 'Sign In to Reserve'}

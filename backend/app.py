@@ -2529,6 +2529,7 @@ def _owner_profile_payload(cur, owner_id):
         "h.hotel_logo",
         "h.hotel_building_image",
         "h.hotel_description",
+        "h.hotel_highlights",
         "h.contact_phone",
         "h.check_in_policy",
         "h.check_out_policy",
@@ -2601,6 +2602,7 @@ def _owner_profile_payload(cur, owner_id):
             "hotelCode": row.get("hotel_code") or "",
             "hotelAddress": row.get("hotel_address") or "",
             "hotelDescription": row.get("hotel_description") or "",
+            "hotelHighlights": _parse_text_array(row.get("hotel_highlights")),
             "contactPhone": row.get("contact_phone") or row.get("contact_number") or "",
             "hotelProfilePicture": business_image,
             "businessImage": business_image,
@@ -5330,6 +5332,7 @@ def owner_signup():
     latitude = data.get('latitude')
     longitude = data.get('longitude')
     hotel_description = (data.get('hotelDescription') or '').strip()
+    hotel_highlights = _parse_text_array(data.get('hotelHighlights') or data.get('highlights') or '')
     business_image = (data.get('businessImage') or '').strip()
     building_image = (data.get('buildingImage') or '').strip()
     check_in_policy = (data.get('checkInPolicy') or '').strip()
@@ -5477,6 +5480,9 @@ def owner_signup():
                 if hotel_description and _table_has_column(cur, 'hotels', 'hotel_description'):
                     update_fields.append("hotel_description = %s")
                     update_params.append(hotel_description)
+                if hotel_highlights and _table_has_column(cur, 'hotels', 'hotel_highlights'):
+                    update_fields.append("hotel_highlights = %s::text[]")
+                    update_params.append(_to_pg_array(hotel_highlights))
                 if business_image and _table_has_column(cur, 'hotels', 'hotel_logo'):
                     update_fields.append("hotel_logo = %s")
                     update_params.append(business_image)
@@ -5606,6 +5612,9 @@ def owner_signup():
         if _table_has_column(cur, 'hotels', 'hotel_description'):
             hotel_columns.append('hotel_description')
             hotel_values.append(hotel_description or '')
+        if _table_has_column(cur, 'hotels', 'hotel_highlights'):
+            hotel_columns.append('hotel_highlights')
+            hotel_values.append(_to_pg_array(hotel_highlights))
         if _table_has_column(cur, 'hotels', 'hotel_logo'):
             hotel_columns.append('hotel_logo')
             hotel_values.append(business_image or '')
@@ -5809,6 +5818,7 @@ def update_owner_profile(owner_id):
         hotel_name = str(hotel_payload.get("hotelName") or "").strip()
         hotel_address = str(hotel_payload.get("hotelAddress") or "").strip()
         hotel_description = str(hotel_payload.get("hotelDescription") or "").strip()
+        hotel_highlights = _parse_text_array(hotel_payload.get("hotelHighlights") or hotel_payload.get("highlights") or "")
         contact_phone = str(hotel_payload.get("contactPhone") or "").strip()
         business_image = str(
             hotel_payload.get("hotelProfilePicture")
@@ -5827,6 +5837,7 @@ def update_owner_profile(owner_id):
                 "hotel_name = COALESCE(%s, hotel_name)",
                 "hotel_address = COALESCE(%s, hotel_address)",
                 "hotel_description = COALESCE(%s, hotel_description)",
+                "hotel_highlights = COALESCE(%s::text[], hotel_highlights)",
                 "contact_phone = COALESCE(%s, contact_phone)",
                 "hotel_logo = COALESCE(%s, hotel_logo)",
                 "hotel_building_image = COALESCE(%s, hotel_building_image)",
@@ -5838,6 +5849,7 @@ def update_owner_profile(owner_id):
                 hotel_name or None,
                 hotel_address or None,
                 hotel_description or None,
+                _to_pg_array(hotel_highlights) if hotel_highlights else None,
                 contact_phone or None,
                 business_image or None,
                 building_image or None,
@@ -6434,6 +6446,8 @@ def _resolve_owner_hotel(cur, owner_id):
         select_columns.append("hotel_building_image")
     if _table_has_column(cur, "hotels", "hotel_description"):
         select_columns.append("hotel_description")
+    if _table_has_column(cur, "hotels", "hotel_highlights"):
+        select_columns.append("hotel_highlights")
     if _table_has_column(cur, "hotels", "contact_phone"):
         select_columns.append("contact_phone")
     columns_sql = ", ".join(select_columns)
@@ -7806,11 +7820,14 @@ def get_rooms(hotel_id):
         for r in rows:
             images = _parse_text_array(r.get('images'))
             amenities = _parse_text_array(r.get('amenities'))
+            features = _parse_text_array(r.get('features'))
+            highlights = _parse_text_array(r.get('highlights'))
             rooms.append({
                 'id': r.get('id'),
                 'roomNumber': r.get('room_number') or '',
                 'roomName': r.get('room_name') or '',
                 'roomType': _normalize_room_type(r.get('room_type')),
+                'bedType': r.get('bed_type') or '',
                 'price': float(r.get('price_per_night') or 0),
                 'rate3Hours': float(r.get('rate_3_hours') or 0),
                 'rate6Hours': float(r.get('rate_6_hours') or 0),
@@ -7819,6 +7836,8 @@ def get_rooms(hotel_id):
                 'maxAdults': int(r.get('max_adults') or 2),
                 'maxChildren': int(r.get('max_children') or 0),
                 'amenities': amenities,
+                'features': features,
+                'highlights': highlights,
                 'images': images,
                 'status': r.get('status') or 'Available',
             })
@@ -7872,6 +7891,7 @@ def add_room():
         rate_6 = float(request.form.get('rate6Hours') or 0)
         rate_12 = float(request.form.get('rate12Hours') or 0)
         desc = request.form.get('description', '')
+        bed_type = request.form.get('bedType', '')
         adults = int(request.form.get('maxAdults') or 2)
         children = int(request.form.get('maxChildren') or 0)
         if adults < 1 or children < 0:
@@ -7881,6 +7901,10 @@ def add_room():
         raw_amenities = request.form.get('amenities', '')
         amenities_list = _parse_text_array(raw_amenities)
         amenities_pg = _to_pg_array(amenities_list)
+        features_list = _parse_text_array(request.form.get('features', ''))
+        highlights_list = _parse_text_array(request.form.get('highlights', ''))
+        features_pg = _to_pg_array(features_list)
+        highlights_pg = _to_pg_array(highlights_list)
 
         # Save uploaded images
         image_paths = _save_room_images(request.files.getlist('images'), hotel_id, room_num)
@@ -7902,12 +7926,12 @@ def add_room():
             if current_count >= room_limit:
                 return _owner_room_limit_response(subscription)
         cur.execute("""
-            INSERT INTO rooms (hotel_id, room_number, room_name, room_type, price_per_night,
+            INSERT INTO rooms (hotel_id, room_number, room_name, room_type, bed_type, price_per_night,
                                rate_3_hours, rate_6_hours, rate_12_hours,
-                               description, amenities, images, max_adults, max_children, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::text[], %s::text[], %s, %s, 'Available')
-        """, (hotel_id, room_num, room_name, room_type, price,
-               rate_3, rate_6, rate_12, desc, amenities_pg, images_pg, adults, children))
+                               description, amenities, features, highlights, images, max_adults, max_children, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::text[], %s::text[], %s::text[], %s::text[], %s, %s, 'Available')
+        """, (hotel_id, room_num, room_name, room_type, bed_type, price,
+               rate_3, rate_6, rate_12, desc, amenities_pg, features_pg, highlights_pg, images_pg, adults, children))
         conn.commit()
         return jsonify({"message": "Room added successfully!"}), 201
     except Exception as e:
@@ -7932,6 +7956,7 @@ def update_room(room_id):
         rate_6 = float(request.form.get('rate6Hours') or 0)
         rate_12 = float(request.form.get('rate12Hours') or 0)
         desc = request.form.get('description', '')
+        bed_type = request.form.get('bedType', '')
         adults = int(request.form.get('maxAdults') or 2)
         children = int(request.form.get('maxChildren') or 0)
         if adults < 1 or children < 0:
@@ -7940,6 +7965,10 @@ def update_room(room_id):
         raw_amenities = request.form.get('amenities', '')
         amenities_list = _parse_text_array(raw_amenities)
         amenities_pg = _to_pg_array(amenities_list)
+        features_list = _parse_text_array(request.form.get('features', ''))
+        highlights_list = _parse_text_array(request.form.get('highlights', ''))
+        features_pg = _to_pg_array(features_list)
+        highlights_pg = _to_pg_array(highlights_list)
 
         # Keep existing images + add new uploads
         existing = request.form.getlist('existing_images')
@@ -7958,13 +7987,13 @@ def update_room(room_id):
             return guard
         cur.execute("""
             UPDATE rooms
-            SET room_number = %s, room_name = %s, room_type = %s, price_per_night = %s,
+            SET room_number = %s, room_name = %s, room_type = %s, bed_type = %s, price_per_night = %s,
                 rate_3_hours = %s, rate_6_hours = %s, rate_12_hours = %s,
-                description = %s, amenities = %s::text[], images = %s::text[],
+                description = %s, amenities = %s::text[], features = %s::text[], highlights = %s::text[], images = %s::text[],
                 max_adults = %s, max_children = %s
             WHERE id = %s
-        """, (room_num, room_name, room_type, price, rate_3, rate_6, rate_12, desc,
-               amenities_pg, images_pg, adults, children, room_id))
+        """, (room_num, room_name, room_type, bed_type, price, rate_3, rate_6, rate_12, desc,
+               amenities_pg, features_pg, highlights_pg, images_pg, adults, children, room_id))
         conn.commit()
         return jsonify({"message": "Room updated successfully!"}), 200
     except Exception as e:
@@ -8599,10 +8628,13 @@ def create_reservation():
         _ensure_hourly_room_rate_columns(cur)
 
         # Get room details
-        cur.execute('SELECT id, price_per_night, rate_3_hours, rate_6_hours, rate_12_hours, hotel_id, room_number, room_name, max_adults, max_children FROM rooms WHERE id = %s', (room_id,))
+        cur.execute('SELECT id, price_per_night, rate_3_hours, rate_6_hours, rate_12_hours, hotel_id, room_number, room_name, max_adults, max_children, status FROM rooms WHERE id = %s', (room_id,))
         room = cur.fetchone()
         if not room:
             return jsonify({'error': 'Room not found'}), 404
+        room_status = str(room.get('status') or '').strip().lower()
+        if room_status and room_status not in {'available', 'vacant', 'clean', 'ready'}:
+            return jsonify({'error': f'Room is currently {room.get("status")}. Please choose an available room.'}), 409
         # Serialize reservations for this room so concurrent requests cannot
         # both pass the availability check before either one is inserted.
         cur.execute('SELECT id FROM rooms WHERE id = %s FOR UPDATE', (room_id,))
@@ -8639,7 +8671,7 @@ def create_reservation():
         if duration_hours:
             cur.execute("""
                 SELECT id, booking_number, check_in_date, check_out_date FROM reservations
-                WHERE room_id = %s AND status NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
+                WHERE room_id = %s AND UPPER(COALESCE(status, '')) NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
                   AND (check_in_date + COALESCE(check_in_time, TIME '00:00')) < (%s::date + %s::time)
                   AND (check_out_date + COALESCE(check_out_time, TIME '00:00')) > (%s::date + %s::time)
                 LIMIT 1
@@ -8647,7 +8679,7 @@ def create_reservation():
         else:
             cur.execute("""
                 SELECT id, booking_number, check_in_date, check_out_date FROM reservations
-                WHERE room_id = %s AND status NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
+                WHERE room_id = %s AND UPPER(COALESCE(status, '')) NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
                   AND check_in_date < %s AND check_out_date > %s LIMIT 1
             """, (room_id, co, ci))
         conflict = cur.fetchone()
@@ -8806,7 +8838,7 @@ def room_availability(room_id):
             SELECT id, booking_number, check_in_date, check_out_date, status
             FROM reservations
             WHERE room_id = %s
-              AND status NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT', 'cancelled', 'failed', 'checked_out')
+              AND UPPER(COALESCE(status, '')) NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
             ORDER BY check_in_date ASC, id ASC
             """,
             (room_id,),
@@ -9747,6 +9779,8 @@ def get_rooms_catalog():
         for row in rows:
             images = _parse_text_array(row.get('images'))
             amenities = _parse_text_array(row.get('amenities'))
+            features = _parse_text_array(row.get('features'))
+            highlights = _parse_text_array(row.get('highlights'))
             max_adults = int(row.get('max_adults') or 0)
             max_children = int(row.get('max_children') or 0)
             max_guests = max(max_adults + max_children, 1)
@@ -9760,6 +9794,7 @@ def get_rooms_catalog():
                 "roomNumber": row.get('room_number') or '',
                 "roomName": display_name,
                 "roomType": row.get('room_type') or "Suite",
+                "bedType": row.get('bed_type') or "",
                 "price": float(row.get('price_per_night') or 0),
                 "rate3Hours": float(row.get('rate_3_hours') or 0),
                 "rate6Hours": float(row.get('rate_6_hours') or 0),
@@ -9767,6 +9802,8 @@ def get_rooms_catalog():
                 "description": row.get('description') or '',
                 "images": images,
                 "amenities": amenities,
+                "features": features,
+                "highlights": highlights,
                 "maxAdults": max_adults,
                 "maxChildren": max_children,
                 "status": row.get('status') or "Available",
@@ -9795,6 +9832,7 @@ def home_hotels():
             "hotel_logo",
             "hotel_building_image",
             "hotel_description",
+            "hotel_highlights",
             "contact_phone",
         ]
         for column_name in optional_columns:
@@ -9836,9 +9874,10 @@ def home_hotels():
                 "name": row.get("hotel_name") or "Innova Property",
                 "location": row.get("hotel_address") or row.get("hotel_name") or "Innova Smart Hotel",
                 "image": building_image,
-                "tag": row.get("hotel_code") or "Connected Hotel",
+                "tag": row.get("hotel_code") or "Hotel",
                 "rooms": _to_int(row.get("room_count"), 0),
-                "description": row.get("hotel_description") or "A connected hotel experience powered by Innova HMS.",
+                "description": row.get("hotel_description") or "Comfortable rooms, modern amenities, and a relaxing stay await you.",
+                "highlights": _parse_text_array(row.get("hotel_highlights")),
                 "contactPhone": row.get("contact_phone") or "",
                 "minPrice": min_price,
                 "maxPrice": max_price,
@@ -12526,14 +12565,23 @@ def staff_room_map():
         hotel_id = request.args.get('hotel_id', type=int)
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_hk_cleaning_photos_table(cur)
+        conn.commit()
         hf = "WHERE r.hotel_id = %s" if hotel_id else ""
         hp = [hotel_id] if hotel_id else []
         cur.execute(f"""
             SELECT r.id, r.room_number, r.room_name, r.room_type,
                    r.status, r.price_per_night, r.max_adults, r.max_children,
-                   h.hotel_name
+                   h.hotel_name, clean_photo.photo_url AS clean_photo_url
             FROM rooms r
             LEFT JOIN hotels h ON h.id = r.hotel_id
+            LEFT JOIN LATERAL (
+                SELECT photo_url
+                FROM hk_cleaning_photos
+                WHERE room_number = r.room_number AND status = 'Clean'
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) clean_photo ON TRUE
             {hf}
             ORDER BY r.room_number ASC
         """, hp)
@@ -12549,6 +12597,7 @@ def staff_room_map():
                 'price': _to_float(row.get('price_per_night'), 0),
                 'capacity': _to_int(row.get('max_adults'), 0) + _to_int(row.get('max_children'), 0),
                 'hotelName': row.get('hotel_name') or '',
+                'cleanPhotoUrl': row.get('clean_photo_url'),
             })
         counts = {}
         for r in rooms:
@@ -13997,12 +14046,28 @@ def staff_guest_request_action(request_id, action):
     conn = None; cur = None
     try:
         hotel_id = request.args.get('hotel_id', type=int)
+        housekeeper_id = request.args.get('staff_id', type=int) if action == 'relay' else None
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
         target_status = 'RELAYED' if action == 'relay' else 'CANCELLED'
         timestamp_field = 'relayed_at' if action == 'relay' else 'cancelled_at'
-        cur.execute(f"""UPDATE guest_requests SET status = %s, {timestamp_field} = NOW()
-                      WHERE id = %s AND (%s IS NULL OR hotel_id = %s)
-                        AND status = %s RETURNING id""", (target_status, request_id, hotel_id, hotel_id, 'RECEIVED' if action == 'relay' else 'RECEIVED'))
+        if action == 'relay':
+            if not housekeeper_id:
+                return jsonify({'error': 'A housekeeper must be assigned before relaying the request.'}), 400
+            cur.execute("""
+                SELECT id FROM staff
+                WHERE id = %s AND hotel_id = %s
+                  AND role = 'Housekeeping & Maintenance'
+                  AND status = 'Active'
+            """, (housekeeper_id, hotel_id))
+            if not cur.fetchone():
+                return jsonify({'error': 'Selected housekeeper is not available at this hotel.'}), 400
+            cur.execute(f"""UPDATE guest_requests SET status = %s, {timestamp_field} = NOW(), hk_staff_id = %s
+                          WHERE id = %s AND hotel_id = %s AND status = %s RETURNING id""",
+                        (target_status, housekeeper_id, request_id, hotel_id, 'RECEIVED'))
+        else:
+            cur.execute(f"""UPDATE guest_requests SET status = %s, {timestamp_field} = NOW()
+                          WHERE id = %s AND (%s IS NULL OR hotel_id = %s)
+                            AND status = %s RETURNING id""", (target_status, request_id, hotel_id, hotel_id, 'RECEIVED'))
         if not cur.fetchone():
             return jsonify({'error': 'Request is no longer in an actionable state.'}), 409
         conn.commit()
