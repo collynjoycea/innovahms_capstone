@@ -83,7 +83,7 @@ export default function RoomDetail() {
       .catch((err) => { if (mounted) setError(err?.message || "Unable to load room."); })
       .finally(() => { if (mounted) setLoading(false); });
 
-    fetch(`/api/reviews?room_id=${encodeURIComponent(id)}`)
+    fetch(`/api/reviews?room_id=${encodeURIComponent(id)}&limit=100`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => { if (mounted) setReviews(data.reviews || []); })
       .catch(() => {});
@@ -119,21 +119,10 @@ export default function RoomDetail() {
   const currentImg = imgError ? FALLBACKS[0] : roomImg;
 
   const roomReviews = useMemo(() => {
-    if (!room || !reviews.length) return [];
-    const roomName = room.roomName || room.name || "";
-    const hotelName = room.location_description || "";
-    return reviews.filter((rev) => {
-      if (rev.roomId && String(rev.roomId) === String(room.id)) return true;
-      if (rev.roomId == null) {
-        return (
-          (roomName && rev.roomName?.toLowerCase().includes(roomName.toLowerCase())) ||
-          (hotelName && rev.hotelName?.toLowerCase().includes(hotelName.toLowerCase())) ||
-          (hotelName && rev.roomName?.toLowerCase().includes(hotelName.toLowerCase()))
-        );
-      }
-      return false;
-    });
-  }, [room, reviews]);
+    // The API already filters by this page's room_id. Do not match by room
+    // name because two rooms can share the same display name.
+    return reviews.filter((rev) => String(rev.roomId) === String(id));
+  }, [id, reviews]);
 
   const reviewStats = useMemo(() => {
     if (!roomReviews.length) return { average: 0, count: 0, countsByStar: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };

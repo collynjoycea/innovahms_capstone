@@ -260,7 +260,7 @@ export default function Rooms() {
           <div>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Building2 className="text-emerald-700 dark:text-emerald-500" size={26} />
-              Rooms Management
+              Room Reservation
             </h2>
             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
               Monitor live bookings, guest stays, and reservation status.

@@ -757,11 +757,6 @@ export default function Booking() {
   const inputCls = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 placeholder:text-slate-400';
   const selectCls = 'w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
 
-  const roomStatus = String(room?.status || '').trim().toLowerCase();
-  const roomStatusBookable = !roomStatus || ['available', 'vacant', 'clean', 'ready'].includes(roomStatus);
-  const roomUnavailableMessage = room && !roomStatusBookable
-    ? `This room is currently ${room.status}. Please choose another room.`
-    : '';
   const fieldError = (name) => fieldErrors[name] || '';
   const invalidClass = (name, base) => `${base} ${fieldError(name) ? 'border-red-400 focus:border-red-500 dark:border-red-500' : ''}`;
 
@@ -779,7 +774,6 @@ export default function Booking() {
     if (!paymentMethod) next.paymentMethod = 'Select a payment method.';
     if (!paymentPlan) next.paymentPlan = 'Select a payment plan.';
     if (!useAllPoints && pointsToUse !== '' && (!/^\d+$/.test(String(pointsToUse)) || Number(pointsToUse) > Math.min(availablePoints, Math.floor(totalBeforePoints)))) next.pointsToUse = `Points must be a whole number up to ${Math.min(availablePoints, Math.floor(totalBeforePoints))}.`;
-    if (roomUnavailableMessage) next.room = roomUnavailableMessage;
     setFieldErrors(next);
     return next;
   };
@@ -932,7 +926,7 @@ export default function Booking() {
           <div className="mb-5 text-center">
             <div className="mb-4 flex justify-start">
               <button type="button" onClick={() => navigate(-1)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
-                <ArrowLeft size={15} /> Back
+                <ArrowLeft size={15} />
               </button>
             </div>
             <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Innova HMS</span>
@@ -977,12 +971,6 @@ export default function Booking() {
                 </button>
               </div>
             )}
-
-            {roomUnavailableMessage ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
-                {roomUnavailableMessage}
-              </div>
-            ) : null}
 
             <form onSubmit={reviewBooking} className="space-y-6">
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -1113,7 +1101,7 @@ export default function Booking() {
 
               <button
                 type="submit"
-                disabled={submitting || !room || !roomStatusBookable || availabilityLoading}
+                disabled={submitting || !room || availabilityLoading}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:opacity-50"
               >
                 {sessionUser?.id ? 'Confirm Booking' : 'Sign In to Reserve'}

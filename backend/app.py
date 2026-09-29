@@ -372,6 +372,9 @@ def _ensure_room_type_options(cur):
 def _ensure_room_status_options(cur):
     return db_bootstrap.ensure_room_status_options(cur)
 
+def _ensure_housekeeping_tables(cur):
+    return db_bootstrap.ensure_housekeeping_tables(cur)
+
 def _ensure_admin_feature_tables(cur):
     return db_bootstrap.ensure_admin_feature_tables(cur)
 
@@ -4352,13 +4355,14 @@ def get_reviews():
     try:
         hotel_id = request.args.get('hotel_id', type=int)
         room_id = request.args.get('room_id', type=int)
+        customer_id = request.args.get('customer_id', type=int)
         limit = min(request.args.get('limit', 20, type=int), 100)
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         query = """
-            SELECT r.id, r.room_id, r.rating, r.title, r.comment, r.status, r.created_at,
+            SELECT r.id, r.customer_id, r.room_id, r.hotel_id, r.rating, r.title, r.comment, r.status, r.created_at,
                    c.first_name, c.last_name,
                    rm.room_name, rm.room_type,
                    h.hotel_name
@@ -4375,6 +4379,9 @@ def get_reviews():
         if room_id:
             query += " AND r.room_id = %s"
             params.append(room_id)
+        if customer_id:
+            query += " AND r.customer_id = %s"
+            params.append(customer_id)
         query += " ORDER BY r.created_at DESC LIMIT %s"
         params.append(limit)
 
@@ -4384,7 +4391,9 @@ def get_reviews():
         for row in rows:
             reviews.append({
                 'id': row.get('id'),
+                'customerId': row.get('customer_id'),
                 'roomId': row.get('room_id'),
+                'hotelId': row.get('hotel_id'),
                 'rating': row.get('rating'),
                 'title': row.get('title') or '',
                 'comment': row.get('comment') or '',
@@ -4423,8 +4432,19 @@ def submit_review():
         room_id = _to_int_or_none(room_id)
         hotel_id = _to_int_or_none(hotel_id)
 
+        customer_id = _to_int_or_none(customer_id)
+        if not customer_id:
+            return jsonify({'error': 'You must be logged in to submit a review.'}), 401
+
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        if room_id:
+            cur.execute(
+                "SELECT id FROM reviews WHERE customer_id = %s AND room_id = %s AND status <> 'hidden' LIMIT 1",
+                (customer_id, room_id),
+            )
+            if cur.fetchone():
+                return jsonify({'error': 'You have already reviewed this room.'}), 409
         cur.execute("""
             INSERT INTO reviews (customer_id, room_id, hotel_id, rating, title, comment)
             VALUES (%s, %s, %s, %s, %s, %s)
@@ -8632,9 +8652,6 @@ def create_reservation():
         room = cur.fetchone()
         if not room:
             return jsonify({'error': 'Room not found'}), 404
-        room_status = str(room.get('status') or '').strip().lower()
-        if room_status and room_status not in {'available', 'vacant', 'clean', 'ready'}:
-            return jsonify({'error': f'Room is currently {room.get("status")}. Please choose an available room.'}), 409
         # Serialize reservations for this room so concurrent requests cannot
         # both pass the availability check before either one is inserted.
         cur.execute('SELECT id FROM rooms WHERE id = %s FOR UPDATE', (room_id,))
@@ -14146,6 +14163,8 @@ def hk_dashboard_stats():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_housekeeping_tables(cur)
+        conn.commit()
         q = "WHERE hotel_id = %s" if hotel_id else ""
         p = [hotel_id] if hotel_id else []
 
@@ -14205,6 +14224,8 @@ def hk_get_tasks():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_housekeeping_tables(cur)
+        conn.commit()
         if hotel_id:
             cur.execute("SELECT * FROM hk_tasks WHERE hotel_id=%s ORDER BY CASE priority WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END, created_at DESC", [hotel_id])
         else:
@@ -14224,6 +14245,7 @@ def hk_create_task():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_housekeeping_tables(cur)
         cur.execute("""
             INSERT INTO hk_tasks (hotel_id, room_label, task_type, assigned_to, staff_name, priority, notes, scheduled_time)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
@@ -14248,6 +14270,7 @@ def hk_update_task_status(task_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_housekeeping_tables(cur)
         if status == 'Completed':
             cur.execute("""
                 UPDATE hk_tasks SET status=%s, completed_at=NOW(), time_spent_mins=%s WHERE id=%s RETURNING *
@@ -14276,6 +14299,8 @@ def hk_get_room_status():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_housekeeping_tables(cur)
+        conn.commit()
         if hotel_id:
             cur.execute("SELECT * FROM hk_room_status WHERE hotel_id=%s ORDER BY room_label", [hotel_id])
         else:
@@ -14299,6 +14324,7 @@ def hk_get_maintenance():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_housekeeping_tables(cur)
         _ensure_hk_maintenance_photo_column(cur)
         conn.commit()
         if hotel_id:
@@ -14330,6 +14356,7 @@ def hk_create_maintenance():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_housekeeping_tables(cur)
         _ensure_hk_maintenance_photo_column(cur)
         hotel_id = _to_int_or_none(d.get('hotel_id'))
         reported_by = _to_int_or_none(d.get('reported_by'))
@@ -14357,6 +14384,7 @@ def hk_update_maintenance_status(report_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        _ensure_housekeeping_tables(cur)
         if status == 'Resolved':
             cur.execute("UPDATE hk_maintenance_reports SET status=%s, resolved_at=NOW() WHERE id=%s", [status, report_id])
         else:
@@ -14377,6 +14405,8 @@ def hk_get_inventory():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_housekeeping_tables(cur)
+        conn.commit()
         if hotel_id:
             cur.execute("SELECT * FROM hk_inventory WHERE hotel_id=%s ORDER BY category, item_name", [hotel_id])
         else:
@@ -14397,6 +14427,7 @@ def hk_restock_inventory(item_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        _ensure_housekeeping_tables(cur)
         cur.execute("UPDATE hk_inventory SET current_qty = LEAST(current_qty + %s, max_qty) WHERE id=%s", [qty, item_id])
         conn.commit()
         return jsonify({'message': 'Restocked'}), 200
@@ -14414,6 +14445,8 @@ def hk_get_history():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_housekeeping_tables(cur)
+        conn.commit()
         if hotel_id:
             cur.execute("SELECT * FROM hk_history WHERE hotel_id=%s ORDER BY completed_at DESC LIMIT 50", [hotel_id])
         else:

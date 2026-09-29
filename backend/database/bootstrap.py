@@ -122,6 +122,88 @@ def ensure_room_status_options(cur):
     )
 
 
+def ensure_housekeeping_tables(cur):
+    """Create the housekeeping tables used by the staff dashboard.
+
+    Older databases may have been created before features.sql was applied,
+    so housekeeping endpoints must be able to self-heal their base tables.
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_tasks (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            room_id INTEGER REFERENCES rooms(id) ON DELETE SET NULL,
+            room_label VARCHAR(20),
+            task_type VARCHAR(50),
+            assigned_to INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+            staff_name VARCHAR(100),
+            priority VARCHAR(20) DEFAULT 'NORMAL',
+            status VARCHAR(30) DEFAULT 'Pending',
+            notes TEXT,
+            scheduled_time TIME,
+            completed_at TIMESTAMP,
+            time_spent_mins INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_history (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            task_id INTEGER REFERENCES hk_tasks(id) ON DELETE SET NULL,
+            room_label VARCHAR(20),
+            task_type VARCHAR(50),
+            staff_name VARCHAR(100),
+            status VARCHAR(30) DEFAULT 'Completed',
+            notes TEXT,
+            completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_room_status (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            room_id INTEGER REFERENCES rooms(id) ON DELETE CASCADE,
+            room_label VARCHAR(20) NOT NULL,
+            room_type VARCHAR(50),
+            status VARCHAR(30) DEFAULT 'Available',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(hotel_id, room_label)
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_maintenance_reports (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            room_label VARCHAR(20),
+            issue TEXT NOT NULL,
+            severity VARCHAR(20) DEFAULT 'Medium',
+            is_out_of_order BOOLEAN DEFAULT FALSE,
+            status VARCHAR(20) DEFAULT 'Pending',
+            reported_by INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+            photo_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_inventory (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            item_name VARCHAR(200) NOT NULL,
+            category VARCHAR(100) DEFAULT 'General',
+            current_qty INTEGER DEFAULT 0,
+            max_qty INTEGER DEFAULT 100,
+            unit VARCHAR(50) DEFAULT 'pcs',
+            supplier VARCHAR(200),
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_hk_tasks_hotel_id ON hk_tasks(hotel_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_hk_history_hotel_id ON hk_history(hotel_id)")
+
+
 def ensure_password_reset_tables(cur):
     cur.execute(
         """

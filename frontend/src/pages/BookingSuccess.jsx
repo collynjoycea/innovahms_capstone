@@ -94,16 +94,16 @@ export default function BookingSuccess() {
   return (
     <div className="booking-success-page min-h-screen flex items-center justify-center px-4 font-sans">
       <div className="fixed inset-0 bg-black/60 z-0" />
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(191,155,48,0.12)_0%,transparent_60%)] z-0" />
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(31,111,95,0.16)_0%,transparent_60%)] z-0" />
 
       <div className="relative z-10 w-full max-w-md">
-        <div className="rounded-[2rem] border border-[#bf9b30]/40 bg-white/10 backdrop-blur-2xl shadow-[0_32px_80px_rgba(0,0,0,0.5)] overflow-hidden">
-          <div className="h-1 w-full bg-gradient-to-r from-transparent via-[#bf9b30] to-transparent" />
+        <div className="rounded-[2rem] border border-[#1F6F5F]/40 bg-white/10 backdrop-blur-2xl shadow-[0_32px_80px_rgba(0,0,0,0.5)] overflow-hidden">
+          <div className="h-1 w-full bg-gradient-to-r from-transparent via-[#1F6F5F] to-transparent" />
           <div className="p-10 text-center">
 
             {status === 'verifying' && (
               <>
-                <Loader2 size={52} className="text-[#bf9b30] mx-auto mb-5 animate-spin" />
+                <Loader2 size={52} className="text-[#1F6F5F] mx-auto mb-5 animate-spin" />
                 <h2 className="text-2xl font-black text-white mb-2">Verifying Payment</h2>
                 <p className="text-white/50 text-sm">Please wait while we confirm your payment...</p>
               </>
@@ -111,14 +111,14 @@ export default function BookingSuccess() {
 
             {status === 'paid' && !showReview && (
               <>
-                <CheckCircle2 size={56} className="text-[#bf9b30] mx-auto mb-5" />
+                <CheckCircle2 size={56} className="text-[#1F6F5F] mx-auto mb-5" />
                 <h2 className="text-2xl font-black text-white mb-2">Payment Confirmed!</h2>
                 <p className="text-white/50 text-xs uppercase tracking-widest mb-6">Booking Successful</p>
 
                 <div className="rounded-xl border border-white/15 bg-white/5 p-5 mb-8 text-left space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-white/50">Booking #</span>
-                    <span className="text-[#bf9b30] font-black">{bookingData?.bookingNumber || bookingNumber}</span>
+                    <span className="text-[#2FA084] font-black">{bookingData?.bookingNumber || bookingNumber}</span>
                   </div>
                   {bookingData?.totalNights && (
                     <div className="flex justify-between text-sm">
@@ -140,11 +140,11 @@ export default function BookingSuccess() {
 
                 <div className="flex flex-col gap-3">
                   <button onClick={() => navigate('/customer/bookings')}
-                    className="w-full py-3.5 rounded-xl bg-[#bf9b30] text-[#0d0c0a] text-[11px] font-black uppercase tracking-widest hover:bg-[#d4ac37] transition-all flex items-center justify-center gap-2">
+                    className="w-full py-3.5 rounded-xl bg-[#1F6F5F] text-white text-[11px] font-black uppercase tracking-widest hover:bg-[#2FA084] transition-all flex items-center justify-center gap-2">
                     <Star size={14} /> View Upcoming Bookings
                   </button>
                   <button onClick={() => setShowReview(true)}
-                    className="w-full py-3.5 rounded-xl border border-[#bf9b30]/60 text-[#bf9b30] text-[11px] font-black uppercase tracking-widest hover:bg-[#bf9b30]/10 transition-all flex items-center justify-center gap-2">
+                    className="w-full py-3.5 rounded-xl border border-[#2FA084]/60 text-[#2FA084] text-[11px] font-black uppercase tracking-widest hover:bg-[#1F6F5F]/10 transition-all flex items-center justify-center gap-2">
                     <Star size={14} /> Review This Booking
                   </button>
                   <button onClick={() => navigate('/')}
@@ -159,7 +159,7 @@ export default function BookingSuccess() {
               <>
                 {reviewDone ? (
                   <>
-                    <CheckCircle2 size={48} className="text-[#bf9b30] mx-auto mb-4" />
+                    <CheckCircle2 size={48} className="text-[#2FA084] mx-auto mb-4" />
                     <h3 className="text-xl font-black text-white mb-2">Thank You!</h3>
                     <p className="text-white/60 text-sm mb-6">Your review has been submitted.</p>
                     <button onClick={() => navigate('/')}
@@ -176,21 +176,21 @@ export default function BookingSuccess() {
                         <button key={s} type="button"
                           onMouseEnter={() => setHover(s)} onMouseLeave={() => setHover(0)}
                           onClick={() => setRating(s)} className="transition-transform hover:scale-110">
-                          <Star size={28} fill={(hover || rating) >= s ? '#bf9b30' : 'transparent'}
-                            className={(hover || rating) >= s ? 'text-[#bf9b30]' : 'text-white/30'} />
+                          <Star size={28} fill={(hover || rating) >= s ? '#2FA084' : 'transparent'}
+                            className={(hover || rating) >= s ? 'text-[#2FA084]' : 'text-white/30'} />
                         </button>
                       ))}
                     </div>
                     <textarea rows={3} value={comment} onChange={e => setComment(e.target.value)}
                       placeholder="Tell future guests about your experience..."
-                      className="w-full rounded-xl border border-white/20 bg-white/10 py-3 px-4 text-sm text-white placeholder:text-white/25 outline-none focus:border-[#bf9b30]/70 transition-all resize-none mb-4" />
+                      className="w-full rounded-xl border border-white/20 bg-white/10 py-3 px-4 text-sm text-white placeholder:text-white/25 outline-none focus:border-[#2FA084]/70 transition-all resize-none mb-4" />
                     <div className="flex gap-3">
                       <button onClick={() => navigate('/')}
                         className="flex-1 py-3 rounded-xl border border-white/20 text-white/60 text-[11px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">
                         Skip
                       </button>
                       <button onClick={submitReview} disabled={!rating || !comment.trim()}
-                        className="flex-1 py-3 rounded-xl bg-[#bf9b30] text-[#0d0c0a] text-[11px] font-black uppercase tracking-widest hover:bg-[#d4ac37] transition-all disabled:opacity-40">
+                        className="flex-1 py-3 rounded-xl bg-[#1F6F5F] text-white text-[11px] font-black uppercase tracking-widest hover:bg-[#2FA084] transition-all disabled:opacity-40">
                         Submit
                       </button>
                     </div>
