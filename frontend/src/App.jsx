@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 
 // --- LAYOUTS ---
 import CustomerLayout from "./layouts/CustomerLayout";
+import RegistrationLayout from "./layouts/RegistrationLayout";
 import OwnerLayout from "./layouts/OwnerLayout"; 
 import AdminLayout from "./layouts/AdminLayout"; 
 import StaffLayout from "./layouts/FrontdesktopLayout";
@@ -14,6 +15,7 @@ import HrPayrollStaffLayout from "./layouts/HrPayrollStaffLayout";
 // --- STAFF PAGES (FRONT DESK) ---
 import StaffLogin from "./pages/Staff/StaffLogIn"; 
 import StaffSignUp from "./pages/Staff/StaffSignUp";
+import HotelierHome from "./components/HotelierHome";
 import StaffDashboard from "./pages/Staff/frontdesktop/StaffDashboard";
 import StaffProfile from "./pages/Staff/frontdesktop/StaffProfile";
 import AllReservation from "./pages/Staff/frontdesktop/AllReservation";
@@ -216,11 +218,15 @@ function App() {
           />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
-          <Route path="/staff/login" element={<StaffLogin />} />
-          <Route path="/staff/signup" element={<StaffSignUp />} />
-          <Route path="/owner/login" element={<OwnerLogin />} />
-          <Route path="/owner/signup" element={<OwnerSignUp />} />
+        </Route>
+
+        <Route element={<RegistrationLayout />}>
+          <Route path="/hotelier" element={<HotelierHome />} />
           <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/staff/login" element={<StaffLogin />} />
+          <Route path="/owner/login" element={<OwnerLogin />} />
+          <Route path="/staff/signup" element={<StaffSignUp />} />
+          <Route path="/owner/signup" element={<OwnerSignUp />} />
         </Route>
 
         {/* GROUP 2: OWNER DASHBOARD */}

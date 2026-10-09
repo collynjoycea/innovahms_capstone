@@ -17,7 +17,7 @@ export default function Footer() {
   return (
     <footer className="border-t border-slate-200 bg-white py-10 text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 font-sans">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 border-b border-slate-200 pb-10 md:grid-cols-[1.4fr_0.9fr_0.9fr] dark:border-slate-800">
+        <div className="grid grid-cols-1 gap-8 border-b border-slate-200 pb-10 md:grid-cols-[1.4fr_0.9fr_0.9fr_0.9fr] dark:border-slate-800">
           
           {/* BRAND COLUMN */}
           <div className="space-y-3">
@@ -89,6 +89,20 @@ export default function Footer() {
               </li>
               <li className="pt-1 text-slate-500 dark:text-slate-400 font-semibold">
                 📍 Metro Manila, Philippines
+              </li>
+            </ul>
+          </div>
+
+          {/* JOIN US COLUMN */}
+          <div className="space-y-4">
+            <h3 className="w-fit border-b-2 border-emerald-700 pb-1 text-xs font-bold uppercase tracking-wider text-slate-900 dark:border-emerald-500 dark:text-white">
+              Join Us
+            </h3>
+            <ul className="space-y-2.5 text-xs font-medium">
+              <li>
+                <Link to="/hotelier" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
+                  For Hotelier
+                </Link>
               </li>
             </ul>
           </div>

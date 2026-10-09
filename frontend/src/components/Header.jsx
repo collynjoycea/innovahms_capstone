@@ -367,68 +367,21 @@ export default function Header() {
               </div>
             ) : (
               <div className="hidden items-center gap-2 md:flex">
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => toggle("login")}
-                    className={`inline-flex items-center gap-1 rounded-full px-4 py-2.5 text-sm font-semibold transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#1F6F5F] hover:bg-[#eef7f4]"}`}
-                  >
-                    Login
-                    <ChevronDown size={14} className={`transition-transform ${openDrop === "login" ? "rotate-180" : ""}`} />
-                  </button>
+                <Link
+                  to="/login"
+                  onClick={closeAll}
+                  className={`inline-flex items-center rounded-full px-4 py-2.5 text-sm font-semibold transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#1F6F5F] hover:bg-[#eef7f4]"}`}
+                >
+                  Login
+                </Link>
 
-                  {openDrop === "login" ? (
-                    <div className={`absolute right-0 mt-3 w-64 rounded-[1.4rem] border p-2 shadow-2xl ${menuPanelClass}`}>
-                      {[
-                        { to: "/login", label: "Login as Customer", icon: <Users size={16} className="text-[#2FA084]" /> },
-                        { to: "/owner/login", label: "Login as Hotel Owner", icon: <Building2 size={16} className="text-[#2FA084]" /> },
-                        { to: "/staff/login", label: "Login as Hotel Staff", icon: <Briefcase size={16} className="text-[#2FA084]" /> },
-                        { to: "/admin/login", label: "Admin", icon: <ShieldCheck size={16} className="text-[#2FA084]" /> },
-                      ].map((item) => (
-                        <Link
-                          key={item.to}
-                          to={item.to}
-                          onClick={closeAll}
-                          className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#14231e] hover:bg-[#eef7f4]"}`}
-                        >
-                          {item.icon}
-                          {item.label}
-                        </Link>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => toggle("signup")}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#1F6F5F] px-5 py-2.5 text-sm font-bold text-[#EEEEEE] shadow-[0_14px_32px_rgba(31,111,95,0.28)] transition-all hover:bg-[#2FA084]"
-                  >
-                    Register
-                    <ChevronDown size={14} className={`transition-transform ${openDrop === "signup" ? "rotate-180" : ""}`} />
-                  </button>
-
-                  {openDrop === "signup" ? (
-                    <div className={`absolute right-0 mt-3 w-64 rounded-[1.4rem] border p-2 shadow-2xl ${menuPanelClass}`}>
-                      {[
-                        { to: "/signup", label: "Signup as Customer", icon: <Users size={16} className="text-[#2FA084]" /> },
-                        { to: "/owner/signup", label: "Signup as Owner", icon: <Building2 size={16} className="text-[#2FA084]" /> },
-                        { to: "/staff/signup", label: "Signup as Staff", icon: <Briefcase size={16} className="text-[#2FA084]" /> },
-                      ].map((item) => (
-                        <Link
-                          key={item.to}
-                          to={item.to}
-                          onClick={closeAll}
-                          className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all ${isDarkMode ? "text-[#EEEEEE] hover:bg-white/5" : "text-[#14231e] hover:bg-[#eef7f4]"}`}
-                        >
-                          {item.icon}
-                          {item.label}
-                        </Link>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+                <Link
+                  to="/signup"
+                  onClick={closeAll}
+                  className="inline-flex items-center rounded-full bg-[#1F6F5F] px-5 py-2.5 text-sm font-bold text-[#EEEEEE] shadow-[0_14px_32px_rgba(31,111,95,0.28)] transition-all hover:bg-[#2FA084]"
+                >
+                  Register
+                </Link>
               </div>
             )}
 
