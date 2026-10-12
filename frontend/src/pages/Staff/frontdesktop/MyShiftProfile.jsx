@@ -3,6 +3,18 @@ import { useOutletContext } from 'react-router-dom';
 import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle, Loader2, User } from 'lucide-react';
 import useStaffSession from '../../../hooks/useStaffSession';
 
+const getCurrentLocation = () => new Promise((resolve, reject) => {
+  if (!navigator.geolocation) {
+    reject(new Error('Geolocation is not supported on this device/browser.'));
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+    reject,
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+});
+
 export default function MyShiftProfile() {
   const { qs, hotelId, firstName, staffId } = useStaffSession();
   const { isDarkMode } = useOutletContext();
@@ -38,10 +50,17 @@ export default function MyShiftProfile() {
   const handleTimeIn = async () => {
     setActing(true); setMsg('');
     try {
+      let coordinates;
+      try {
+        coordinates = await getCurrentLocation();
+      } catch {
+        setMsg('Location access is required to time in.'); setMsgType('error');
+        return;
+      }
       const res = await fetch('/api/staff/time-in', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staffId }),
+        body: JSON.stringify({ staffId, ...coordinates }),
       });
       const data = await res.json();
       if (res.ok) { setMsg(`Clocked in at ${data.clockIn} — ${data.status}`); setMsgType('success'); fetchShift(); }
@@ -53,10 +72,17 @@ export default function MyShiftProfile() {
   const handleTimeOut = async () => {
     setActing(true); setMsg('');
     try {
+      let coordinates;
+      try {
+        coordinates = await getCurrentLocation();
+      } catch {
+        setMsg('Location access is required to time out.'); setMsgType('error');
+        return;
+      }
       const res = await fetch('/api/staff/time-out', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staffId }),
+        body: JSON.stringify({ staffId, ...coordinates }),
       });
       const data = await res.json();
       if (res.ok) { setMsg(`Clocked out at ${data.clockOut} — ${data.hoursWorked}h worked`); setMsgType('success'); fetchShift(); }

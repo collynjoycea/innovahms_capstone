@@ -46,6 +46,7 @@ const roomText = (room, ...fields) => {
 };
 
 const normalizeRoomText = (value) => String(value || "").replace(/\s+/g, " ").trim();
+const sanitizeSearchQuery = (value) => String(value || "").replace(/[^\p{L}\s]/gu, "").replace(/\s+/g, " ");
 const escapeRegExp = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const formatInputDate = (date) => {
   const year = date.getFullYear();
@@ -382,7 +383,7 @@ export default function VisionSuites() {
     const guests = params.get("guests") || "";
     const adults = params.get("adults") || "";
     const children = params.get("children") || "";
-    const search = params.get("search") || "";
+    const search = sanitizeSearchQuery(params.get("search") || "");
     const requestedView = params.get("view") || params.get("roomType") || "";
     const hotelId = params.get("hotel_id") || "";
     const selectedViewMode = params.get("viewMode") || params.get("mode") || "hotel";
@@ -576,7 +577,7 @@ export default function VisionSuites() {
     }
   };
 
-  const roomTypeOptions = ["Standard", "Double", "Suite", "Deluxe", "Family Room"];
+  const roomTypeOptions = ["Single", "Double", "Suite", "Deluxe", "Standard", "Family Room"];
 
   const displayHotels = useMemo(() => {
     let list = [];
@@ -819,7 +820,7 @@ export default function VisionSuites() {
                   <input
                     type="text"
                     value={hotelSearch}
-                    onChange={(e) => setHotelSearch(e.target.value)}
+                    onChange={(e) => setHotelSearch(sanitizeSearchQuery(e.target.value))}
                     placeholder="Hotel or room name..."
                     className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none truncate"
                   />

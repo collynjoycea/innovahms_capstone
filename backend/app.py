@@ -9,6 +9,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 import os
 import json
+import math
 import requests
 import threading
 import re
@@ -27,6 +28,40 @@ from collections import Counter, defaultdict
 # the Philippines has no daylight saving time — so this needs no tzdata
 # package (unlike zoneinfo.ZoneInfo, which fails on Windows without it).
 PH_TZ = timezone(timedelta(hours=8))
+UCC_CONGRESS_LATITUDE = 14.7495
+UCC_CONGRESS_LONGITUDE = 121.0325
+UCC_CONGRESS_ALLOWED_RADIUS_METERS = 100
+
+
+def _staff_attendance_location_error(data):
+    try:
+        latitude = float(data.get('latitude'))
+        longitude = float(data.get('longitude'))
+    except (AttributeError, TypeError, ValueError):
+        return {'error': 'Current location is required to record attendance.'}, 400
+
+    if not math.isfinite(latitude) or not math.isfinite(longitude):
+        return {'error': 'A valid current location is required to record attendance.'}, 400
+    if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+        return {'error': 'A valid current location is required to record attendance.'}, 400
+
+    latitude1 = math.radians(UCC_CONGRESS_LATITUDE)
+    latitude2 = math.radians(latitude)
+    latitude_delta = math.radians(latitude - UCC_CONGRESS_LATITUDE)
+    longitude_delta = math.radians(longitude - UCC_CONGRESS_LONGITUDE)
+    haversine = (
+        math.sin(latitude_delta / 2) ** 2
+        + math.cos(latitude1) * math.cos(latitude2) * math.sin(longitude_delta / 2) ** 2
+    )
+    distance_meters = 6_371_000 * 2 * math.asin(math.sqrt(min(1, haversine)))
+
+    if distance_meters > UCC_CONGRESS_ALLOWED_RADIUS_METERS:
+        return {
+            'error': 'Time In and Time Out are only allowed at UCC Congress Campus.',
+            'distanceMeters': round(distance_meters),
+            'allowedRadiusMeters': UCC_CONGRESS_ALLOWED_RADIUS_METERS,
+        }, 403
+    return None
 
 try:
     from .database import bootstrap as db_bootstrap
@@ -11344,6 +11379,43 @@ def get_innova_recommended(customer_id):
         _safe_close(conn, cur)
 
 
+def _extract_chat_guest_count(message):
+    number_words = {
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+        'isa': 1, 'dalawa': 2, 'tatlo': 3, 'apat': 4, 'lima': 5,
+    }
+    match = re.search(
+        r'\b(?P<count>\d{1,2}|one|two|three|four|five|isa|dalawa|tatlo|apat|lima)\s*'
+        r'(?:guests?|people|persons?|adults?|pax|tao|bisita)\b',
+        str(message or '').lower(),
+    )
+    if not match:
+        return 0
+    value = match.group('count')
+    return _to_int(value, 0) if value.isdigit() else number_words.get(value, 0)
+
+
+def _extract_chat_stay_dates(message, today=None):
+    text = str(message or '').lower()
+    today = today or datetime.now(PH_TZ).date()
+    parsed_dates = []
+    for value in re.findall(r'\b\d{4}-\d{2}-\d{2}\b', text):
+        try:
+            parsed_dates.append(datetime.strptime(value, '%Y-%m-%d').date())
+        except ValueError:
+            continue
+    if len(parsed_dates) >= 2:
+        return parsed_dates[0], parsed_dates[1]
+    if parsed_dates:
+        return parsed_dates[0], parsed_dates[0] + timedelta(days=1)
+    if re.search(r'\b(tomorrow|bukas)\b', text):
+        check_in = today + timedelta(days=1)
+        return check_in, check_in + timedelta(days=1)
+    if re.search(r'\b(today|tonight|ngayon)\b', text):
+        return today, today + timedelta(days=1)
+    return None, None
+
+
 @app.route('/api/chatbot/rasa', methods=['POST'])
 def chatbot_rasa_fallback():
     conn = None
@@ -11405,7 +11477,7 @@ def chatbot_rasa_fallback():
         selected_hotel_id = _to_int_or_none(payload.get("hotel_id"))
         from_date_raw = str(payload.get("from") or payload.get("checkIn") or "").strip()
         to_date_raw = str(payload.get("to") or payload.get("checkOut") or "").strip()
-        requested_guests = _to_int(payload.get("guests"), 0)
+        requested_guests = _to_int(payload.get("guests"), 0) or _extract_chat_guest_count(message)
 
         from_date = to_date = None
         try:
@@ -11415,6 +11487,8 @@ def chatbot_rasa_fallback():
                 to_date = datetime.strptime(to_date_raw, "%Y-%m-%d").date()
         except Exception:
             from_date = to_date = None
+        if not from_date and not to_date:
+            from_date, to_date = _extract_chat_stay_dates(message)
 
         hotel = {}
         if _table_exists(cur, "hotels"):
@@ -11448,7 +11522,7 @@ def chatbot_rasa_fallback():
 
             room_query = """
                 SELECT room_name, room_type, price_per_night, amenities, max_adults, max_children
-                FROM rooms
+                FROM rooms r
                 WHERE LOWER(COALESCE(status, '')) = 'available'
             """
             room_params = []
@@ -11477,7 +11551,7 @@ def chatbot_rasa_fallback():
             cur.execute(room_query, tuple(room_params))
             room_rows = cur.fetchall() or []
 
-        if any(keyword in lower_msg for keyword in ["available", "availability", "room", "suite", "vacant"]):
+        if room_type_match or requested_guests or from_date or any(keyword in lower_msg for keyword in ["available", "availability", "room", "suite", "vacant"]):
             if room_rows:
                 room_lines = []
                 for row in room_rows:
@@ -11485,10 +11559,20 @@ def chatbot_rasa_fallback():
                     room_lines.append(
                         f"{row.get('room_name') or row.get('room_type') or 'Suite'} - PHP {int(_to_float(row.get('price_per_night'), 0)):,}/night for up to {capacity} guest{'s' if capacity != 1 else ''}"
                     )
-                availability_context = " for your selected dates" if from_date and to_date else ""
-                replies.append(f"Current available rooms{availability_context}: " + "; ".join(room_lines))
+                availability_context = f" from {from_date.isoformat()} to {to_date.isoformat()}" if from_date and to_date else ""
+                replies.append(f"Available room matches{availability_context}: " + "; ".join(room_lines))
+                if not (from_date and to_date):
+                    replies.append("Share your check-in and check-out dates if you want me to check availability for your exact stay.")
             else:
-                replies.append("I cannot find an available room that matches that request right now. Try adjusting the dates, guests, or room type.")
+                filters = []
+                if room_type_match:
+                    filters.append(f"room type {room_type_match}")
+                if requested_guests:
+                    filters.append(f"at least {requested_guests} guest{'s' if requested_guests != 1 else ''}")
+                if from_date and to_date:
+                    filters.append(f"{from_date.isoformat()} to {to_date.isoformat()}")
+                request_details = f" for {' and '.join(filters)}" if filters else ""
+                replies.append(f"I couldn't find an available room{request_details}. Try different dates, fewer guests, or another room type.")
 
         if any(keyword in lower_msg for keyword in ["price", "rate", "rates", "budget", "cheap", "expensive", "cost"]):
             if room_rows:
@@ -12717,6 +12801,9 @@ def staff_time_in():
         staff_id = data.get('staffId')
         if not staff_id:
             return jsonify({'error': 'staffId is required'}), 400
+        location_error = _staff_attendance_location_error(data)
+        if location_error:
+            return jsonify(location_error[0]), location_error[1]
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         # Naive Manila-local time — keeps it consistent with existing rows
@@ -12758,6 +12845,9 @@ def staff_time_out():
         staff_id = data.get('staffId')
         if not staff_id:
             return jsonify({'error': 'staffId is required'}), 400
+        location_error = _staff_attendance_location_error(data)
+        if location_error:
+            return jsonify(location_error[0]), location_error[1]
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         now   = datetime.now(PH_TZ).replace(tzinfo=None)
