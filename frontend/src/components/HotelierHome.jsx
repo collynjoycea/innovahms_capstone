@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
   BedDouble,
@@ -11,6 +11,7 @@ import {
   Search,
   ShieldCheck,
 } from 'lucide-react';
+import { subscriptionFeatureList } from '../utils/subscriptionFeatures';
 
 const OWNER_SESSION_KEY = 'ownerSession';
 
@@ -76,6 +77,7 @@ const readSession = () => {
 
 export default function HotelierHome() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -89,6 +91,11 @@ export default function HotelierHome() {
       navigate('/owner/signup', { state: { redirectTo: '/owner/subscription' } });
     }
   };
+
+  useEffect(() => {
+    if (location.hash !== '#plans') return;
+    document.getElementById('plans')?.scrollIntoView({ behavior: 'smooth' });
+  }, [location.hash]);
 
   useEffect(() => {
     let cancelled = false;
@@ -281,7 +288,7 @@ export default function HotelierHome() {
                     </p>
 
                     <ul className="mt-5 space-y-3 flex-1">
-                      {(pkg.features || []).map((feature, i) => (
+                      {subscriptionFeatureList(pkg.features).map((feature, i) => (
                         <li key={i} className="flex items-start gap-3 text-sm">
                           <CheckCircle2 size={18} className="text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
                           <span>{feature}</span>

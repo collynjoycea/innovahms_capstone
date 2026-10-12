@@ -136,7 +136,7 @@ const OwnerLayout = () => {
   }, []);
 
   useEffect(() => {
-    if (!session?.id) return undefined;
+    if (!session?.id || location.pathname === '/owner/subscription') return undefined;
 
     let cancelled = false;
     const syncFromBackend = async () => {
@@ -167,7 +167,7 @@ const OwnerLayout = () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [session?.id]);
+  }, [location.pathname, session?.id]);
 
   const subscriptionLocked = !session?.subscriptionActive && location.pathname !== '/owner/subscription';
   const allowedFeatures = new Set(

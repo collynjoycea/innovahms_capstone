@@ -8,6 +8,7 @@ import { persistOwnerSession, readOwnerSession } from '../../utils/ownerSession'
 export default function OwnerLogin() {
   const navigate = useNavigate();
   const location = useLocation();
+  const redirectTo = location.state?.redirectTo === '/owner/subscription' ? '/owner/subscription' : '/owner';
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,8 +23,8 @@ export default function OwnerLogin() {
 
   useEffect(() => {
     const session = readOwnerSession();
-    if (session?.email && session?.isApproved) navigate('/owner');
-  }, [navigate]);
+    if (session?.email && session?.isApproved) navigate(redirectTo);
+  }, [navigate, redirectTo]);
 
   useEffect(() => {
     const approvalState = location.state;
@@ -118,7 +119,7 @@ export default function OwnerLogin() {
             },
             { merge: false }
           );
-          navigate('/owner');
+          navigate(redirectTo);
         } catch {
           setFeedback('Unable to create browser session. Please clear site storage and try again.');
         }

@@ -76,6 +76,12 @@ export default function RegistrationLayout() {
             >
               Home
             </Link>
+            <Link
+              to="/hotelier#plans"
+              className="border-l border-slate-300 pl-4 text-xs font-semibold uppercase text-slate-500 transition-colors hover:text-emerald-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-emerald-400"
+            >
+              Subscription
+            </Link>
           </div>
           <nav ref={menuRef} aria-label="Registration account links" className="flex shrink-0 items-center gap-2">
             {[
