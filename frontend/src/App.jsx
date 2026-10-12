@@ -142,6 +142,9 @@ const ProtectedRole = ({ children }) => {
 
 const ProtectedCustomer = ({ children }) => {
   const hasCustomerSession = Boolean(localStorage.getItem("user") || localStorage.getItem("customerSession"));
+  if (!hasCustomerSession) {
+    sessionStorage.setItem("returnTo", `${window.location.pathname}${window.location.search}`);
+  }
   return hasCustomerSession ? children : <Navigate to="/login" replace />;
 };
 
@@ -205,7 +208,7 @@ function App() {
             }
           />
 
-          <Route path="/booking" element={<Booking />} />
+          <Route path="/booking" element={<ProtectedCustomer><Booking /></ProtectedCustomer>} />
           <Route path="/booking/success" element={<BookingSuccess />} />
           <Route path="/booking/failed" element={<BookingSuccess />} />
           <Route

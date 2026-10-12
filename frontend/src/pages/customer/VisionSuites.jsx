@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  ArrowUpDown,
   Calendar,
   Check,
   Hotel,
@@ -14,7 +13,6 @@ import {
   Star,
   Users,
   X,
-  ArrowRight,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Marzipano from "marzipano";
@@ -257,7 +255,7 @@ function TourModal({ open, onClose, onReserve, roomName, tour, loading, notice }
 }
 
 export default function VisionSuites() {
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 12;
   const location = useLocation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -578,7 +576,7 @@ export default function VisionSuites() {
     }
   };
 
-  const roomTypeOptions = ["Single", "Double", "Suite", "Deluxe"];
+  const roomTypeOptions = ["Standard", "Double", "Suite", "Deluxe", "Family Room"];
 
   const displayHotels = useMemo(() => {
     let list = [];
@@ -672,7 +670,7 @@ export default function VisionSuites() {
   const hasMoreItems = visibleItemCount < currentList.length;
 
   return (
-    <div className="min-h-screen bg-[#FDFCFB] dark:bg-[#0b120e] text-[#1a160d] dark:text-[#d1eae0] transition-colors duration-300">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0b120e] text-[#1a160d] dark:text-[#d1eae0] transition-colors duration-300">
       <TourModal
         open={tourOpen}
         onClose={closeTour}
@@ -742,68 +740,58 @@ export default function VisionSuites() {
         </div>
       ) : null}
 
-      {/* HERO SECTION */}
-      <section className="relative min-h-[65vh] flex flex-col items-center justify-center overflow-hidden pb-20">
+      {/* COMPACT HERO SECTION (Binawasan ang height para agad makita ang listahan ng hotels/rooms) */}
+      <section className="relative pt-24 pb-8 flex flex-col items-center justify-center overflow-hidden min-h-[35vh]">
         <div className="absolute inset-0 z-0">
           <img 
             src="/images/vision-lobby.jpg" 
             alt="Refined Living" 
-            className="w-full h-full object-cover filter brightness-90" 
+            className="w-full h-full object-cover filter brightness-75" 
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-[#0b120e]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-[#0b120e]" />
         </div>
 
-        <div className="relative z-10 text-center px-4 max-w-5xl w-full pt-12 pb-6">
+        <div className="relative z-10 text-center px-4 max-w-5xl w-full mb-3">
           <motion.h1
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-3xl md:text-5xl font-sans tracking-tight leading-tight mb-4 text-white drop-shadow-lg"
+            className="text-2xl md:text-4xl font-sans tracking-tight leading-tight mb-2 text-white drop-shadow-md"
           >
             Navigate <span className="italic text-[#2FA084] font-light">Hotels and Rooms</span>
           </motion.h1>
 
           {error ? (
-            <div className="mt-4 max-w-3xl mx-auto border border-red-500/30 bg-red-950/80 backdrop-blur-sm px-5 py-3 text-sm text-red-200 font-semibold shadow-lg">
+            <div className="mt-2 max-w-3xl mx-auto border border-red-500/30 bg-red-950/80 backdrop-blur-sm px-4 py-2 text-xs text-red-200 font-semibold shadow-lg rounded-lg">
               {error}
             </div>
           ) : null}
         </div>
 
-        {/* STICKY SEARCH BOX */}
-        <div className="sticky top-20 z-40 w-full max-w-3xl px-4 mx-auto">
-          <div className="flex items-center justify-center mb-[-1px] relative z-20">
-            <button 
-              type="button"
-              className="flex items-center gap-2 px-6 py-2 rounded-t-xl bg-white dark:bg-[#121E1A] text-[#1F6F5F] dark:text-[#6FCF97] font-bold text-xs shadow-md border-t border-x border-gray-200 dark:border-[#243B33]"
-            >
-              <Hotel size={15} />
-              <span>{viewMode === "hotel" ? "Hotels" : "Rooms"}</span>
-            </button>
-          </div>
-
-          <div className="relative z-10 rounded-2xl bg-white/90 dark:bg-[#121E1A]/90 backdrop-blur-md p-4 sm:p-5 shadow-[0_15px_40px_rgba(0,0,0,0.25)] border border-gray-100/80 dark:border-[#243B33] text-left">
+        {/* PABAHA / HORIZONTAL SEARCH BAR (Full-width & Single Row Layout) */}
+        <div className="relative z-30 w-full max-w-6xl px-4 mx-auto">
+          <div className="relative rounded-2xl bg-white/95 dark:bg-[#121E1A]/95 backdrop-blur-md p-3 sm:p-4 shadow-xl border border-gray-100 dark:border-[#243B33] text-left">
             
-            {/* View Mode & Reset Controls Header */}
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-200 dark:border-[#243B33]">
+            {/* Top Bar: Controls */}
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-200/80 dark:border-[#243B33]">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setViewMode("hotel")}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                     viewMode === "hotel"
-                      ? "bg-[#1F6F5F] text-white"
-                      : "bg-gray-100 dark:bg-[#182924] text-gray-600 dark:text-gray-300"
+                      ? "bg-[#1F6F5F] text-white shadow-sm"
+                      : "bg-gray-100 dark:bg-[#182924] text-gray-600 dark:text-gray-300 hover:bg-gray-200"
                   }`}
                 >
-                  Hotel Mode
+                  <Hotel size={13} /> Hotel Mode
                 </button>
                 <button
                   type="button"
                   onClick={() => setViewMode("room")}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                     viewMode === "room"
-                      ? "bg-[#1F6F5F] text-white"
-                      : "bg-gray-100 dark:bg-[#182924] text-gray-600 dark:text-gray-300"
+                      ? "bg-[#1F6F5F] text-white shadow-sm"
+                      : "bg-gray-100 dark:bg-[#182924] text-gray-600 dark:text-gray-300 hover:bg-gray-200"
                   }`}
                 >
                   Room Mode
@@ -820,30 +808,33 @@ export default function VisionSuites() {
               </button>
             </div>
 
-            {/* Input Row 1: Hotel/Room Name Search Input & Room Type Dropdown */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-2.5">
-              <div className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3.5 py-2">
-                <Search size={16} className="text-gray-400 shrink-0" />
-                <div className="w-full">
-                  <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Search Name / Location</p>
+            {/* Horizontal Grid (Pabaha/Full-width Layout) */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+              
+              {/* Search Name/Location */}
+              <div className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3 py-1.5">
+                <Search size={15} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
+                <div className="w-full min-w-0">
+                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Search</p>
                   <input
                     type="text"
                     value={hotelSearch}
                     onChange={(e) => setHotelSearch(e.target.value)}
-                    placeholder="Search hotel or room..."
-                    className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none"
+                    placeholder="Hotel or room name..."
+                    className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none truncate"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3.5 py-2">
-                <Search size={16} className="text-gray-400 shrink-0" />
-                <div className="w-full">
-                  <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Room Type / Option</p>
+              {/* Room Type */}
+              <div className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3 py-1.5">
+                <Search size={15} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
+                <div className="w-full min-w-0">
+                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Type</p>
                   <select
                     value={selectedRoomType}
                     onChange={handleRoomTypeChange}
-                    className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
+                    className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none cursor-pointer truncate"
                   >
                     <option value="all" className="text-black">Any Room Type</option>
                     {roomTypeOptions.map((type) => (
@@ -852,17 +843,13 @@ export default function VisionSuites() {
                   </select>
                 </div>
               </div>
-            </div>
 
-            {/* Input Row 2: Check-in, Check-out, Guests Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-2">
-              
-              {/* Dates Input Group */}
-              <div className="grid grid-cols-2 gap-2 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 p-2">
-                <div className="border-r border-gray-200 dark:border-[#243B33] pr-2">
-                  <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">Check-in</p>
-                  <div className="flex items-center gap-1.5">
-                    <Calendar size={14} className="text-[#1F6F5F] dark:text-[#6FCF97] shrink-0" />
+              {/* Check-in & Check-out Range */}
+              <div className="grid grid-cols-2 gap-1 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 p-1.5">
+                <div className="border-r border-gray-200 dark:border-[#243B33] pr-1">
+                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Check-in</p>
+                  <div className="flex items-center gap-1">
+                    <Calendar size={12} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
                     <input
                       type="date"
                       value={filterCheckIn}
@@ -876,17 +863,15 @@ export default function VisionSuites() {
                         validateDateRange(value, nextCheckOut);
                       }}
                       min={visionMinCheckIn}
-                      className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
+                      className="w-full bg-transparent text-[11px] font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
                     />
                   </div>
                 </div>
 
-                <div className="pl-2">
-                  <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">
-                    Check-out
-                  </p>
-                  <div className="flex items-center gap-1.5">
-                    <Calendar size={14} className="text-[#1F6F5F] dark:text-[#6FCF97] shrink-0" />
+                <div className="pl-1">
+                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Check-out</p>
+                  <div className="flex items-center gap-1">
+                    <Calendar size={12} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
                     <input
                       type="date"
                       value={filterCheckOut}
@@ -896,18 +881,18 @@ export default function VisionSuites() {
                         validateDateRange(filterCheckIn, value);
                       }}
                       min={visionMinCheckOut}
-                      className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
+                      className="w-full bg-transparent text-[11px] font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Guests Input Group */}
-              <div className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3.5 py-2">
-                <Users size={16} className="text-[#1F6F5F] dark:text-[#6FCF97] shrink-0" />
-                <div className="w-full">
-                  <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Occupancy</p>
-                  <div className="flex items-center gap-2">
+              {/* Occupancy */}
+              <div className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3 py-1.5">
+                <Users size={15} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
+                <div className="w-full min-w-0">
+                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Guests</p>
+                  <div className="flex items-center gap-1.5 text-xs font-semibold">
                     <input
                       type="number"
                       min="1"
@@ -915,10 +900,9 @@ export default function VisionSuites() {
                       value={filterAdults}
                       onChange={(e) => setFilterAdults(String(Math.min(12, Math.max(1, Number(e.target.value) || 1))))}
                       placeholder="1"
-                      className="w-12 bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none"
-                      aria-label="Adults"
+                      className="w-8 bg-transparent text-gray-800 dark:text-white outline-none"
                     />
-                    <span className="text-xs text-gray-500 dark:text-gray-400">adults</span>
+                    <span className="text-[10px] text-gray-400">adlts</span>
                     <input
                       type="number"
                       min="0"
@@ -926,10 +910,9 @@ export default function VisionSuites() {
                       value={filterChildren}
                       onChange={(e) => setFilterChildren(String(Math.min(12, Math.max(0, Number(e.target.value) || 0))))}
                       placeholder="0"
-                      className="w-12 bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none"
-                      aria-label="Kids"
+                      className="w-8 bg-transparent text-gray-800 dark:text-white outline-none"
                     />
-                    <span className="text-xs text-gray-500 dark:text-gray-400">kids</span>
+                    <span className="text-[10px] text-gray-400">kids</span>
                   </div>
                 </div>
               </div>
@@ -940,37 +923,20 @@ export default function VisionSuites() {
         </div>
       </section>
 
-      {/* COLLECTION RESULTS LIST */}
-      <section className="py-10 px-4 max-w-5xl mx-auto pt-6">
+      {/* COLLECTION RESULTS LIST - 3 COLUMNS GRID */}
+      <section className="py-8 px-4 max-w-7xl mx-auto">
         <div className="min-w-0">
-          <div className="flex items-center justify-between mb-6 pb-2 border-b border-[#1F6F5F]/20">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-black text-[#2FA084] uppercase tracking-wider">
-                {viewMode === "hotel" ? "Recommendation Hotels" : "Recommendation Rooms"}
-              </h3>
-            </div>
-            
-            <button
-              type="button"
-              onClick={() => {
-                if (hasMoreItems) {
-                  setVisibleItemCount((prev) => Math.min(prev + PAGE_SIZE, currentList.length));
-                }
-              }}
-              className="group inline-flex items-center gap-1.5 text-xs font-bold text-[#2FA084] hover:text-[#288B77] transition-colors"
-            >
-              <span>{hasMoreItems ? "" : ""}</span>
-            </button>
-          </div>
-
-          <div className="mb-3">
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#1F6F5F]/20">
+            <h3 className="text-base md:text-lg font-black text-[#1F6F5F] dark:text-[#2FA084] uppercase tracking-wider">
+              {viewMode === "hotel" ? "Recommendation Hotels" : "Recommendation Rooms"}
+            </h3>
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              {currentList.length} {viewMode === "hotel" ? "hotels" : "rooms"} available total
+              {currentList.length} {viewMode === "hotel" ? "hotels" : "rooms"} total
             </p>
           </div>
 
           {viewMode === "hotel" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {paginatedList.map((entry, index) => (
                 <motion.article
                   key={entry.id || `${entry.name}-${index}`}
@@ -978,7 +944,8 @@ export default function VisionSuites() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.05 }}
-                  className="group flex flex-col overflow-hidden border border-[#1F6F5F]/30 bg-white shadow-xl transition-all duration-300 hover:border-[#2FA084] dark:border-[#1F6F5F]/30 dark:bg-[#121c16]"
+                  onClick={() => navigate(`/hoteldetail/${entry.id}`)}
+                  className="group flex flex-col overflow-hidden rounded-xl border border-[#1F6F5F]/20 bg-white shadow-md hover:shadow-xl transition-all duration-300 hover:border-[#1F6F5F]/50 dark:border-[#1F6F5F]/30 dark:bg-[#121c16] cursor-pointer"
                 >
                   <div className="relative w-full h-48 overflow-hidden bg-zinc-900">
                     <img
@@ -987,7 +954,7 @@ export default function VisionSuites() {
                       onError={(e) => { e.currentTarget.src = "/images/signup-img.png"; }}
                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
-                    <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-2.5 py-1 flex items-center gap-1 border border-white/10">
+                    <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-md flex items-center gap-1 border border-white/10">
                       <Star size={12} className="fill-[#2FA084] text-[#2FA084]" />
                       <span className="text-xs font-bold text-white">{Number(entry.avgRating || 0).toFixed(1)}</span>
                     </div>
@@ -995,33 +962,32 @@ export default function VisionSuites() {
 
                   <div className="p-5 flex flex-col justify-between flex-1">
                     <div>
-                      <h4 className="text-xl font-sans font-black text-slate-900 dark:text-white mb-1">{entry.name}</h4>
-                      <div className="flex items-center gap-2 text-xs text-[#2FA084] font-semibold mb-2">
-                        <MapPin size={14} />
-                        <span>{entry.location || entry.locationLabel || entry.address || "Innova Smart Hotel"}</span>
-                      </div>
+                      <h4 className="text-lg font-sans font-bold text-slate-900 dark:text-white mb-1.5 line-clamp-1">{entry.name}</h4>
                       <div className="flex items-center gap-1 mb-3 text-[#2FA084]">
                         {[...Array(5)].map((_, i) => (
-                          <Star key={i} size={13} className="fill-[#2FA084] text-[#2FA084]" />
+                          <Star key={i} size={12} className="fill-[#1F6F5F] dark:fill-[#2FA084] text-[#1F6F5F] dark:text-[#2FA084]" />
                         ))}
                         <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                           {Number(entry.avgRating || 0).toFixed(1)} · {entry.reviewCount || 0} reviews
                         </span>
                       </div>
-                      <p className="text-sm leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2">
+                      <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2">
                         "{entry.description || "A premium hotel experience designed for comfort, convenience, and elevated hospitality."}"
                       </p>
                     </div>
 
-                    <div className="mt-5 pt-4 border-t border-[#1F6F5F]/20 flex items-center justify-between gap-3">
+                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-white/5 flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">From</p>
-                        <p className="text-lg font-black text-[#2FA084]">{php(entry.startingPrice || entry.minPrice || 0)}</p>
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Starting at</p>
+                        <p className="text-base font-black text-[#1F6F5F] dark:text-[#2FA084]">{php(entry.startingPrice || entry.minPrice || 0)}</p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => navigate(`/hoteldetail/${entry.id}`)}
-                        className="border border-[#1F6F5F]/40 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-[#2FA084] transition-all hover:bg-[#1F6F5F]/20"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/hoteldetail/${entry.id}`);
+                        }}
+                        className="rounded-lg bg-[#1F6F5F]/10 hover:bg-[#1F6F5F] text-[#1F6F5F] hover:text-white px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider transition-all"
                       >
                         View Hotel
                       </button>
@@ -1051,7 +1017,7 @@ export default function VisionSuites() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: index * 0.03 }}
-                    className="group grid grid-cols-1 overflow-hidden border border-[#1F6F5F]/30 bg-white shadow-md transition-all duration-200 hover:border-[#2FA084] dark:border-[#1F6F5F]/30 dark:bg-[#121c16] lg:grid-cols-[220px_minmax(0,1fr)_200px]"
+                    className="group grid grid-cols-1 overflow-hidden rounded-xl border border-[#1F6F5F]/20 bg-white shadow-sm hover:shadow-md transition-all duration-200 dark:border-[#1F6F5F]/30 dark:bg-[#121c16] lg:grid-cols-[220px_minmax(0,1fr)_200px]"
                   >
                     <div className="relative w-full h-44 lg:h-full min-h-[160px] bg-zinc-900 overflow-hidden">
                       <img
@@ -1060,19 +1026,19 @@ export default function VisionSuites() {
                         onError={(e) => { e.currentTarget.src = "/images/deluxe-room.jpg"; }}
                         className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
-                      <div className="absolute top-2 left-2 bg-[#1F6F5F] text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 shadow">
+                      <div className="absolute top-2 left-2 bg-[#1F6F5F] text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded shadow">
                         {room.hotelName || hotel?.name || "Vision Suite"}
                       </div>
                     </div>
 
                     <div className="p-4 flex flex-col justify-between">
                       <div>
-                        <h4 className="text-lg font-sans font-black text-slate-900 dark:text-white leading-snug mb-1">
+                        <h4 className="text-lg font-sans font-bold text-slate-900 dark:text-white leading-snug mb-1">
                           {roomDisplayName}
                         </h4>
                         
                         <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-300 mb-2 mt-2">
-                          <span className="inline-flex items-center gap-1 font-bold text-[#2FA084]">
+                          <span className="inline-flex items-center gap-1 font-semibold text-[#1F6F5F] dark:text-[#2FA084]">
                             <Users size={13} /> Max {room.maxAdults || room.capacity || 2} adults
                           </span>
                           {Number(room.maxChildren || 0) > 0 ? (
@@ -1090,7 +1056,7 @@ export default function VisionSuites() {
                           <div className="flex flex-wrap gap-1.5">
                             {roomAmenities.slice(0, 5).map((amenity, idx) => (
                               <span key={`${amenity}-${idx}`} className="inline-flex items-center gap-1 rounded border border-[#1F6F5F]/20 bg-[#1F6F5F]/5 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:text-slate-300">
-                                <Check size={10} className="text-[#2FA084]" /> {amenity}
+                                <Check size={10} className="text-[#1F6F5F] dark:text-[#2FA084]" /> {amenity}
                               </span>
                             ))}
                           </div>
@@ -1101,14 +1067,14 @@ export default function VisionSuites() {
                         <button
                           type="button"
                           onClick={() => navigate(`/roomdetail/${bookableRoomId}`)}
-                          className="font-bold text-[#2FA084] hover:underline inline-flex items-center gap-1"
+                          className="font-bold text-[#1F6F5F] dark:text-[#2FA084] hover:underline inline-flex items-center gap-1"
                         >
                           <ScanEye size={13} /> See details
                         </button>
                         <button
                           type="button"
                           onClick={() => openTour(room)}
-                          className="font-bold text-slate-600 hover:text-[#2FA084] dark:text-slate-300"
+                          className="font-bold text-slate-600 hover:text-[#1F6F5F] dark:text-slate-300"
                         >
                           360° View
                         </button>
@@ -1118,7 +1084,7 @@ export default function VisionSuites() {
                     <div className="p-4 bg-slate-50/70 dark:bg-[#0f1913] border-t lg:border-t-0 lg:border-l border-[#1F6F5F]/20 flex flex-col justify-between items-start lg:items-end text-left lg:text-right">
                       <div>
                         <p className="text-[10px] uppercase tracking-widest text-slate-400">Per night before taxes</p>
-                        <p className="text-2xl font-black text-[#2FA084] mt-0.5">{php(roomPrice)}</p>
+                        <p className="text-2xl font-black text-[#1F6F5F] dark:text-[#2FA084] mt-0.5">{php(roomPrice)}</p>
                         <p className="text-[10px] font-semibold text-slate-500 mt-0.5">1 room</p>
                       </div>
 
@@ -1126,7 +1092,7 @@ export default function VisionSuites() {
                         <button
                           type="button"
                           onClick={() => navigate(`/booking?roomId=${bookableRoomId}${filterCheckIn ? `&from=${filterCheckIn}` : ""}`)}
-                          className="flex-1 lg:w-full bg-[#1F6F5F] hover:bg-[#288B77] py-2.5 px-4 text-xs font-black uppercase tracking-wider text-white shadow transition-all text-center"
+                          className="flex-1 lg:w-full bg-[#1F6F5F] hover:bg-[#288B77] py-2.5 px-4 text-xs font-black uppercase tracking-wider text-white rounded-lg shadow transition-all text-center"
                         >
                           Book Now
                         </button>
@@ -1139,7 +1105,7 @@ export default function VisionSuites() {
           )}
 
           {!loading && currentList.length > 0 ? (
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 border border-[#1F6F5F]/30 bg-white/90 px-5 py-4 shadow-sm dark:bg-[#121c16]">
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 border border-[#1F6F5F]/20 rounded-xl bg-white/90 px-5 py-4 shadow-sm dark:bg-[#121c16]">
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 Showing {paginatedList.length} of {currentList.length}
               </p>
@@ -1147,22 +1113,22 @@ export default function VisionSuites() {
                 <button
                   type="button"
                   onClick={() => setVisibleItemCount((prev) => Math.min(prev + PAGE_SIZE, currentList.length))}
-                  className="border border-[#1F6F5F]/30 px-5 py-2.5 text-sm font-semibold text-[#2FA084] transition-all hover:bg-[#1F6F5F]/20"
+                  className="rounded-lg border border-[#1F6F5F]/30 px-5 py-2.5 text-xs font-bold text-[#1F6F5F] dark:text-[#2FA084] transition-all hover:bg-[#1F6F5F]/10"
                 >
-                  View All Room
+                  View More Items
                 </button>
               ) : (
-                <span className="text-sm font-semibold text-[#2FA084]">All items loaded</span>
+                <span className="text-xs font-bold text-[#1F6F5F] dark:text-[#2FA084]">All items loaded</span>
               )}
             </div>
           ) : null}
 
           {loading && currentList.length === 0 ? (
-            <div className="mt-10 text-center text-[#2FA084] font-semibold">Loading collection...</div>
+            <div className="mt-10 text-center text-[#1F6F5F] dark:text-[#2FA084] font-semibold">Loading collection...</div>
           ) : null}
 
           {!loading && currentList.length === 0 ? (
-            <div className="mt-10 border border-dashed border-[#1F6F5F]/40 bg-white/70 px-6 py-12 text-center text-slate-500 dark:bg-white/5 dark:text-slate-400">
+            <div className="mt-10 border border-dashed border-[#1F6F5F]/40 bg-white/70 rounded-xl px-6 py-12 text-center text-slate-500 dark:bg-white/5 dark:text-slate-400">
               No results match your criteria.
             </div>
           ) : null}

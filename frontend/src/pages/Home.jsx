@@ -295,7 +295,7 @@ export default function LandingPage() {
     navigate(`/vision-suites?${params.toString()}`);
   };
 
-  const roomTypeOptions = ["Single", "Double", "Suite", "Deluxe"];
+  const roomTypeOptions = ["Standard", "Double", "Suite", "Deluxe", "Family Room"];
 
   const ITEMS_PER_VIEW = 4;
   const totalHotels = featuredHotels.length;
@@ -582,7 +582,7 @@ export default function LandingPage() {
                         <MapPin size={12} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" /> <span className="truncate">{hotel.location}</span>
                       </p>
                       <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                        {hotel.reviewCount ? `${hotel.reviewCount} reviews` : "New property"}
+                        {hotel.reviewCount ? `${hotel.reviewCount} reviews` : ""}
                       </p>
                     </div>
                   </div>

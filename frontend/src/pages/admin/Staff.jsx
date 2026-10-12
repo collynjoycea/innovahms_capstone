@@ -1,25 +1,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Users, CheckSquare, Building2, Search, Trash2, Tag, X } from 'lucide-react';
+import { Users, CheckSquare, Building2, Search, Trash2, Tag, X, Plus } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination';
 
 const STAFF_ROLES = [
-  'Hotel Manager',
   'Front Desk Operations',
   'Housekeeping & Maintenance',
-  'Inventory & Supplies',
-  'HR/Payroll Staff Management',
 ];
 
 export default function Staff() {
   const { isDarkMode } = useOutletContext();
   const [staff, setStaff] = useState([]);
+  const [hotelOptions, setHotelOptions] = useState([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('hotel'); // 'hotel' | 'role'
   const [selectedHotel, setSelectedHotel] = useState(null);
   const [selectedRole, setSelectedRole] = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', contactNumber: '', password: '', role: STAFF_ROLES[0], hotelId: '' });
 
   const cardBg = isDarkMode ? 'bg-[#163C34]' : 'bg-white';
   const borderStyle = isDarkMode ? 'border-white/10' : 'border-gray-200';
@@ -32,7 +34,7 @@ export default function Staff() {
     setLoading(true);
     fetch('/api/admin/staff')
       .then(r => r.json())
-      .then(d => { setStaff(d.staff || []); setTotal(d.total || 0); setLoading(false); })
+      .then(d => { setStaff(d.staff || []); setHotelOptions(d.hotels || []); setTotal(d.total || 0); setLoading(false); })
       .catch(() => setLoading(false));
   };
 
@@ -52,13 +54,13 @@ export default function Staff() {
 
   // Hotels derived from the staff list itself (name + how many staff there)
   const hotels = useMemo(() => {
-    const counts = {};
+    const hotelsById = {};
     staff.forEach(s => {
-      const key = s.hotelName || 'Unassigned';
-      counts[key] = (counts[key] || 0) + 1;
+      const key = s.hotelId || `name:${s.hotelName}`;
+      if (!hotelsById[key]) hotelsById[key] = { id: s.hotelId || '', name: s.hotelName || 'Unassigned', count: 0 };
+      hotelsById[key].count += 1;
     });
-    return Object.entries(counts)
-      .map(([name, count]) => ({ name, count }))
+    return Object.values(hotelsById)
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [staff]);
 
@@ -79,6 +81,28 @@ export default function Staff() {
   const { paged, page, totalPages, setPage } = usePagination(filtered);
   const active = staff.filter(s => String(s.status || '').toLowerCase() === 'active').length;
 
+  const submitStaff = async (event) => {
+    event.preventDefault();
+    setAddLoading(true);
+    setAddError('');
+    try {
+      const res = await fetch('/api/admin/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Unable to create staff account.');
+      setShowAdd(false);
+      setForm({ firstName: '', lastName: '', email: '', contactNumber: '', password: '', role: STAFF_ROLES[0], hotelId: '' });
+      load();
+    } catch (error) {
+      setAddError(error.message);
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
   const roleColor = (role) => {
     const r = String(role || '').toLowerCase();
     if (r.includes('manager') || r.includes('lead')) return 'bg-purple-500/10 text-purple-400';
@@ -97,7 +121,32 @@ export default function Staff() {
             Staff <span className="text-[#2FA084]">Management</span>
           </h1>
         </div>
+        <button type="button" onClick={() => { setAddError(''); setShowAdd(true); }} className="inline-flex items-center gap-2 rounded-xl bg-[#2FA084] px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white hover:bg-[#24866f]">
+          <Plus size={15} /> Add Front Desk / Housekeeping
+        </button>
       </div>
+
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <form onSubmit={submitStaff} className={`w-full max-w-lg rounded-2xl border ${cardBg} ${borderStyle} p-6 shadow-2xl`}>
+            <div className="mb-5 flex items-center justify-between"><h2 className={`text-sm font-black uppercase tracking-widest ${textMain}`}>Create Staff Account</h2><button type="button" onClick={() => setShowAdd(false)} className={textSub}><X size={18} /></button></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {['firstName', 'lastName', 'email', 'contactNumber', 'password'].map((field) => (
+                <input key={field} required type={field === 'email' ? 'email' : field === 'password' ? 'password' : 'text'} value={form[field]} onChange={e => setForm({ ...form, [field]: e.target.value })} placeholder={field.replace(/([A-Z])/g, ' $1')} className={`rounded-lg border ${borderStyle} ${inputBg} px-3 py-2.5 text-xs ${textMain} outline-none`} />
+              ))}
+              <select required value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className={`rounded-lg border ${borderStyle} ${inputBg} px-3 py-2.5 text-xs ${textMain} outline-none`}>
+                {STAFF_ROLES.map(role => <option key={role} value={role}>{role}</option>)}
+              </select>
+              <select required value={form.hotelId} onChange={e => setForm({ ...form, hotelId: e.target.value })} className={`rounded-lg border ${borderStyle} ${inputBg} px-3 py-2.5 text-xs ${textMain} outline-none`}>
+                <option value="">Select hotel</option>
+                {hotelOptions.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+              </select>
+            </div>
+            {addError && <p className="mt-3 text-xs font-semibold text-red-500">{addError}</p>}
+            <button disabled={addLoading} className="mt-5 w-full rounded-lg bg-[#2FA084] py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50">{addLoading ? 'Creating...' : 'Create Account'}</button>
+          </form>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[

@@ -44,6 +44,166 @@ def _table_has_column(cur, table_name, column_name):
     return cur.fetchone() is not None
 
 
+def ensure_room_type_options(cur):
+    """Keep room types consistent with the public room-type list."""
+    if not _table_has_column(cur, "rooms", "room_type"):
+        return
+
+    # Normalize old values before replacing the legacy CHECK constraint.
+    cur.execute(
+        """
+        UPDATE rooms
+        SET room_type = CASE
+            WHEN LOWER(COALESCE(room_type, '')) LIKE '%family%' THEN 'Family Room'
+            WHEN LOWER(COALESCE(room_type, '')) LIKE '%deluxe%' THEN 'Deluxe'
+            WHEN LOWER(COALESCE(room_type, '')) LIKE '%suite%'
+              OR LOWER(COALESCE(room_type, '')) LIKE '%executive%'
+              OR LOWER(COALESCE(room_type, '')) LIKE '%presidential%' THEN 'Suite'
+            WHEN LOWER(COALESCE(room_type, '')) LIKE '%double%' THEN 'Double'
+            ELSE 'Standard'
+        END
+        WHERE room_type IS NULL
+           OR room_type NOT IN ('Standard', 'Double', 'Suite', 'Deluxe', 'Family Room')
+        """
+    )
+
+    cur.execute(
+        """
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'public.rooms'::regclass
+          AND contype = 'c'
+          AND pg_get_constraintdef(oid) ILIKE '%room_type%'
+        """
+    )
+    constraints = cur.fetchall() or []
+    for row in constraints:
+        constraint_name = row.get("conname") if hasattr(row, "get") else row[0]
+        if constraint_name:
+            safe_name = str(constraint_name).replace('"', '""')
+            cur.execute(f'ALTER TABLE rooms DROP CONSTRAINT IF EXISTS "{safe_name}"')
+
+    cur.execute(
+        """
+        ALTER TABLE rooms
+        ADD CONSTRAINT rooms_room_type_check
+        CHECK (room_type IN ('Standard', 'Double', 'Suite', 'Deluxe', 'Family Room'))
+        """
+    )
+
+
+def ensure_room_status_options(cur):
+    """Allow the statuses used by front desk and housekeeping workflows."""
+    if not _table_has_column(cur, "rooms", "status"):
+        return
+
+    cur.execute(
+        """
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'public.rooms'::regclass
+          AND contype = 'c'
+          AND pg_get_constraintdef(oid) ILIKE '%status%'
+        """
+    )
+    constraints = cur.fetchall() or []
+    for row in constraints:
+        constraint_name = row.get("conname") if hasattr(row, "get") else row[0]
+        if constraint_name:
+            safe_name = str(constraint_name).replace('"', '""')
+            cur.execute(f'ALTER TABLE rooms DROP CONSTRAINT IF EXISTS "{safe_name}"')
+
+    cur.execute(
+        """
+        ALTER TABLE rooms
+        ADD CONSTRAINT rooms_status_check
+        CHECK (status IN ('Available', 'Occupied', 'Maintenance', 'Cleaning', 'Dirty', 'InProgress', 'Clean', 'Reserved'))
+        """
+    )
+
+
+def ensure_housekeeping_tables(cur):
+    """Create the housekeeping tables used by the staff dashboard.
+
+    Older databases may have been created before features.sql was applied,
+    so housekeeping endpoints must be able to self-heal their base tables.
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_tasks (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            room_id INTEGER REFERENCES rooms(id) ON DELETE SET NULL,
+            room_label VARCHAR(20),
+            task_type VARCHAR(50),
+            assigned_to INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+            staff_name VARCHAR(100),
+            priority VARCHAR(20) DEFAULT 'NORMAL',
+            status VARCHAR(30) DEFAULT 'Pending',
+            notes TEXT,
+            scheduled_time TIME,
+            completed_at TIMESTAMP,
+            time_spent_mins INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_history (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            task_id INTEGER REFERENCES hk_tasks(id) ON DELETE SET NULL,
+            room_label VARCHAR(20),
+            task_type VARCHAR(50),
+            staff_name VARCHAR(100),
+            status VARCHAR(30) DEFAULT 'Completed',
+            notes TEXT,
+            completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_room_status (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            room_id INTEGER REFERENCES rooms(id) ON DELETE CASCADE,
+            room_label VARCHAR(20) NOT NULL,
+            room_type VARCHAR(50),
+            status VARCHAR(30) DEFAULT 'Available',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(hotel_id, room_label)
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_maintenance_reports (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            room_label VARCHAR(20),
+            issue TEXT NOT NULL,
+            severity VARCHAR(20) DEFAULT 'Medium',
+            is_out_of_order BOOLEAN DEFAULT FALSE,
+            status VARCHAR(20) DEFAULT 'Pending',
+            reported_by INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+            photo_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_inventory (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            item_name VARCHAR(200) NOT NULL,
+            category VARCHAR(100) DEFAULT 'General',
+            current_qty INTEGER DEFAULT 0,
+            max_qty INTEGER DEFAULT 100,
+            unit VARCHAR(50) DEFAULT 'pcs',
+            supplier VARCHAR(200),
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_hk_tasks_hotel_id ON hk_tasks(hotel_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_hk_history_hotel_id ON hk_history(hotel_id)")
+
+
 def ensure_password_reset_tables(cur):
     cur.execute(
         """
@@ -394,6 +554,9 @@ def ensure_hourly_room_rate_columns(cur):
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_3_hours NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_6_hours NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_12_hours NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS bed_type VARCHAR(50)",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS features TEXT[] DEFAULT '{}'::text[]",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS highlights TEXT[] DEFAULT '{}'::text[]",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS stay_duration_hours INTEGER",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS rate_type VARCHAR(20) DEFAULT 'overnight'",
     ]
@@ -544,6 +707,7 @@ def ensure_profile_media_columns(cur):
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_logo TEXT",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_building_image TEXT",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_description TEXT",
+        "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_highlights TEXT[] DEFAULT '{}'::text[]",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS contact_phone TEXT",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS check_in_policy TEXT",
         "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS check_out_policy TEXT",

@@ -42,6 +42,8 @@ const INITIAL_FORM = {
   hotelCode: "",
   hotelName: "",
   hotelAddress: "",
+  hotelDescription: "",
+  hotelHighlights: "",
   addressCategory: "",
   latitude: "",
   longitude: "",
@@ -520,6 +522,8 @@ export default function OwnerSignUp() {
       hotelCode: "",
       hotelName: formData.hotelName.trim(),
       hotelAddress: formData.hotelAddress.trim(),
+      hotelDescription: formData.hotelDescription.trim(),
+      hotelHighlights: JSON.stringify(formData.hotelHighlights.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)),
       acceptedTerms: String(acceptedTerms),
       acceptedPrivacy: String(acceptedPrivacy),
     };
@@ -843,6 +847,29 @@ export default function OwnerSignUp() {
                         {fieldErrors.hotelAddress}
                       </span>
                     )}
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Property Description</label>
+                    <textarea
+                      rows="4"
+                      placeholder="Describe the hotel, its atmosphere, and what guests can expect."
+                      value={formData.hotelDescription}
+                      onChange={(e) => updateField("hotelDescription", e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded resize-y focus:outline-none focus:border-emerald-700"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Hotel Highlights</label>
+                    <textarea
+                      rows="5"
+                      placeholder="One highlight per line, e.g. Free Wi-Fi\n24/7 Front Desk\nSwimming Pool\nRestaurant and dining"
+                      value={formData.hotelHighlights}
+                      onChange={(e) => updateField("hotelHighlights", e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded resize-y focus:outline-none focus:border-emerald-700"
+                    />
+                    <p className="mt-1 text-[10px] text-slate-400">Each line becomes a separate highlight shown on the hotel page.</p>
                   </div>
 
                   <div>

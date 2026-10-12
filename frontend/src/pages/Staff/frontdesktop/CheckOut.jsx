@@ -92,7 +92,7 @@ export default function CheckOut() {
 
  const filtered = guests.filter(g => {
  const q = search.toLowerCase();
- return !q || g.guestName.toLowerCase().includes(q) || g.bookingNumber.toLowerCase().includes(q);
+ return !q || g.guestName.toLowerCase().includes(q);
  });
 
  const card = isDarkMode ? 'bg-[#0c0c0e] border-zinc-800/50' : 'bg-white border-zinc-200 shadow-sm';
@@ -111,7 +111,7 @@ export default function CheckOut() {
  <div className="flex items-center gap-3">
  <div className={`flex items-center gap-2 px-4 py-3 rounded-2xl border ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800' : 'bg-white border-zinc-200 shadow-sm'}`}>
  <Search size={15} className={sub} />
- <input type="text" placeholder="Search guest or ref..." value={search} onChange={e => setSearch(e.target.value)}
+ <input type="text" placeholder="Search guest..." value={search} onChange={e => setSearch(e.target.value)}
  className={`bg-transparent outline-none text-xs font-bold w-52 ${isDarkMode ? 'text-white placeholder:text-zinc-600' : 'text-zinc-900 placeholder:text-zinc-400'}`} />
  </div>
  <button onClick={fetchGuests} className={`p-3 rounded-2xl border ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border-zinc-200 text-zinc-400 hover:text-zinc-900'} transition-all`}>
@@ -145,7 +145,6 @@ export default function CheckOut() {
  <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
  <p className="text-emerald-400 text-[11px] font-bold">
  {autoResult.message}
- {autoResult.checkedOut?.length > 0 && ` — ${autoResult.checkedOut.map(c => c.bookingNumber).join(', ')}`}
  </p>
  <button onClick={() => setAutoResult(null)} className="ml-auto text-emerald-600 hover:text-emerald-400">
  <X size={14} />
@@ -158,9 +157,9 @@ export default function CheckOut() {
  <table className="w-full text-left border-collapse">
  <thead>
  <tr className={`text-[9px] font-black uppercase tracking-widest border-b ${isDarkMode ? 'border-zinc-800 text-zinc-500' : 'border-zinc-100 text-zinc-400'}`}>
- <th className="px-8 py-5">Guest / Booking</th>
+ <th className="px-8 py-5">Guest</th>
  <th className="px-8 py-5">Room</th>
- <th className="px-8 py-5">Check-Out</th>
+ <th className="px-8 py-5">Check-Out / Time</th>
  <th className="px-8 py-5">Total</th>
  <th className="px-8 py-5">Balance</th>
  <th className="px-8 py-5 text-right">Action</th>
@@ -176,10 +175,9 @@ export default function CheckOut() {
  return (
  <tr key={g.id} className={`group transition-all ${isOverdue ? 'bg-orange-500/5' : ''} ${isDarkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-zinc-50'}`}>
  <td className="px-8 py-5">
- <p className="text-[11px] font-black text-[#2FA084]">{g.bookingNumber}</p>
  <p className={`text-xs font-black uppercase ${text}`}>{g.guestName}</p>
  {isOverdue && (
- <span className="text-[8px] font-black text-orange-500 uppercase tracking-widest bg-orange-500/10 px-2 py-0.5 rounded-full">Overdue</span>
+ <span className="text-[8px] font-black text-orange-500 uppercase tracking-widest bg-orange-500/10 px-2 py-0.5 rounded-full mt-1 inline-block">Overdue</span>
  )}
  </td>
  <td className="px-8 py-5">
@@ -189,6 +187,9 @@ export default function CheckOut() {
  <td className="px-8 py-5">
  <div className={`flex items-center gap-1.5 text-[11px] font-bold ${isOverdue ? 'text-orange-500' : text}`}>
  <Clock size={11} className={isOverdue ? 'text-orange-500' : 'text-[#2FA084]'} />{g.checkOut}
+ </div>
+ <div className={`mt-1 flex items-center gap-1.5 text-[10px] font-black ${isOverdue ? 'text-orange-400' : 'text-[#2FA084]'}`}>
+ <Clock size={10} /> {g.checkOutTime || '12:00'}
  </div>
  </td>
  <td className={`px-8 py-5 text-[11px] font-black ${text}`}>₱{Number(g.totalAmount).toLocaleString()}</td>
@@ -222,7 +223,7 @@ export default function CheckOut() {
  <div className="p-7 border-b border-zinc-800/30 flex justify-between items-center bg-gradient-to-r from-[#2FA084]/10 to-transparent">
  <div>
  <h2 className="text-xl font-black uppercase tracking-tighter text-[#2FA084]">Guest Departure</h2>
- <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${sub}`}>{selected.bookingNumber} · Room {selected.roomNumber}</p>
+ <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${sub}`}>Room {selected.roomNumber}</p>
  </div>
  <button onClick={() => setSelected(null)} className={`${sub} hover:text-red-500 transition-all`}><X size={22} strokeWidth={3} /></button>
  </div>
@@ -244,7 +245,6 @@ export default function CheckOut() {
  <p className={`text-[9px] ${sub}`}>Total: ₱{Number(selected.totalAmount).toLocaleString()}</p>
  </div>
  </div>
-
 
  {tab === 'checkout' && (
  <button onClick={doCheckout} disabled={processing}

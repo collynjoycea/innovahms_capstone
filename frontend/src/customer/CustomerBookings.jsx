@@ -50,11 +50,12 @@ const getBookingBucket = (booking) => {
   return "upcoming";
 };
 
-const hasReview = (booking, reviews) => {
-  return reviews.some(review => 
-    review.bookingContext && 
-    review.bookingContext.includes(`Booking #${booking.bookingId}`)
-  );
+const hasReview = (booking, reviews, customerId) => {
+  return reviews.some((review) => {
+    if (String(review.customerId) !== String(customerId)) return false;
+    if (review.roomId && booking.roomId) return String(review.roomId) === String(booking.roomId);
+    return false;
+  });
 };
 
 export default function CustomerBookings() {
@@ -87,7 +88,7 @@ export default function CustomerBookings() {
       const [dashboardRes, roomsRes, reviewsRes] = await Promise.all([
         fetch(`/api/customer/dashboard/${cleanId}`),
         fetch("/api/rooms"),
-        fetch("/api/reviews"),
+        fetch(`/api/reviews?customer_id=${encodeURIComponent(cleanId)}`),
       ]);
 
       const dashboardPayload = await dashboardRes.json().catch(() => ({}));
@@ -407,7 +408,7 @@ export default function CustomerBookings() {
                         ) : null}
 
                         {activeTab === "completed" ? (
-                          hasReview(booking, reviews) ? (
+                          hasReview(booking, reviews, user?.id) ? (
                             <div className="w-full rounded-xl bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-800 text-center border border-emerald-100">
                               ✓ Feedback Submitted
                             </div>

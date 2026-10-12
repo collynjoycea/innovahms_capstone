@@ -10,10 +10,6 @@ const getPostLoginRedirect = () => {
   const returnTo = sessionStorage.getItem("returnTo");
   sessionStorage.removeItem("returnTo");
 
-  if (returnTo?.startsWith("/booking")) {
-    return "/";
-  }
-
   return returnTo || "/";
 };
 

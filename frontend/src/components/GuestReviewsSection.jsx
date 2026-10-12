@@ -13,17 +13,27 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [hasReviewed, setHasReviewed] = useState(false);
 
   const loadReviews = () => {
-    fetch("/api/reviews?limit=5")
+    const query = roomId
+      ? `room_id=${encodeURIComponent(roomId)}&limit=100`
+      : "limit=5";
+    fetch(`/api/reviews?${query}`)
       .then((r) => r.json())
-      .then((d) => setReviews(d.reviews || []))
+      .then((d) => {
+        const nextReviews = d.reviews || [];
+        setReviews(nextReviews);
+        setHasReviewed(Boolean(roomId && sessionUser?.id && nextReviews.some(
+          (review) => String(review.customerId) === String(sessionUser.id) && String(review.roomId) === String(roomId)
+        )));
+      })
       .catch(() => {});
   };
 
   useEffect(() => {
     loadReviews();
-  }, []);
+  }, [roomId, sessionUser?.id]);
 
   const averageRating =
     reviews.length > 0
@@ -70,6 +80,7 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
       if (!res.ok) throw new Error(data.error || "Failed to submit.");
 
       setFeedback("Review submitted! Thank you.");
+      setHasReviewed(true);
       setRating(0);
       setTitle("");
       setComment("");
@@ -87,7 +98,7 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
 
         {/* HEADER */}
         <div className="mb-12 text-center">
-          <p className="text-xs font-bold uppercase tracking-widest text-[#bf9b30] mb-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-[#1F6F5F] mb-2">
             Guest Reviews
           </p>
 
@@ -97,7 +108,7 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
 
           {reviews.length > 0 && (
             <div className="mt-4 flex items-center justify-center gap-2">
-              <span className="text-2xl font-bold text-[#bf9b30]">
+              <span className="text-2xl font-bold text-[#1F6F5F]">
                 {averageRating}
               </span>
               <div className="flex">
@@ -105,8 +116,8 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
                   <Star
                     key={i}
                     size={18}
-                    fill={i <= Math.round(averageRating) ? "#bf9b30" : "transparent"}
-                    className="text-[#bf9b30]"
+                    fill={i <= Math.round(averageRating) ? "#1F6F5F" : "transparent"}
+                    className="text-[#1F6F5F]"
                   />
                 ))}
               </div>
@@ -130,7 +141,11 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
               Write a Review
             </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            {hasReviewed ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                You already submitted a review for this room. Thank you for your feedback!
+              </div>
+            ) : <form onSubmit={handleSubmit} className="space-y-5">
 
               {/* STAR RATING */}
               <div>
@@ -148,10 +163,10 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
                     >
                       <Star
                         size={26}
-                        fill={(hoverRating || rating) >= s ? "#bf9b30" : "transparent"}
+                        fill={(hoverRating || rating) >= s ? "#1F6F5F" : "transparent"}
                         className={`${
                           (hoverRating || rating) >= s
-                            ? "text-[#bf9b30]"
+                            ? "text-[#1F6F5F]"
                             : "text-gray-300"
                         } transition`}
                       />
@@ -166,7 +181,7 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
                 placeholder="Review title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-[#bf9b30]/20 outline-none"
+                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-[#1F6F5F]/20 outline-none"
               />
 
               {/* COMMENT */}
@@ -175,7 +190,7 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
                 placeholder="Write your experience..."
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-[#bf9b30]/20 outline-none"
+                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-[#1F6F5F]/20 outline-none"
               />
 
               {!sessionUser?.id && (
@@ -193,7 +208,7 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
                 type={sessionUser?.id ? "submit" : "button"}
                 onClick={!sessionUser?.id ? () => navigate("/login") : undefined}
                 disabled={submitting}
-                className="w-full py-3 bg-[#bf9b30] text-white font-semibold rounded-lg hover:bg-[#d4ac37] transition"
+                className="w-full py-3 bg-[#1F6F5F] text-white font-semibold rounded-lg hover:bg-[#2FA084] transition"
               >
                 {submitting
                   ? "Submitting..."
@@ -201,7 +216,7 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
                   ? "Submit Review"
                   : "Login to Review"}
               </button>
-            </form>
+            </form>}
           </motion.div>
 
           {/* REVIEWS */}
@@ -234,8 +249,8 @@ export default function GuestReviewsSection({ sessionUser, bookingContext, roomI
                       <Star
                         key={s}
                         size={14}
-                        fill={s <= rev.rating ? "#bf9b30" : "transparent"}
-                        className="text-[#bf9b30]"
+                        fill={s <= rev.rating ? "#1F6F5F" : "transparent"}
+                        className="text-[#1F6F5F]"
                       />
                     ))}
                   </div>

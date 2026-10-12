@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS hotels (
     hotel_logo TEXT,
     hotel_building_image TEXT,
     hotel_description TEXT,
+    hotel_highlights TEXT[],
     check_in_policy TEXT,
     check_out_policy TEXT,
     cancellation_policy TEXT,
@@ -70,9 +71,12 @@ CREATE TABLE IF NOT EXISTS rooms (
     hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
     room_number VARCHAR(20) NOT NULL,
     room_name VARCHAR(100),
-    room_type VARCHAR(50) CHECK (room_type IN ('Single', 'Double', 'Suite', 'Deluxe')),
+    room_type VARCHAR(50) CHECK (room_type IN ('Standard', 'Double', 'Suite', 'Deluxe', 'Family Room')),
+    bed_type VARCHAR(50),
     description TEXT,
     amenities TEXT[],
+    features TEXT[],
+    highlights TEXT[],
     images TEXT[],
     max_adults INTEGER DEFAULT 2,
     max_children INTEGER DEFAULT 0,
@@ -80,7 +84,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     rate_3_hours DECIMAL(10, 2) DEFAULT 0,
     rate_6_hours DECIMAL(10, 2) DEFAULT 0,
     rate_12_hours DECIMAL(10, 2) DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'Available' CHECK (status IN ('Available', 'Occupied', 'Maintenance', 'Cleaning')),
+    status VARCHAR(20) DEFAULT 'Available' CHECK (status IN ('Available', 'Occupied', 'Maintenance', 'Cleaning', 'Dirty', 'InProgress', 'Clean', 'Reserved')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

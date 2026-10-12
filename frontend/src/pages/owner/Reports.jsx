@@ -436,10 +436,11 @@ const Reports = () => {
                       className="bg-transparent text-xs font-semibold uppercase outline-none cursor-pointer text-slate-700 dark:text-slate-200"
                     >
                       <option value="All">All Room Types</option>
-                      <option value="Single">Single</option>
+                      <option value="Standard">Standard</option>
                       <option value="Double">Double</option>
                       <option value="Suite">Suite</option>
                       <option value="Deluxe">Deluxe</option>
+                      <option value="Family Room">Family Room</option>
                     </select>
                   </div>
                 </div>
