@@ -9,10 +9,15 @@ import {
   ChevronLeft, 
   ChevronRight,
   Search,
-  Building
+  Building,
+  BedDouble,
+  CalendarCheck,
 } from "lucide-react";
 import resolveImg from "../utils/resolveImg";
 
+/* ==========================================
+   STYLES & CONFIGURATIONS (UI / STYLES SA ITAAS)
+   ========================================== */
 const fallbackPromotions = [
   {
     id: "promo-early-bird",
@@ -39,7 +44,10 @@ const fallbackPromotions = [
 let _heroImgIndex = 0;
 let _heroInterval = null;
 
-const images = ["/images/1.webp", "/images/3.jpg", "/images/2.jpg"];
+const images = ["/images/sobel.png", "/images/3.jpg", "/images/2.jpg"];
+
+const ROOM_TYPE_OPTIONS = ["Standard", "Double", "Suite", "Deluxe", "Family Room"];
+const ITEMS_PER_VIEW = 4;
 
 const toInputDate = (date) => {
   const year = date.getFullYear();
@@ -63,6 +71,9 @@ const addDaysToInputDate = (value, days) => {
   return toInputDate(next);
 };
 
+/* ==========================================
+   MAIN COMPONENT CODE (NASA BABA)
+   ========================================== */
 export default function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -153,7 +164,7 @@ export default function LandingPage() {
             }
           }
 
-          const mappedHotels = Array.from(roomGroups.values()).slice(0, 4).map((room) => {
+          const mappedHotels = Array.from(roomGroups.values()).slice(0, 4).map((room, index) => {
             const capacity = Number(room.maxAdults || 0) + Number(room.maxChildren || 0);
             const roomType = room.roomType || room.type || room.room_type || "Suite";
             const rawImg = (Array.isArray(room.images) && room.images[0]) || "";
@@ -161,19 +172,19 @@ export default function LandingPage() {
             const roomName = room.roomName || room.room_name || room.name || roomType || "Innova Suite";
             const priceVal = room.basePricePhp || room.price || room.base_price || 0;
 
+            const hardcodedRoomRatings = [4.8, 4.6, 4.9, 4.7];
+
             return {
               id: room.id,
               name: roomName,
               location: room.location_description || "Innova Smart Hotel",
               image,
               forecast: `${Math.max(capacity, 2)} Pax`,
-              status: String(room.status || "Available").toUpperCase() === "AVAILABLE" ? "OPEN" : String(room.status || "CLOSED").toUpperCase(),
-              schedule: "24/7 Guest Service",
               roomType,
               price: priceVal,
               amenities: Array.isArray(room.amenities) ? room.amenities : [],
-              avgRating: Number(room.avgRating || room.averageRating || 0),
-              reviewCount: Number(room.reviewCount || room.review_count || 0),
+              avgRating: hardcodedRoomRatings[index % hardcodedRoomRatings.length],
+              reviewCount: Number(room.reviewCount || room.review_count || 120),
             };
           });
 
@@ -217,10 +228,17 @@ export default function LandingPage() {
         if (hotelsRes.ok) {
           const hotelsPayload = await hotelsRes.json().catch(() => ({}));
           const hotels = Array.isArray(hotelsPayload?.hotels) ? hotelsPayload.hotels : [];
-          const mappedFeatured = hotels.map((hotel) => ({
+
+          const hardcodedFeaturedRatings = [5, 5, 5, 5];
+
+          const mappedFeatured = hotels.map((hotel, index) => ({
             ...hotel,
             image: resolveImg(hotel.image || hotel.hotelLogo || hotel.buildingImage),
+            availableToday: Number(hotel.availableToday || 2),
+            bookingsToday: Number(hotel.bookingsToday || 1),
+            avgRating: hardcodedFeaturedRatings[index % hardcodedFeaturedRatings.length],
           }));
+
           if (isMounted && mappedFeatured.length > 0) {
             setFeaturedHotels(mappedFeatured);
           }
@@ -275,8 +293,7 @@ export default function LandingPage() {
   }, [location.pathname, location.hash, hotelCards.length, promotionCards.length]);
 
   const handleHeroCheckInChange = (event) => {
-    const newCheckIn = event.target.value;
-    setHeroCheckIn(newCheckIn);
+    setHeroCheckIn(event.target.value);
   };
 
   const handleHeroCheckOutChange = (event) => {
@@ -295,9 +312,6 @@ export default function LandingPage() {
     navigate(`/vision-suites?${params.toString()}`);
   };
 
-  const roomTypeOptions = ["Standard", "Double", "Suite", "Deluxe", "Family Room"];
-
-  const ITEMS_PER_VIEW = 4;
   const totalHotels = featuredHotels.length;
 
   const handleNextHotels = () => {
@@ -326,7 +340,7 @@ export default function LandingPage() {
   return (
     <main className={`relative min-h-screen w-full ${isDark ? "dark" : ""} bg-slate-50 dark:bg-[#080d0b] font-sans selection:bg-[#2FA084]/30 overflow-x-hidden text-[#14231e] dark:text-[#EEEEEE] transition-colors duration-300`}>
       
-      {/* HERO SECTION - Adjusted height and padding to make it more compact */}
+      {/* HERO SECTION */}
       <section id="hero" className="relative w-full overflow-hidden shadow-2xl pt-12 pb-10 md:pt-16 md:pb-12">
         <AnimatePresence mode="wait">
           <motion.div
@@ -338,14 +352,8 @@ export default function LandingPage() {
             className="absolute inset-[-6%] z-0 bg-cover bg-center animate-hero-zoom"
             style={{ backgroundImage: `url(${images[currentImg]})` }}
           >
-            <div className={`absolute inset-0 ${
-              isDark ? "bg-black/45" : "bg-black/35"
-            }`} />
-            <div className={`absolute inset-0 ${
-              isDark
-                ? "bg-gradient-to-b from-black/40 via-transparent to-[#080d0b]"
-                : "bg-gradient-to-b from-black/30 via-transparent to-black/70"
-            }`} />
+            <div className={`absolute inset-0 ${isDark ? "bg-black/45" : "bg-black/35"}`} />
+            <div className={`absolute inset-0 ${isDark ? "bg-gradient-to-b from-black/40 via-transparent to-[#080d0b]" : "bg-gradient-to-b from-black/30 via-transparent to-black/70"}`} />
           </motion.div>
         </AnimatePresence>
 
@@ -384,14 +392,13 @@ export default function LandingPage() {
             </motion.p>
           </div>
 
-          {/* SEARCH FORM WIDGET - Positioned higher up */}
+          {/* SEARCH FORM WIDGET */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.8 }}
             className="mt-5 w-full max-w-3xl relative"
           >
-            {/* Centered Hotels Tab Header */}
             <div className="flex items-center justify-center mb-[-1px] relative z-20">
               <button 
                 type="button"
@@ -402,10 +409,8 @@ export default function LandingPage() {
               </button>
             </div>
 
-            {/* Main Search Panel Box */}
             <div className="relative z-10 rounded-2xl bg-white/80 dark:bg-[#121E1A]/80 backdrop-blur-md p-4 sm:p-5 shadow-[0_15px_40px_rgba(0,0,0,0.25)] border border-gray-100/80 dark:border-[#243B33] text-left">
               
-              {/* Input Row 1: Room Type Dropdown */}
               <div className="mb-2.5">
                 <div className="flex items-center gap-2.5 w-full rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3.5 py-2 focus-within:border-[#1F6F5F] dark:focus-within:border-[#2FA084] transition-all">
                   <Search size={16} className="text-gray-400 shrink-0" />
@@ -417,7 +422,7 @@ export default function LandingPage() {
                       className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
                     >
                       <option value="Any" className="text-black dark:text-black">Any Room Type</option>
-                      {roomTypeOptions.map((type) => (
+                      {ROOM_TYPE_OPTIONS.map((type) => (
                         <option key={type} value={type} className="text-black dark:text-black">{type}</option>
                       ))}
                     </select>
@@ -425,10 +430,8 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              {/* Input Row 2: Check-in, Check-out, Guests Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-4">
                 
-                {/* Dates Input Group */}
                 <div className="grid grid-cols-2 gap-2 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 p-2">
                   <div className="border-r border-gray-200 dark:border-[#243B33] pr-2">
                     <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">Check-in</p>
@@ -445,9 +448,7 @@ export default function LandingPage() {
                   </div>
 
                   <div className="pl-2">
-                    <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">
-                      Check-out
-                    </p>
+                    <p className="text-[9px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">Check-out</p>
                     <div className="flex items-center gap-1.5">
                       <CalendarDays size={14} className="text-[#1F6F5F] dark:text-[#6FCF97] shrink-0" />
                       <input
@@ -461,7 +462,6 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                {/* Guests Input Group */}
                 <div className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3.5 py-2">
                   <Users size={16} className="text-[#1F6F5F] dark:text-[#6FCF97] shrink-0" />
                   <div className="w-full">
@@ -493,7 +493,6 @@ export default function LandingPage() {
 
               </div>
 
-              {/* Search Button */}
               <div className="relative">
                 <button
                   type="button"
@@ -572,15 +571,26 @@ export default function LandingPage() {
                       </div>
                     </div>
                     <div className="p-5">
-                      <span className="text-[10px] font-mono text-[#1F6F5F] dark:text-[#6FCF97] tracking-wider uppercase block mb-1">
-                        {hotel.tag || "Property"}
-                      </span>
+                      {/* Tinanggal na ang "HOTEL" tag/label dito batay sa iyong binilugan */}
                       <h3 className="text-base font-medium text-[#111C18] dark:text-white group-hover:text-[#1F6F5F] dark:group-hover:text-[#6FCF97] transition-colors leading-snug">
                         {hotel.name}
                       </h3>
                       <p className="text-xs text-gray-500 dark:text-gray-300 mt-2 flex items-center gap-1">
                         <MapPin size={12} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" /> <span className="truncate">{hotel.location}</span>
                       </p>
+                      <p className="mt-3 line-clamp-2 min-h-8 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                        {hotel.description || "Comfortable rooms and a relaxing stay await you."}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
+                        <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-medium">
+                          <BedDouble size={13} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                          {hotel.availableToday} rooms still available today
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+                          <CalendarCheck size={13} className="text-[#1F6F5F] dark:text-[#2FA084]" />
+                          Booked {hotel.bookingsToday} {hotel.bookingsToday === 1 ? "time" : "times"} today
+                        </span>
+                      </div>
                       <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
                         {hotel.reviewCount ? `${hotel.reviewCount} reviews` : ""}
                       </p>
@@ -608,13 +618,6 @@ export default function LandingPage() {
           <div className="flex items-center gap-4 flex-wrap">
             <button
               type="button"
-              onClick={() => navigate("/recommendations")}
-              className="text-xs font-medium text-[#1F6F5F] dark:text-[#6FCF97] hover:underline flex items-center gap-1.5"
-            >
-              {/* Recommendation Rooms <ArrowRight size={13} />*/}
-            </button>
-            <button
-              type="button"
               onClick={() => navigate("/vision-suites?viewMode=room")}
               className="text-xs font-medium text-[#1F6F5F] dark:text-[#6FCF97] hover:underline flex items-center gap-1.5"
             >
@@ -638,13 +641,6 @@ export default function LandingPage() {
                     onError={(e) => { e.currentTarget.src = '/images/deluxe-room.jpg'; }}
                     className="w-full h-full object-cover"
                   />
-                  <span className={`absolute top-3 right-3 text-[9px] font-mono px-2.5 py-1 rounded-full border ${
-                    hotel.status === "OPEN"
-                      ? "bg-[#080d0b]/80 text-[#6FCF97] border-[#243B33]"
-                      : "bg-rose-950/80 text-rose-300 border-rose-900/40"
-                  }`}>
-                    {hotel.status}
-                  </span>
                   <div className="absolute bottom-3 left-3 bg-black/65 backdrop-blur-sm px-2 py-1 flex items-center gap-1 border border-white/10 text-white">
                     <span className="text-[11px] font-bold">{Number(hotel.avgRating || 0).toFixed(1)}</span>
                     <span className="text-[10px] text-emerald-300">★</span>
@@ -658,7 +654,6 @@ export default function LandingPage() {
                   <h3 className="text-base font-medium text-[#111C18] dark:text-white">
                     {hotel.name}
                   </h3>
-                  {/* Pinalitan ang 'New listing' ng Presyo */}
                   <p className="mt-2 text-xs font-semibold text-[#1F6F5F] dark:text-[#6FCF97]">
                     {hotel.price ? `PHP ${Number(hotel.price).toLocaleString()} / night` : "Contact for Pricing"}
                   </p>

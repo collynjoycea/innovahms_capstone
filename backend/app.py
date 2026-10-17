@@ -9859,6 +9859,28 @@ def home_hotels():
         query = f"""
             SELECT {', '.join(select_columns)},
                    COUNT(r.id) AS room_count,
+                   (
+                       SELECT COUNT(*)
+                       FROM rooms available_room
+                       WHERE available_room.hotel_id = h.id
+                         AND LOWER(COALESCE(available_room.status, '')) = 'available'
+                         AND NOT EXISTS (
+                             SELECT 1
+                             FROM reservations active_reservation
+                             WHERE active_reservation.room_id = available_room.id
+                               AND active_reservation.check_in_date <= CURRENT_DATE
+                               AND active_reservation.check_out_date > CURRENT_DATE
+                               AND UPPER(COALESCE(active_reservation.status, '')) NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
+                         )
+                   ) AS available_today,
+                   (
+                       SELECT COUNT(*)
+                       FROM reservations todays_reservation
+                       LEFT JOIN rooms reservation_room ON reservation_room.id = todays_reservation.room_id
+                       WHERE COALESCE(todays_reservation.hotel_id, reservation_room.hotel_id) = h.id
+                         AND todays_reservation.check_in_date = CURRENT_DATE
+                         AND UPPER(COALESCE(todays_reservation.status, '')) NOT IN ('CANCELLED', 'FAILED')
+                   ) AS bookings_today,
                    MIN(r.price_per_night) AS min_price,
                    MAX(r.price_per_night) AS max_price,
                    rv.avg_rating,
@@ -9893,6 +9915,8 @@ def home_hotels():
                 "image": building_image,
                 "tag": row.get("hotel_code") or "Hotel",
                 "rooms": _to_int(row.get("room_count"), 0),
+                "availableToday": _to_int(row.get("available_today"), 0),
+                "bookingsToday": _to_int(row.get("bookings_today"), 0),
                 "description": row.get("hotel_description") or "Comfortable rooms, modern amenities, and a relaxing stay await you.",
                 "highlights": _parse_text_array(row.get("hotel_highlights")),
                 "contactPhone": row.get("contact_phone") or "",
@@ -10653,6 +10677,8 @@ def get_customer_dashboard(customer_id):
                         r.payment_method,
                         rm.room_name,
                         rm.room_type,
+                        rm.room_number,
+                        h.id AS hotel_id,
                         h.hotel_name
                     FROM reservations r
                     LEFT JOIN rooms rm ON rm.id = r.room_id
@@ -10692,6 +10718,8 @@ def get_customer_dashboard(customer_id):
                         "roomType": row.get("room_name") or row.get("room_type") or "Suite",
                         "hotelName": row.get("hotel_name") or "Innova HMS",
                         "roomId": row.get("room_id"),
+                        "roomNumber": row.get("room_number") or "",
+                        "hotelId": row.get("hotel_id"),
                         "paymentMethod": row.get("payment_method") or "cash",
                     })
             except Exception:
@@ -10728,6 +10756,31 @@ def get_customer_dashboard(customer_id):
             except Exception:
                 rewards = []
 
+        guest_requests = []
+        if _table_exists(cur, "guest_requests"):
+            try:
+                cur.execute(
+                    """
+                    SELECT gr.id, gr.item_name, gr.quantity, gr.status, gr.notes, gr.created_at
+                    FROM guest_requests gr
+                    JOIN reservations r ON r.id = gr.reservation_id
+                    WHERE r.customer_id = %s
+                    ORDER BY gr.created_at DESC
+                    LIMIT 10
+                    """,
+                    (customer_id,),
+                )
+                guest_requests = [{
+                    "id": row.get("id"),
+                    "itemName": row.get("item_name") or "Room item",
+                    "quantity": row.get("quantity") or 1,
+                    "status": row.get("status") or "RECEIVED",
+                    "notes": row.get("notes") or "",
+                    "createdAt": _serialize_date(row.get("created_at")),
+                } for row in cur.fetchall() or []]
+            except Exception:
+                guest_requests = []
+
         return jsonify({
             "user": {
                 "id": customer.get("id"),
@@ -10742,6 +10795,7 @@ def get_customer_dashboard(customer_id):
                 "preferredRoomType": preferred_room_type,
                 "bookings": bookings,
                 "rewards": rewards,
+                "guestRequests": guest_requests,
             }
         }), 200
     except Exception as e:

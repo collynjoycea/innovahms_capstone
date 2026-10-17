@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Crown, Loader2, Lock, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { subscriptionFeatureList } from '../../utils/subscriptionFeatures';
 
 const OWNER_SESSION_KEY = 'ownerSession';
 
@@ -290,7 +291,7 @@ export default function OwnerSubscription() {
                       </p>
 
                       <div className="space-y-1.5 mb-6 border-t border-slate-100 dark:border-slate-800 pt-3">
-                        {(pkg.features || []).map((feature, idx) => (
+                        {subscriptionFeatureList(pkg.features).map((feature, idx) => (
                           <div key={idx} className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
                             <CheckCircle2 size={14} className="text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
                             <span>{feature}</span>

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Building2,
   CheckCircle2,
@@ -239,6 +239,7 @@ const formatFileMeta = (file) => {
 
 export default function OwnerSignUp() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [showPassword, setShowPassword] = useState(false);
@@ -504,7 +505,11 @@ export default function OwnerSignUp() {
   const closeSuccessModal = () => {
     setSuccessData(null);
     setCopied(false);
-    navigate("/owner/login");
+    navigate("/owner/login", {
+      state: location.state?.redirectTo === "/owner/subscription"
+        ? { redirectTo: "/owner/subscription" }
+        : undefined,
+    });
   };
 
   const handleSubmit = async (event) => {
