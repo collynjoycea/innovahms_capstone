@@ -76,7 +76,6 @@ export default function Reviews() {
 /* ---------------------------------------------------------------------- */
 function SystemReviews({ theme, isDarkMode }) {
   const [reviews, setReviews] = useState([]);
-  const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
 
@@ -90,7 +89,6 @@ function SystemReviews({ theme, isDarkMode }) {
       })
       .then((d) => {
         setReviews(d.reviews || []);
-        setStats(d.stats || {});
         setLoading(false);
       })
       .catch(() => {
@@ -103,20 +101,6 @@ function SystemReviews({ theme, isDarkMode }) {
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Reviews', val: stats.total ?? 0 },
-          { label: 'Avg Rating', val: `${stats.avgRating ?? 0} ★` },
-          { label: '5-Star', val: stats.fiveStar ?? 0 },
-          { label: 'Flagged', val: stats.flagged ?? 0 },
-        ].map((s, i) => (
-          <div key={i} className={`p-5 rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow}`}>
-            <p className={`text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>{s.label}</p>
-            <h2 className={`text-2xl font-black ${theme.textMain}`}>{s.val}</h2>
-          </div>
-        ))}
-      </div>
-
       <div className={`rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow} overflow-hidden`}>
         <div className={`px-6 py-4 border-b ${theme.border} ${isDarkMode ? 'bg-white/[0.01]' : 'bg-gray-50/50'}`}>
           <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Hotel Owner Feedback</span>
@@ -185,16 +169,19 @@ function SystemReviews({ theme, isDarkMode }) {
 /* ---------------------------------------------------------------------- */
 function GuestRatings({ theme, isDarkMode }) {
   const [reviews, setReviews] = useState([]);
-  const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [statusTab, setStatusTab] = useState('all');
 
   const load = () => {
     setLoading(true);
     fetch('/api/admin/reviews')
-      .then(r => r.json())
-      .then(d => { setReviews(d.reviews || []); setStats(d.stats || {}); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(async (r) => {
+        const payload = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(payload?.error || 'Unable to load reviews.');
+        setReviews(Array.isArray(payload.reviews) ? payload.reviews : []);
+      })
+      .catch(() => setReviews([]))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);
@@ -235,21 +222,6 @@ function GuestRatings({ theme, isDarkMode }) {
         </div>
       </div>
 
-      {/* STATS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Reviews', val: stats.total ?? 0 },
-          { label: 'Avg Rating', val: `${stats.avgRating ?? 0} ★` },
-          { label: '5-Star', val: stats.fiveStar ?? 0 },
-          { label: 'Flagged', val: stats.flagged ?? 0 },
-        ].map((s, i) => (
-          <div key={i} className={`p-5 rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow}`}>
-            <p className={`text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>{s.label}</p>
-            <h2 className={`text-2xl font-black ${theme.textMain}`}>{s.val}</h2>
-          </div>
-        ))}
-      </div>
-
       {/* TABLE */}
       <div className={`rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow} overflow-hidden`}>
         <div className={`px-6 py-4 border-b ${theme.border} ${isDarkMode ? 'bg-white/[0.01]' : 'bg-gray-50/50'}`}>
@@ -268,7 +240,7 @@ function GuestRatings({ theme, isDarkMode }) {
               <table className="w-full text-left">
                 <thead className={`${isDarkMode ? 'bg-white/[0.02]' : 'bg-gray-50'} border-b ${theme.border}`}>
                   <tr>
-                    {['Guest', 'Room / Hotel', 'Rating', 'Review', 'Date', 'Status', ''].map(h => (
+                    {['Guest Code', 'Room / Hotel', 'Rating', 'Review', 'Date', 'Status', ''].map(h => (
                       <th key={h} className={`px-5 py-4 text-[9px] font-black uppercase tracking-widest ${theme.textSub}`}>{h}</th>
                     ))}
                   </tr>
@@ -276,7 +248,9 @@ function GuestRatings({ theme, isDarkMode }) {
                 <tbody className={`divide-y ${theme.border}`}>
                   {paged.map((r) => (
                     <tr key={r.id} className="hover:bg-[#2FA084]/5 transition-colors group">
-                      <td className={`px-5 py-4 text-[11px] font-black ${theme.textMain}`}>{r.guestName}</td>
+                      <td className={`px-5 py-4 text-[11px] font-black font-mono ${theme.textMain}`}>
+                        {r.guestCode || r.guestId || `#GUEST-${r.id}`}
+                      </td>
                       <td className="px-5 py-4">
                         <p className="text-[10px] font-bold text-[#2FA084]">{r.roomName || '—'}</p>
                         <p className={`text-[9px] ${theme.textSub}`}>{r.hotelName || '—'}</p>

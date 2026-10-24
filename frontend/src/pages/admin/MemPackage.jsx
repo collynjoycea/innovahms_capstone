@@ -2,14 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   ShieldCheck,
-  Plus,
   CheckCircle2,
-  Trash2,
   Edit2,
   Zap,
   Crown,
   Sprout,
-  FileText,
   RefreshCw,
   Search,
   X,
@@ -35,14 +32,6 @@ const emptyPackageForm = {
   isActive: true,
 };
 
-const emptySubscriptionForm = {
-  hotelId: '',
-  packageId: '',
-  billingCycle: 'MONTHLY',
-  status: 'ACTIVE',
-  renewalDate: '',
-};
-
 const packageTheme = (slug) => {
   if (slug === 'enterprise') return { icon: Crown, accent: 'text-purple-400', pill: 'bg-purple-500/15 text-purple-400' };
   if (slug === 'pro') return { icon: Zap, accent: 'text-[#2FA084]', pill: 'bg-[#2FA084]/15 text-[#2FA084]' };
@@ -65,9 +54,9 @@ const normalizeFeatures = (rawValue) =>
 
 const ModalShell = ({ children, onClose, isDarkMode }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-    <div className={`w-full max-w-2xl rounded-3xl border ${isDarkMode ? 'border-white/10 bg-[#111111]' : 'border-gray-200 bg-white'} shadow-2xl`}>
+    <div className={`w-full max-w-2xl rounded-3xl border ${isDarkMode ? 'border-white/10 bg-[#111111]' : 'border-gray-200 bg-white'} shadow-2xl max-h-[90vh] overflow-y-auto`}>
       <div className={`flex items-center justify-between border-b px-6 py-4 ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
-        <p className="text-[9px] font-black uppercase tracking-[0.24em] text-gray-500">Admin Control</p>
+        <p className="text-[9px] font-black uppercase tracking-[0.24em] text-gray-500">Package Management</p>
         <button
           type="button"
           onClick={onClose}
@@ -94,11 +83,8 @@ const MemPackage = () => {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [packageForm, setPackageForm] = useState(emptyPackageForm);
-  const [subscriptionForm, setSubscriptionForm] = useState(emptySubscriptionForm);
   const [editingPackage, setEditingPackage] = useState(null);
-  const [editingSubscription, setEditingSubscription] = useState(null);
   const [showPackageModal, setShowPackageModal] = useState(false);
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
   const theme = {
     bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#EEEEEE]',
@@ -140,12 +126,6 @@ const MemPackage = () => {
 
   const { paged, page, totalPages, setPage } = usePagination(filteredSubscriptions);
 
-  const openNewPackageModal = () => {
-    setEditingPackage(null);
-    setPackageForm(emptyPackageForm);
-    setShowPackageModal(true);
-  };
-
   const openEditPackageModal = (pkg) => {
     setEditingPackage(pkg);
     setPackageForm({
@@ -166,26 +146,6 @@ const MemPackage = () => {
     setShowPackageModal(false);
     setEditingPackage(null);
     setPackageForm(emptyPackageForm);
-  };
-
-  const openSubscriptionModal = (subscription = null) => {
-    const firstHotel = hotels[0];
-    const firstPackage = packages[0];
-    setEditingSubscription(subscription);
-    setSubscriptionForm({
-      hotelId: String(subscription?.hotelId ?? firstHotel?.id ?? ''),
-      packageId: String(subscription?.packageId ?? firstPackage?.id ?? ''),
-      billingCycle: subscription?.cycle || 'MONTHLY',
-      status: subscription?.status || 'ACTIVE',
-      renewalDate: subscription?.renewal ? String(subscription.renewal).slice(0, 10) : '',
-    });
-    setShowSubscriptionModal(true);
-  };
-
-  const closeSubscriptionModal = () => {
-    setShowSubscriptionModal(false);
-    setEditingSubscription(null);
-    setSubscriptionForm(emptySubscriptionForm);
   };
 
   const submitPackage = async (event) => {
@@ -219,54 +179,6 @@ const MemPackage = () => {
       await loadData();
     } catch (err) {
       setError(err.message || 'Unable to save package.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const deletePackage = async (packageId) => {
-    if (!window.confirm('Delete this package?')) return;
-    setSaving(true);
-    setError('');
-    setNotice('');
-    try {
-      const response = await fetch(`/api/admin/packages/${packageId}`, { method: 'DELETE' });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Unable to delete package.');
-      setNotice(data.message || 'Package deleted successfully.');
-      await loadData();
-    } catch (err) {
-      setError(err.message || 'Unable to delete package.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const submitSubscription = async (event) => {
-    event.preventDefault();
-    setSaving(true);
-    setError('');
-    setNotice('');
-
-    try {
-      const response = await fetch('/api/admin/package-subscriptions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          hotelId: Number(subscriptionForm.hotelId),
-          packageId: Number(subscriptionForm.packageId),
-          billingCycle: subscriptionForm.billingCycle,
-          status: subscriptionForm.status,
-          renewalDate: subscriptionForm.renewalDate || null,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Unable to save subscription.');
-      closeSubscriptionModal();
-      setNotice(data.message || 'Subscription saved successfully.');
-      await loadData();
-    } catch (err) {
-      setError(err.message || 'Unable to save subscription.');
     } finally {
       setSaving(false);
     }
@@ -317,7 +229,7 @@ const MemPackage = () => {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: 'Package Count', value: stats.totalPackages ?? 0 },
+          { label: 'Package Count', value: stats.totalPackages ?? packages.length },
           { label: 'Active Hotels', value: stats.activeSubscriptions ?? 0 },
           { label: 'Pending Hotels', value: stats.pendingSubscriptions ?? 0 },
           { label: 'Projected MRR', value: formatPhp(stats.monthlyRecurringRevenue ?? 0) },
@@ -332,6 +244,7 @@ const MemPackage = () => {
         ))}
       </div>
 
+      {/* EDITABLE PACKAGE CARDS GRID (TINANGGAL ANG DELETE BUTTON) */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {loading ? (
           <div className="col-span-full flex items-center justify-center py-16">
@@ -348,8 +261,20 @@ const MemPackage = () => {
                     Most Popular
                   </span>
                 )}
-                <div className={`mb-6 inline-flex rounded-xl p-3 ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'} ${meta.accent}`}>
-                  <Icon size={28} />
+                <div className="flex items-start justify-between">
+                  <div className={`mb-6 inline-flex rounded-xl p-3 ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'} ${meta.accent}`}>
+                    <Icon size={28} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openEditPackageModal(pkg)}
+                      className={`rounded-lg border p-2 transition-colors ${theme.border} ${theme.textMain} hover:border-[#2FA084]`}
+                      title="Edit Package"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -378,15 +303,20 @@ const MemPackage = () => {
                     <li className={`text-[10px] font-bold uppercase tracking-tight ${theme.textSub}`}>No features listed.</li>
                   )}
                 </ul>
-                <div className={`rounded-2xl border px-4 py-4 text-[10px] font-bold uppercase tracking-[0.18em] ${theme.border} ${theme.inputBg} ${theme.textSub}`}>
-                  System-defined package
-                </div>
+                <button
+                  type="button"
+                  onClick={() => openEditPackageModal(pkg)}
+                  className="w-full rounded-xl border border-[#2FA084]/40 bg-[#2FA084]/10 py-3 text-center text-[10px] font-black uppercase tracking-widest text-[#2FA084] transition-all hover:bg-[#2FA084] hover:text-black"
+                >
+                  Edit Price & Features
+                </button>
               </div>
             );
           })
         )}
       </div>
 
+      {/* SUBSCRIPTION TABLE */}
       <div className={`overflow-hidden rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow}`}>
         <div className={`flex flex-col gap-4 border-b p-5 ${theme.border} ${isDarkMode ? 'bg-white/[0.01]' : 'bg-gray-50/60'}`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -404,7 +334,7 @@ const MemPackage = () => {
                   type="text"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search hotel, owner, plan..."
+                  placeholder="Search hotel, owner..."
                   className={`w-full bg-transparent text-[10px] font-bold uppercase outline-none placeholder:text-gray-500 ${theme.textMain}`}
                 />
               </div>
@@ -429,7 +359,7 @@ const MemPackage = () => {
               <table className="w-full text-left">
                 <thead className={`${isDarkMode ? 'bg-white/[0.02]' : 'bg-gray-50'} border-b ${theme.border}`}>
                   <tr>
-                    {['Hotel', 'Plan', 'Billing Cycle', 'Amount', 'Next Renewal', 'Status', 'Renewal'].map((heading) => (
+                    {['Hotel', 'Plan', 'Billing Cycle', 'Amount', 'Next Renewal', 'Status', 'Action'].map((heading) => (
                       <th key={heading} className={`px-6 py-4 text-[9px] font-black uppercase tracking-widest ${theme.textSub}`}>{heading}</th>
                     ))}
                   </tr>
@@ -481,7 +411,7 @@ const MemPackage = () => {
                   {filteredSubscriptions.length === 0 && (
                     <tr>
                       <td colSpan={7} className={`px-6 py-10 text-center text-[11px] ${theme.textSub}`}>
-                        No subscriptions found for the current filters.
+                        No subscriptions found.
                       </td>
                     </tr>
                   )}
@@ -492,6 +422,129 @@ const MemPackage = () => {
           </>
         )}
       </div>
+
+      {/* PACKAGE EDIT MODAL */}
+      {showPackageModal && (
+        <ModalShell onClose={closePackageModal} isDarkMode={isDarkMode}>
+          <form onSubmit={submitPackage} className="space-y-5 p-6">
+            <h2 className={`text-lg font-black uppercase tracking-wider ${theme.textMain}`}>
+              Edit Package
+            </h2>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>Package Name</label>
+                <input
+                  type="text"
+                  required
+                  value={packageForm.name}
+                  onChange={(e) => setPackageForm({ ...packageForm, name: e.target.value })}
+                  placeholder="e.g. Pro Hotelier"
+                  className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+                />
+              </div>
+              <div>
+                <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>Max Rooms (Leave blank for unlimited)</label>
+                <input
+                  type="number"
+                  value={packageForm.maxRooms}
+                  onChange={(e) => setPackageForm({ ...packageForm, maxRooms: e.target.value })}
+                  placeholder="e.g. 50"
+                  className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>Monthly Price (PHP)</label>
+                <input
+                  type="number"
+                  required
+                  value={packageForm.monthlyPrice}
+                  onChange={(e) => setPackageForm({ ...packageForm, monthlyPrice: e.target.value })}
+                  placeholder="e.g. 2500"
+                  className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+                />
+              </div>
+              <div>
+                <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>Annual Price (PHP)</label>
+                <input
+                  type="number"
+                  required
+                  value={packageForm.annualPrice}
+                  onChange={(e) => setPackageForm({ ...packageForm, annualPrice: e.target.value })}
+                  placeholder="e.g. 25000"
+                  className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>Description</label>
+              <textarea
+                rows={2}
+                value={packageForm.description}
+                onChange={(e) => setPackageForm({ ...packageForm, description: e.target.value })}
+                placeholder="Short description..."
+                className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+              />
+            </div>
+
+            <div>
+              <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>
+                Features (Type each feature on a new line or separate by commas)
+              </label>
+              <textarea
+                rows={4}
+                value={packageForm.featuresText}
+                onChange={(e) => setPackageForm({ ...packageForm, featuresText: e.target.value })}
+                placeholder="24/7 Support&#10;Advanced Analytics&#10;Unlimited Bookings"
+                className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+              />
+            </div>
+
+            <div className="flex items-center gap-6 pt-2">
+              <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={packageForm.isPopular}
+                  onChange={(e) => setPackageForm({ ...packageForm, isPopular: e.target.checked })}
+                  className="rounded border-gray-300 text-[#2FA084] focus:ring-[#2FA084]"
+                />
+                <span className={theme.textMain}>Mark as 'Most Popular'</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={packageForm.isActive}
+                  onChange={(e) => setPackageForm({ ...packageForm, isActive: e.target.checked })}
+                  className="rounded border-gray-300 text-[#2FA084] focus:ring-[#2FA084]"
+                />
+                <span className={theme.textMain}>Active (Live)</span>
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-white/10">
+              <button
+                type="button"
+                onClick={closePackageModal}
+                className="rounded-xl border border-gray-300 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-100 dark:border-white/10 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex items-center gap-2 rounded-xl bg-[#2FA084] px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-black shadow-lg transition-all hover:scale-105 disabled:opacity-50"
+              >
+                {saving && <Loader2 size={14} className="animate-spin" />}
+                Save Package
+              </button>
+            </div>
+          </form>
+        </ModalShell>
+      )}
     </div>
   );
 };

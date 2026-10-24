@@ -1207,7 +1207,7 @@ export default function VisionSuites() {
                               : "bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-amber-100 dark:hover:bg-amber-900/30"
                           }`}
                         >
-                          {hasValidDates ? "Book Now" : "Book a Roo"}
+                          {hasValidDates ? "Book Now" : "Book a Room"}
                         </button>
                       </div>
                     </div>

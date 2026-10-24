@@ -69,13 +69,11 @@ export default function OwnerSubscription() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to load subscription data.');
       
-      // Override or inject ₱1 price for starter package kung kinakailangan para sa thesis demo
-      const updatedPackages = (data.packages || []).map(pkg => {
-        if (pkg.slug === 'starter' || pkg.name?.toLowerCase().includes('starter')) {
-          return { ...pkg, monthlyPrice: 1 };
-        }
-        return pkg;
-      });
+      const updatedPackages = (data.packages || []).map((pkg) => ({
+        ...pkg,
+        monthlyPrice: Number(pkg.monthlyPrice ?? pkg.monthly_price ?? 0),
+        annualPrice: Number(pkg.annualPrice ?? pkg.annual_price ?? 0),
+      }));
 
       setPackages(updatedPackages);
       setSubscription(data.subscription || null);

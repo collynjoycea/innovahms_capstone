@@ -25,24 +25,30 @@ export default function HotelOwners() {
   const loadOwners = () => {
     setLoading(true);
     fetch('/api/admin/owners')
-      .then((r) => r.json())
-      .then((d) => {
-        setOwners(d.owners || []);
-        setTotal(d.total || 0);
-        setLoading(false);
+      .then(async (r) => {
+        const payload = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(payload?.error || 'Unable to load owner records.');
+        const nextOwners = Array.isArray(payload.owners) ? payload.owners : [];
+        setOwners(nextOwners);
+        setTotal(Number.isFinite(Number(payload.total)) ? Number(payload.total) : nextOwners.length);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setOwners([]);
+        setTotal(0);
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     loadOwners();
   }, []);
 
-  const filtered = owners.filter((o) =>
-    `${o.firstName} ${o.lastName} ${o.email} ${o.hotelName} ${o.hotelCode || ''} ${o.approvalStatus || ''}`
+  const filtered = owners.filter((o) => {
+    if (!o || typeof o !== 'object') return false;
+    return `${o.firstName || ''} ${o.lastName || ''} ${o.email || ''} ${o.hotelName || ''} ${o.hotelCode || ''} ${o.approvalStatus || ''}`
       .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+      .includes(search.toLowerCase());
+  });
   const { paged, page, totalPages, setPage } = usePagination(filtered);
 
   const approveOwner = async (ownerId) => {
@@ -131,13 +137,12 @@ export default function HotelOwners() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Tinanggal ang Total Rooms at No Hotel Yet cards, pinalitan sa 3-column grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
           { label: 'Total Partners', value: total, icon: <Building2 size={20} /> },
           { label: 'Approved Owners', value: owners.filter((o) => o.approvalStatus === 'APPROVED').length, icon: <CheckSquare size={20} />, color: 'text-green-500' },
           { label: 'Pending Review', value: owners.filter((o) => o.approvalStatus === 'PENDING').length, icon: <CheckSquare size={20} />, color: 'text-orange-500' },
-          { label: 'Total Rooms', value: owners.reduce((s, o) => s + (o.totalRooms || 0), 0), icon: <Building2 size={20} />, color: 'text-[#2FA084]' },
-          { label: 'No Hotel Yet', value: owners.filter((o) => !o.hotelId).length, icon: <Building2 size={20} />, color: 'text-slate-500' },
         ].map((kpi, i) => (
           <div key={i} className={`p-6 rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow}`}>
             <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'} border ${theme.border} text-[#2FA084] inline-block mb-4`}>{kpi.icon}</div>
@@ -224,7 +229,7 @@ export default function HotelOwners() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className={`px-6 py-10 text-center text-[11px] ${theme.textSub}`}>No owners found.</td>
+                    <td colSpan={7} className={`px-6 py-10 text-center text-[11px] ${theme.textSub}`}>No owners found.[cite: 7]</td>
                   </tr>
                 )}
               </tbody>

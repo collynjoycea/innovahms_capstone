@@ -81,8 +81,43 @@ export default function Staff() {
   const { paged, page, totalPages, setPage } = usePagination(filtered);
   const active = staff.filter(s => String(s.status || '').toLowerCase() === 'active').length;
 
+  const validateStaffForm = () => {
+    const nextErrors = {};
+    const firstName = form.firstName.trim();
+    const lastName = form.lastName.trim();
+    const email = form.email.trim();
+    const contactNumber = form.contactNumber.trim();
+    const password = form.password;
+
+    if (!firstName || !/^[A-Za-z][A-Za-z\s'.-]{1,49}$/.test(firstName)) {
+      nextErrors.firstName = 'Enter a valid first name.';
+    }
+    if (!lastName || !/^[A-Za-z][A-Za-z\s'.-]{1,49}$/.test(lastName)) {
+      nextErrors.lastName = 'Enter a valid last name.';
+    }
+    if (!email || !/^[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}$/i.test(email)) {
+      nextErrors.email = 'Enter a valid email address.';
+    }
+    if (!contactNumber || !/^\+?[0-9\s-]{10,15}$/.test(contactNumber)) {
+      nextErrors.contactNumber = 'Enter a valid contact number.';
+    }
+    if (!password || password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+      nextErrors.password = 'Password must be at least 8 chars with uppercase, lowercase, number, and symbol.';
+    }
+    if (!form.hotelId) {
+      nextErrors.hotelId = 'Please select a hotel.';
+    }
+    return nextErrors;
+  };
+
   const submitStaff = async (event) => {
     event.preventDefault();
+    const validationErrors = validateStaffForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setAddError(Object.values(validationErrors)[0]);
+      return;
+    }
+
     setAddLoading(true);
     setAddError('');
     try {
@@ -132,12 +167,21 @@ export default function Staff() {
             <div className="mb-5 flex items-center justify-between"><h2 className={`text-sm font-black uppercase tracking-widest ${textMain}`}>Create Staff Account</h2><button type="button" onClick={() => setShowAdd(false)} className={textSub}><X size={18} /></button></div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {['firstName', 'lastName', 'email', 'contactNumber', 'password'].map((field) => (
-                <input key={field} required type={field === 'email' ? 'email' : field === 'password' ? 'password' : 'text'} value={form[field]} onChange={e => setForm({ ...form, [field]: e.target.value })} placeholder={field.replace(/([A-Z])/g, ' $1')} className={`rounded-lg border ${borderStyle} ${inputBg} px-3 py-2.5 text-xs ${textMain} outline-none`} />
+                <div key={field} className={field === 'email' || field === 'contactNumber' || field === 'password' ? 'sm:col-span-2' : ''}>
+                  <input
+                    required
+                    type={field === 'email' ? 'email' : field === 'password' ? 'password' : 'text'}
+                    value={form[field]}
+                    onChange={e => setForm({ ...form, [field]: e.target.value })}
+                    placeholder={field.replace(/([A-Z])/g, ' $1')}
+                    className={`w-full rounded-lg border ${borderStyle} ${inputBg} px-3 py-2.5 text-xs ${textMain} outline-none ${addError && (field === 'firstName' || field === 'lastName' || field === 'email' || field === 'contactNumber' || field === 'password') ? 'border-red-500' : ''}`}
+                  />
+                </div>
               ))}
               <select required value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className={`rounded-lg border ${borderStyle} ${inputBg} px-3 py-2.5 text-xs ${textMain} outline-none`}>
                 {STAFF_ROLES.map(role => <option key={role} value={role}>{role}</option>)}
               </select>
-              <select required value={form.hotelId} onChange={e => setForm({ ...form, hotelId: e.target.value })} className={`rounded-lg border ${borderStyle} ${inputBg} px-3 py-2.5 text-xs ${textMain} outline-none`}>
+              <select required value={form.hotelId} onChange={e => setForm({ ...form, hotelId: e.target.value })} className={`rounded-lg border ${borderStyle} ${inputBg} px-3 py-2.5 text-xs ${textMain} outline-none ${addError && !form.hotelId ? 'border-red-500' : ''}`}>
                 <option value="">Select hotel</option>
                 {hotelOptions.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>

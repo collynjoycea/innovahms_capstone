@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { Briefcase, Building2, ChevronDown, ShieldCheck } from "lucide-react";
+import Footer from "../components/Footer";
 
 export default function RegistrationLayout() {
   const location = useLocation();
@@ -125,14 +126,7 @@ export default function RegistrationLayout() {
         <Outlet />
       </div>
 
-      <footer className="border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-5 text-xs text-slate-500 dark:text-slate-400 lg:px-8">
-          <p>Copyright {new Date().getFullYear()} INNOVA-HMS. {footerLabel}.</p>
-          <Link to="/" className="font-semibold transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
-            Back to customer site
-          </Link>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

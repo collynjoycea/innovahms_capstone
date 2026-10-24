@@ -23,15 +23,15 @@ const FALLBACK_PACKAGES = [
     id: 'starter',
     slug: 'starter',
     name: 'Starter',
-    monthlyPrice: 1,
+    monthlyPrice: 8000,
     description: 'List your hotel and start receiving bookings directly.',
     features: ['Hotel profile and photo gallery', 'Room and rate management', 'Basic booking analytics'],
   },
   {
-    id: 'standard',
-    slug: 'standard',
-    name: 'Standard',
-    monthlyPrice: 999,
+    id: 'pro',
+    slug: 'pro',
+    name: 'Pro',
+    monthlyPrice: 25000,
     description: 'Stand out in search and track how you compare with competitors.',
     features: [
       'Everything in Starter',
@@ -41,13 +41,13 @@ const FALLBACK_PACKAGES = [
     ],
   },
   {
-    id: 'premium',
-    slug: 'premium',
-    name: 'Premium',
-    monthlyPrice: 1999,
+    id: 'enterprise',
+    slug: 'enterprise',
+    name: 'Enterprise',
+    monthlyPrice: 50000,
     description: 'Full promotional toolkit with deep guest insights.',
     features: [
-      'Everything in Standard',
+      'Everything in Pro',
       'Featured hotel on the portal home page',
       'Guest and search-trend insights',
       'Customized analytics reports',
@@ -102,18 +102,16 @@ export default function HotelierHome() {
     let cancelled = false;
     const loadPackages = async () => {
       try {
-        const session = readSession();
-        // Logged-in owners use the existing endpoint. Visitors need a public one:
-        // add GET /api/owner/packages on the backend, or the fallback list is shown.
-        const url = session?.id ? `/api/owner/subscription/${session.id}` : '/api/owner/packages';
-        const response = await fetch(url);
+        const response = await fetch('/api/owner/packages');
         const data = await response.json();
         if (!response.ok) throw new Error();
-        const list = (data.packages || []).map((pkg) =>
-          pkg.slug === 'starter' || pkg.name?.toLowerCase().includes('starter')
-            ? { ...pkg, monthlyPrice: 1 }
-            : pkg
-        );
+
+        const list = (data.packages || []).map((pkg) => ({
+          ...pkg,
+          monthlyPrice: Number(pkg.monthlyPrice ?? pkg.monthly_price ?? 0),
+          annualPrice: Number(pkg.annualPrice ?? pkg.annual_price ?? 0),
+        }));
+
         if (!cancelled) setPackages(list.length ? list : FALLBACK_PACKAGES);
       } catch {
         if (!cancelled) setPackages(FALLBACK_PACKAGES);
