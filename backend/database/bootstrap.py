@@ -60,10 +60,11 @@ def ensure_room_type_options(cur):
               OR LOWER(COALESCE(room_type, '')) LIKE '%executive%'
               OR LOWER(COALESCE(room_type, '')) LIKE '%presidential%' THEN 'Suite'
             WHEN LOWER(COALESCE(room_type, '')) LIKE '%double%' THEN 'Double'
+            WHEN LOWER(COALESCE(room_type, '')) LIKE '%single%' THEN 'Single'
             ELSE 'Standard'
         END
         WHERE room_type IS NULL
-           OR room_type NOT IN ('Standard', 'Double', 'Suite', 'Deluxe', 'Family Room')
+           OR room_type NOT IN ('Single', 'Standard', 'Double', 'Suite', 'Deluxe', 'Family Room')
         """
     )
 
@@ -87,7 +88,7 @@ def ensure_room_type_options(cur):
         """
         ALTER TABLE rooms
         ADD CONSTRAINT rooms_room_type_check
-        CHECK (room_type IN ('Standard', 'Double', 'Suite', 'Deluxe', 'Family Room'))
+        CHECK (room_type IN ('Single', 'Standard', 'Double', 'Suite', 'Deluxe', 'Family Room'))
         """
     )
 

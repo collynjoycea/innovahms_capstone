@@ -119,6 +119,7 @@ import CustomerReviews from "./customer/CustomerReviews";
 import InnovaSuites from "./customer/InnovaSuites";
 import Rewards from "./pages/customer/Rewards";
 import VisionSuites from "./pages/customer/VisionSuites";
+import TermsOfService from "./pages/TermsOfService";
 
 // --- PROTECTED ROUTE COMPONENTS ---
 const ProtectedAdmin = ({ children }) => {
@@ -164,7 +165,8 @@ function App() {
           <Route path="/about-us" element={<Navigate to="/about" replace />} />
           <Route path="/features" element={<Features />} />
           <Route path="/privileges" element={<Privileges />} />
-          <Route path="/terms-of-service" element={<Navigate to="/features" replace />} />
+          <Route path="/terms-of-service" element={<TermsOfService />} />
+          <Route path="/privacy-policy" element={<TermsOfService />} />
           <Route path="/facilities" element={<Facilities />} />
           <Route path="/hoteldetail/:id" element={<HotelDetail />} />
           <Route path="/roomdetail/:id" element={<RoomDetail />} />

@@ -13,6 +13,8 @@ import {
   Star,
   Users,
   X,
+  AlertCircle,
+  CalendarDays,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Marzipano from "marzipano";
@@ -46,6 +48,7 @@ const roomText = (room, ...fields) => {
 };
 
 const normalizeRoomText = (value) => String(value || "").replace(/\s+/g, " ").trim();
+const sanitizeSearchQuery = (value) => String(value || "").replace(/[^\p{L}\s]/gu, "").replace(/\s+/g, " ");
 const escapeRegExp = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const formatInputDate = (date) => {
   const year = date.getFullYear();
@@ -279,13 +282,16 @@ export default function VisionSuites() {
   const [sortMode, setSortMode] = useState("recommended");
   const [filterCheckIn, setFilterCheckIn] = useState("");
   const [filterCheckOut, setFilterCheckOut] = useState("");
-  const [filterAdults, setFilterAdults] = useState("");
-  const [filterChildren, setFilterChildren] = useState("");
+  const [filterAdults, setFilterAdults] = useState("2");
+  const [filterChildren, setFilterChildren] = useState("0");
   const [visibleItemCount, setVisibleItemCount] = useState(PAGE_SIZE);
   const [landmarks, setLandmarks] = useState([]);
   const [nearbyHotels, setNearbyHotels] = useState([]);
   const [homeHotels, setHomeHotels] = useState([]);
   const [viewMode, setViewMode] = useState("hotel");
+
+  // State for Header Search/Filter Modal
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
 
   const [tourOpen, setTourOpen] = useState(false);
   const [tourRoom, setTourRoom] = useState(null);
@@ -307,6 +313,8 @@ export default function VisionSuites() {
   const visionMinCheckOut = filterCheckIn
     ? addInputDays(filterCheckIn, 1)
     : addInputDays(visionMinCheckIn, 1);
+
+  const hasValidDates = Boolean(filterCheckIn && filterCheckOut);
 
   const validateDateRange = (checkIn, checkOut) => {
     const today = new Date();
@@ -382,7 +390,7 @@ export default function VisionSuites() {
     const guests = params.get("guests") || "";
     const adults = params.get("adults") || "";
     const children = params.get("children") || "";
-    const search = params.get("search") || "";
+    const search = sanitizeSearchQuery(params.get("search") || "");
     const requestedView = params.get("view") || params.get("roomType") || "";
     const hotelId = params.get("hotel_id") || "";
     const selectedViewMode = params.get("viewMode") || params.get("mode") || "hotel";
@@ -407,8 +415,8 @@ export default function VisionSuites() {
     });
     if (from) setFilterCheckIn(from);
     if (to) setFilterCheckOut(to);
-    setFilterAdults(adults || guests);
-    setFilterChildren(children);
+    if (adults || guests) setFilterAdults(adults || guests);
+    if (children) setFilterChildren(children);
     setHotelSearch(search);
     setSelectedRoomType(requestedView || "all");
     setSelectedRating("all");
@@ -576,7 +584,16 @@ export default function VisionSuites() {
     }
   };
 
-  const roomTypeOptions = ["Standard", "Double", "Suite", "Deluxe", "Family Room"];
+  const handleBookingAttempt = (roomId) => {
+    if (!hasValidDates) {
+      setError("Please select Check-in and Check-out dates before booking.");
+      setFilterModalOpen(true);
+      return;
+    }
+    navigate(`/booking?roomId=${roomId}&from=${filterCheckIn}&to=${filterCheckOut}&adults=${filterAdults}&children=${filterChildren}`);
+  };
+
+  const roomTypeOptions = ["Single", "Double", "Suite", "Deluxe", "Standard", "Family Room"];
 
   const displayHotels = useMemo(() => {
     let list = [];
@@ -652,8 +669,8 @@ export default function VisionSuites() {
     setSortMode("recommended");
     setFilterCheckIn("");
     setFilterCheckOut("");
-    setFilterAdults("");
-    setFilterChildren("");
+    setFilterAdults("2");
+    setFilterChildren("0");
     setVisibleItemCount(PAGE_SIZE);
   };
 
@@ -677,13 +694,125 @@ export default function VisionSuites() {
         onReserve={() => {
           const roomId = tourRoom?.id;
           closeTour();
-          if (roomId) navigate(`/booking?roomId=${roomId}`);
+          if (roomId) handleBookingAttempt(roomId);
         }}
         roomName={tourRoom ? getRoomDisplayName(tourRoom) : "Vision Suite"}
         tour={tourData}
         loading={tourLoading}
         notice={tourNotice}
       />
+
+      {/* HEADER CHECK-IN & CHECK-OUT MODAL */}
+      {filterModalOpen && (
+        <div className="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white dark:bg-[#121E1A] rounded-2xl shadow-2xl border border-gray-200 dark:border-[#243B33] overflow-hidden p-6 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-[#243B33] mb-5">
+              <div className="flex items-center gap-2">
+                <CalendarDays size={20} className="text-[#1F6F5F] dark:text-[#2FA084]" />
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">Select Dates & Guests</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFilterModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 p-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Check-in Date</p>
+                  <input
+                    type="date"
+                    value={filterCheckIn}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFilterCheckIn(value);
+                      const nextCheckOut = filterCheckOut && filterCheckOut > value ? filterCheckOut : addInputDays(value, 1);
+                      if (nextCheckOut) setFilterCheckOut(nextCheckOut);
+                      validateDateRange(value, nextCheckOut);
+                    }}
+                    min={visionMinCheckIn}
+                    className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
+                  />
+                </div>
+
+                <div className="rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 p-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Check-out Date</p>
+                  <input
+                    type="date"
+                    value={filterCheckOut}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFilterCheckOut(value);
+                      validateDateRange(filterCheckIn, value);
+                    }}
+                    min={visionMinCheckOut}
+                    className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 p-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Occupancy</p>
+                <div className="flex items-center gap-4 text-xs font-semibold pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">Adults:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={filterAdults}
+                      onChange={(e) => setFilterAdults(String(Math.min(12, Math.max(1, Number(e.target.value) || 1))))}
+                      className="w-12 bg-white dark:bg-[#182924] border border-gray-200 dark:border-[#243B33] rounded px-2 py-1 text-center"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">Kids:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="12"
+                      value={filterChildren}
+                      onChange={(e) => setFilterChildren(String(Math.min(12, Math.max(0, Number(e.target.value) || 0))))}
+                      className="w-12 bg-white dark:bg-[#182924] border border-gray-200 dark:border-[#243B33] rounded px-2 py-1 text-center"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="text-xs text-rose-500 font-medium bg-rose-50 dark:bg-rose-950/40 p-2.5 rounded-lg border border-rose-200 dark:border-rose-900/40">
+                  {error}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2 pt-3 border-t border-gray-100 dark:border-[#243B33]">
+              <button
+                type="button"
+                onClick={() => setFilterModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 dark:text-gray-300"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (validateDateRange(filterCheckIn, filterCheckOut)) {
+                    setFilterModalOpen(false);
+                  }
+                }}
+                className="px-5 py-2 rounded-xl bg-[#1F6F5F] hover:bg-[#288B77] text-white text-xs font-bold uppercase tracking-wider transition-all"
+              >
+                Apply Dates
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <button
         type="button"
@@ -740,7 +869,7 @@ export default function VisionSuites() {
         </div>
       ) : null}
 
-      {/* COMPACT HERO SECTION (Binawasan ang height para agad makita ang listahan ng hotels/rooms) */}
+      {/* COMPACT HERO SECTION */}
       <section className="relative pt-24 pb-8 flex flex-col items-center justify-center overflow-hidden min-h-[35vh]">
         <div className="absolute inset-0 z-0">
           <img 
@@ -767,11 +896,11 @@ export default function VisionSuites() {
           ) : null}
         </div>
 
-        {/* PABAHA / HORIZONTAL SEARCH BAR (Full-width & Single Row Layout) */}
+        {/* HORIZONTAL SEARCH BAR WITH INTEGRATED MODAL BUTTON */}
         <div className="relative z-30 w-full max-w-6xl px-4 mx-auto">
           <div className="relative rounded-2xl bg-white/95 dark:bg-[#121E1A]/95 backdrop-blur-md p-3 sm:p-4 shadow-xl border border-gray-100 dark:border-[#243B33] text-left">
             
-            {/* Top Bar: Controls */}
+            {/* Top Bar Controls */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-200/80 dark:border-[#243B33]">
               <div className="flex items-center gap-2">
                 <button
@@ -808,7 +937,7 @@ export default function VisionSuites() {
               </button>
             </div>
 
-            {/* Horizontal Grid (Pabaha/Full-width Layout) */}
+            {/* Horizontal Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
               
               {/* Search Name/Location */}
@@ -819,7 +948,7 @@ export default function VisionSuites() {
                   <input
                     type="text"
                     value={hotelSearch}
-                    onChange={(e) => setHotelSearch(e.target.value)}
+                    onChange={(e) => setHotelSearch(sanitizeSearchQuery(e.target.value))}
                     placeholder="Hotel or room name..."
                     className="w-full bg-transparent text-xs font-semibold text-gray-800 dark:text-white outline-none truncate"
                   />
@@ -844,76 +973,32 @@ export default function VisionSuites() {
                 </div>
               </div>
 
-              {/* Check-in & Check-out Range */}
-              <div className="grid grid-cols-2 gap-1 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 p-1.5">
-                <div className="border-r border-gray-200 dark:border-[#243B33] pr-1">
-                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Check-in</p>
-                  <div className="flex items-center gap-1">
-                    <Calendar size={12} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
-                    <input
-                      type="date"
-                      value={filterCheckIn}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setFilterCheckIn(value);
-                        const nextCheckOut = filterCheckOut && filterCheckOut > value
-                          ? filterCheckOut
-                          : addInputDays(value, 1);
-                        if (nextCheckOut) setFilterCheckOut(nextCheckOut);
-                        validateDateRange(value, nextCheckOut);
-                      }}
-                      min={visionMinCheckIn}
-                      className="w-full bg-transparent text-[11px] font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
-                    />
-                  </div>
+              {/* Check-in / Check-out Header Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setFilterModalOpen(true)}
+                className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3 py-1.5 text-left hover:border-[#1F6F5F] transition-all group cursor-pointer"
+              >
+                <CalendarDays size={16} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0 group-hover:scale-110 transition-transform" />
+                <div className="w-full min-w-0">
+                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Dates & Guests Modal</p>
+                  <p className="text-xs font-semibold text-gray-800 dark:text-white truncate">
+                    {hasValidDates ? `${filterCheckIn} → ${filterCheckOut}` : "Select Dates"}
+                  </p>
                 </div>
+              </button>
 
-                <div className="pl-1">
-                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Check-out</p>
-                  <div className="flex items-center gap-1">
-                    <Calendar size={12} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
-                    <input
-                      type="date"
-                      value={filterCheckOut}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setFilterCheckOut(value);
-                        validateDateRange(filterCheckIn, value);
-                      }}
-                      min={visionMinCheckOut}
-                      className="w-full bg-transparent text-[11px] font-semibold text-gray-800 dark:text-white outline-none cursor-pointer"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Occupancy */}
-              <div className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3 py-1.5">
+              {/* Occupancy Indicator */}
+              <div 
+                onClick={() => setFilterModalOpen(true)}
+                className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-[#243B33] bg-gray-50/50 dark:bg-[#080d0b]/50 px-3 py-1.5 cursor-pointer hover:border-[#1F6F5F] transition-all"
+              >
                 <Users size={15} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
                 <div className="w-full min-w-0">
-                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Guests</p>
-                  <div className="flex items-center gap-1.5 text-xs font-semibold">
-                    <input
-                      type="number"
-                      min="1"
-                      max="12"
-                      value={filterAdults}
-                      onChange={(e) => setFilterAdults(String(Math.min(12, Math.max(1, Number(e.target.value) || 1))))}
-                      placeholder="1"
-                      className="w-8 bg-transparent text-gray-800 dark:text-white outline-none"
-                    />
-                    <span className="text-[10px] text-gray-400">adlts</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="12"
-                      value={filterChildren}
-                      onChange={(e) => setFilterChildren(String(Math.min(12, Math.max(0, Number(e.target.value) || 0))))}
-                      placeholder="0"
-                      className="w-8 bg-transparent text-gray-800 dark:text-white outline-none"
-                    />
-                    <span className="text-[10px] text-gray-400">kids</span>
-                  </div>
+                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Occupancy</p>
+                  <p className="text-xs font-semibold text-gray-800 dark:text-white truncate">
+                    {filterAdults} Adults, {filterChildren} Kids
+                  </p>
                 </div>
               </div>
 
@@ -928,12 +1013,36 @@ export default function VisionSuites() {
         <div className="min-w-0">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#1F6F5F]/20">
             <h3 className="text-base md:text-lg font-black text-[#1F6F5F] dark:text-[#2FA084] uppercase tracking-wider">
-              {viewMode === "hotel" ? "Recommendation Hotels" : "Recommendation Rooms"}
+              {viewMode === "hotel" ? "Recommended Hotels" : "Recommended Rooms"}
             </h3>
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
               {currentList.length} {viewMode === "hotel" ? "hotels" : "rooms"} total
             </p>
           </div>
+
+          {/* WARNING REMINDER BANNER IN ROOM MODE WHEN DATES ARE NOT SELECTED */}
+          {viewMode === "room" && !hasValidDates && (
+            <div className="mb-6 rounded-2xl border border-amber-300 dark:border-amber-700/60 bg-amber-50/90 dark:bg-amber-950/40 p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-pulse">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="text-amber-600 dark:text-amber-400 shrink-0" size={20} />
+                <div>
+                  <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider">
+                    Room Booking Reminder
+                  </h4>
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    You must select <strong>Check-in</strong> and <strong>Check-out dates</strong> before reserving a room.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFilterModalOpen(true)}
+                className="shrink-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm transition-all"
+              >
+                Select Dates
+              </button>
+            </div>
+          )}
 
           {viewMode === "hotel" ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1091,10 +1200,14 @@ export default function VisionSuites() {
                       <div className="w-full flex lg:flex-col gap-2 mt-4">
                         <button
                           type="button"
-                          onClick={() => navigate(`/booking?roomId=${bookableRoomId}${filterCheckIn ? `&from=${filterCheckIn}` : ""}`)}
-                          className="flex-1 lg:w-full bg-[#1F6F5F] hover:bg-[#288B77] py-2.5 px-4 text-xs font-black uppercase tracking-wider text-white rounded-lg shadow transition-all text-center"
+                          onClick={() => handleBookingAttempt(bookableRoomId)}
+                          className={`flex-1 lg:w-full py-2.5 px-4 text-xs font-black uppercase tracking-wider rounded-lg shadow transition-all text-center ${
+                            hasValidDates
+                              ? "bg-[#1F6F5F] hover:bg-[#288B77] text-white"
+                              : "bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                          }`}
                         >
-                          Book Now
+                          {hasValidDates ? "Book Now" : "Book a Roo"}
                         </button>
                       </div>
                     </div>

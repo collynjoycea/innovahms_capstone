@@ -23,6 +23,8 @@ const NAV_LINKS = [
   { label: "Vision Suites", path: "/vision-suites" },
 ];
 
+const sanitizeSearchQuery = (value) => value.replace(/[^\p{L}\s]/gu, "").replace(/\s+/g, " ");
+
 export default function Header() {
   const [user, setUser] = useState(null);
   const [openDrop, setOpenDrop] = useState(null);
@@ -159,11 +161,17 @@ export default function Header() {
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     closeAll();
-    if (searchQuery.trim()) {
-      navigate(`/vision-suites?search=${encodeURIComponent(searchQuery.trim())}`);
+    const query = sanitizeSearchQuery(searchQuery).trim();
+    setSearchQuery(query);
+    if (query) {
+      navigate(`/vision-suites?search=${encodeURIComponent(query)}&viewMode=room`);
     } else {
-      navigate("/vision-suites");
+      navigate("/vision-suites?viewMode=room");
     }
+  };
+
+  const handleSearchChange = (event) => {
+    setSearchQuery(sanitizeSearchQuery(event.target.value));
   };
 
   const handleBookings = () => {
@@ -238,7 +246,7 @@ export default function Header() {
                 type="text"
                 placeholder="Find a room..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchChange}
                 className={`w-48 xl:w-56 rounded-full border py-2 pl-9 pr-4 text-sm outline-none transition-all ${inputClass}`}
               />
               <button
@@ -400,7 +408,7 @@ export default function Header() {
                 type="text"
                 placeholder="Find a room..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchChange}
                 className={`w-full rounded-2xl border py-2.5 pl-10 pr-4 text-sm outline-none transition-all ${inputClass}`}
               />
               <button

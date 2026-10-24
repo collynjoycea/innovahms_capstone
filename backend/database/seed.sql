@@ -244,6 +244,46 @@ BEGIN
         CHECK (status IN ('Available','Occupied','Maintenance','Cleaning','Dirty','InProgress','Clean','Reserved')) NOT VALID;
 END $$;
 
+-- Allow Standard and Single room types in databases created before they were introduced.
+DO $$
+DECLARE c RECORD;
+BEGIN
+    FOR c IN
+        SELECT conname FROM pg_constraint
+        WHERE conrelid = 'rooms'::regclass AND contype = 'c'
+          AND pg_get_constraintdef(oid) ILIKE '%room_type%'
+    LOOP
+        EXECUTE format('ALTER TABLE rooms DROP CONSTRAINT %I', c.conname);
+    END LOOP;
+    ALTER TABLE rooms ADD CONSTRAINT rooms_room_type_check
+        CHECK (room_type IN ('Single','Double','Suite','Deluxe','Standard','Family Room')) NOT VALID;
+END $$;
+
+-- Sample Standard room for the demo hotel; safe to run repeatedly.
+DO $$
+DECLARE hid INTEGER;
+BEGIN
+    SELECT id INTO hid FROM hotels WHERE hotel_code = 'DEMO-OWNER-01' ORDER BY id LIMIT 1;
+    IF hid IS NULL THEN
+        SELECT id INTO hid FROM hotels ORDER BY id LIMIT 1;
+    END IF;
+
+    IF hid IS NOT NULL THEN
+        INSERT INTO rooms (
+            hotel_id, room_number, room_name, room_type, description, amenities, images,
+            max_adults, max_children, price_per_night, status
+        )
+        SELECT
+            hid, 'STD-101', 'Standard Room', 'Standard',
+            'Comfortable sample Standard room for room search and booking demos.',
+            ARRAY['Wi-Fi', 'Air conditioning', 'Private bathroom'],
+            ARRAY['/images/standard-room.jpg'], 2, 1, 2500.00, 'Available'
+        WHERE NOT EXISTS (
+            SELECT 1 FROM rooms WHERE hotel_id = hid AND room_number = 'STD-101'
+        );
+    END IF;
+END $$;
+
 -- Sample housekeeping tasks for the test user's hotel (uses that hotel's real rooms; only if it has no tasks yet)
 INSERT INTO hk_tasks (hotel_id, room_id, room_label, task_type, assigned_to, staff_name, priority, status, notes, scheduled_time)
 SELECT s.hotel_id, r.id, r.room_number, 'Full Clean', s.id, 'Test Housekeeper', 'HIGH', 'Pending', 'Sample task - clean before next check-in', '14:00'

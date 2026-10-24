@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
     room_number VARCHAR(20) NOT NULL,
     room_name VARCHAR(100),
-    room_type VARCHAR(50) CHECK (room_type IN ('Standard', 'Double', 'Suite', 'Deluxe', 'Family Room')),
+    room_type VARCHAR(50) CHECK (room_type IN ('Single', 'Standard', 'Double', 'Suite', 'Deluxe', 'Family Room')),
     bed_type VARCHAR(50),
     description TEXT,
     amenities TEXT[],
