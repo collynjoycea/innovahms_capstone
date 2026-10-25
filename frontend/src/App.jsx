@@ -53,6 +53,11 @@ import HKSettings from "./pages/Staff/housekeepingmainte/HKSettings";
 import HKGuestRequests from "./pages/Staff/housekeepingmainte/HKGuestRequests";
 
 import HotelManagerDashboard from "./pages/Staff/hotelmanager/StaffDashboard";
+import ManagerStaff from "./pages/Maneger/Staff";
+import ManagerReviews from "./pages/Maneger/Reviews";
+import ManagerHousekeeping from "./pages/Maneger/Housekeeping";
+import ManagerReports from "./pages/Maneger/Reports";
+import ManagerSectionPlaceholder from "./pages/Maneger/ManagerSectionPlaceholder";
 
 
 // --- INVENTORY MODULES ---
@@ -306,6 +311,14 @@ function App() {
 
         <Route path="/manager" element={<ProtectedRole><ManagerLayout /></ProtectedRole>}>
           <Route path="dashboard" element={<HotelManagerDashboard />} />
+          <Route path="revenue" element={<ManagerSectionPlaceholder title="Revenue Monitor" />} />
+          <Route path="pricing" element={<ManagerSectionPlaceholder title="Dynamic Pricing" />} />
+          <Route path="promotions" element={<ManagerSectionPlaceholder title="Promotions & Offers" />} />
+          <Route path="staff" element={<ManagerStaff />} />
+          <Route path="reviews" element={<ManagerReviews />} />
+          <Route path="housekeeping" element={<ManagerHousekeeping />} />
+          <Route path="suppliers" element={<SupplierPurchaseOrders audience="manager" />} />
+          <Route path="reports" element={<ManagerReports />} />
         </Route>
 
         {/* GROUP 7: INVENTORY MODULE */}

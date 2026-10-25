@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  LayoutDashboard, BarChart3, TrendingUp, Cpu, 
-  DollarSign, Percent, BadgePercent, Users2, 
+  LayoutDashboard,
+  DollarSign, Percent, BadgePercent, Users2, Truck,
   Star, ClipboardCheck, FileText, Settings, LogOut,
   ShieldCheck, Activity, Clock
 } from 'lucide-react';
@@ -32,15 +32,7 @@ const HotelManagerSidebar = ({ isDarkMode }) => {
     {
       title: "EXECUTIVE OVERVIEW",
       items: [
-        { name: "Executive Dashboard", path: "/manager/dashboard", icon: <LayoutDashboard /> },
-        { name: "Real-time Analytics", path: "/manager/analytics", icon: <BarChart3 />, badge: "LIVE" }
-      ]
-    },
-    {
-      title: "STRATEGIC AI",
-      items: [
-        { name: "Prophet Forecasting", path: "/manager/forecasting", icon: <TrendingUp /> },
-        { name: "Simulation Engine", path: "/manager/simulation", icon: <Cpu /> }
+        { name: "Executive Dashboard", path: "/manager/dashboard", icon: <LayoutDashboard /> }
       ]
     },
     {
@@ -56,7 +48,8 @@ const HotelManagerSidebar = ({ isDarkMode }) => {
       items: [
         { name: "Staff Performance", path: "/manager/staff", icon: <Users2 /> },
         { name: "Guest Sentiment", path: "/manager/reviews", icon: <Star />, badge: "4.8" },
-        { name: "Housekeeping Log", path: "/manager/housekeeping", icon: <ClipboardCheck /> }
+        { name: "Housekeeping Log", path: "/manager/housekeeping", icon: <ClipboardCheck /> },
+        { name: "Supplier", path: "/manager/suppliers", icon: <Truck /> }
       ]
     },
     {
