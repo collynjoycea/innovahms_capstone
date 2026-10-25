@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import useStaffSession from "../hooks/useStaffSession";
 
 const formatTimeAgo = (value) => {
@@ -14,9 +15,11 @@ const formatTimeAgo = (value) => {
 
 const StaffNotificationBell = ({ isDarkMode = false, className = "" }) => {
   const { staffId } = useStaffSession();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [loadError, setLoadError] = useState("");
   const panelRef = useRef(null);
 
   useEffect(() => {
@@ -41,12 +44,14 @@ const StaffNotificationBell = ({ isDarkMode = false, className = "" }) => {
       try {
         const response = await fetch(`/api/staff/notifications/${staffId}?limit=10`);
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || !active) return;
+        if (!response.ok) throw new Error(data.error || "Could not load notifications.");
+        if (!active) return;
         const nextNotifications = data.notifications || [];
         setNotifications(nextNotifications);
         setUnreadCount(data.unread_count ?? nextNotifications.filter((item) => !item.is_read).length);
-      } catch {
-        // keep stale UI state when polling fails
+        setLoadError("");
+      } catch (error) {
+        if (active) setLoadError(error.message || "Could not load notifications.");
       }
     };
 
@@ -58,19 +63,25 @@ const StaffNotificationBell = ({ isDarkMode = false, className = "" }) => {
     };
   }, [staffId]);
 
-  const markAsRead = async (notificationId) => {
+  const markAsRead = async (notification) => {
     if (!staffId) return;
     try {
-      const response = await fetch(`/api/staff/notifications/${staffId}/${notificationId}/read`, {
+      const response = await fetch(`/api/staff/notifications/${staffId}/${notification.id}/read`, {
         method: "PATCH",
       });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error("Could not mark notification as read.");
       setNotifications((current) =>
-        current.map((item) => (item.id === notificationId ? { ...item, is_read: true } : item))
+        current.map((item) => (item.id === notification.id ? { ...item, is_read: true } : item))
       );
-      setUnreadCount((current) => Math.max(0, current - 1));
-    } catch {
-      // ignore transient mark-as-read failures
+      if (!notification.is_read) setUnreadCount((current) => Math.max(0, current - 1));
+      const destination = notification.data?.destination;
+      if (destination) {
+        setOpen(false);
+        navigate(destination);
+      }
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error.message || "Could not mark notification as read.");
     }
   };
 
@@ -111,6 +122,7 @@ const StaffNotificationBell = ({ isDarkMode = false, className = "" }) => {
           </div>
 
           <div className="max-h-96 overflow-y-auto">
+            {loadError ? <p role="alert" className="px-4 py-2 text-xs text-red-500">{loadError}</p> : null}
             {notifications.length === 0 ? (
               <div className={`px-4 py-8 text-center text-sm ${theme.muted}`}>No notifications yet.</div>
             ) : (
@@ -118,7 +130,7 @@ const StaffNotificationBell = ({ isDarkMode = false, className = "" }) => {
                 <button
                   key={notification.id}
                   type="button"
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => markAsRead(notification)}
                   className={`w-full border-b px-4 py-3 text-left transition-colors ${theme.item} ${
                     notification.is_read ? "" : isDarkMode ? "bg-[#1b1812]" : "bg-amber-50/60"
                   }`}

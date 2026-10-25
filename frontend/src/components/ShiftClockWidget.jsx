@@ -36,8 +36,7 @@ export default function ShiftClockWidget({ isDarkMode }) {
     return () => clearInterval(t);
   }, [fetchShift]);
 
-  // Geofencing — Time In / Time Out require the device's current GPS
-  // coordinates, which the backend checks against the hotel's location.
+  // Time In / Time Out require the device's current GPS coordinates.
   const getLocation = () => new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Geolocation is not supported on this device/browser.'));

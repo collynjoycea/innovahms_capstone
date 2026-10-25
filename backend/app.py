@@ -103,7 +103,7 @@ def get_db_connection():
         host=os.getenv("DB_HOST", "localhost"),
         database=os.getenv("DB_NAME", "innovahmsdb"),
         user=os.getenv("DB_USER", "postgres"),
-        password=os.getenv("DB_PASSWORD", "lily1245"),
+        password=os.getenv("DB_PASSWORD", "password1"),
         port=os.getenv("DB_PORT", "5432"),
     )
 
@@ -336,7 +336,7 @@ def _to_int(value, default=0):
 
 EMAIL_PATTERN = re.compile(r"^[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}$", re.IGNORECASE)
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z\s'.-]{1,49}$")
-HOTEL_CODE_PATTERN = re.compile(r"^INNOVAHMS-\d+$", re.IGNORECASE)
+HOTEL_CODE_PATTERN = re.compile(r"^(?:INNOVAHMS-\d+|DEMO-OWNER-\d+)$", re.IGNORECASE)
 
 
 def _normalize_email(value):
@@ -1554,15 +1554,28 @@ def _ensure_membership_tables(cur):
 
 def _seed_membership_packages(cur):
     _ensure_membership_tables(cur)
+    cur.execute(
+        """
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'membership_packages'
+          AND column_name = 'features'
+        LIMIT 1
+        """
+    )
+    feature_column = cur.fetchone() or {}
+    features_are_json = feature_column.get("data_type") == "jsonb"
+    features_placeholder = "%s::jsonb" if features_are_json else "%s"
 
     for package in OWNER_PLAN_DEFINITIONS.values():
         cur.execute(
-            """
+            f"""
             INSERT INTO membership_packages (
                 name, slug, description, monthly_price, annual_price,
                 max_rooms, features, is_popular, is_active, display_order
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, {features_placeholder}, %s, TRUE, %s)
             ON CONFLICT (slug) DO UPDATE SET
                 name = EXCLUDED.name,
                 description = EXCLUDED.description,
@@ -1582,9 +1595,7 @@ def _seed_membership_packages(cur):
                 package["monthly_price"],
                 package["annual_price"],
                 package["max_rooms"],
-                # membership_packages.features is PostgreSQL TEXT[], so pass
-                # the Python list directly instead of serializing it as JSON.
-                package["features"],
+                Json(package["features"]) if features_are_json else package["features"],
                 package["is_popular"],
                 package["display_order"],
             ),
@@ -2855,6 +2866,91 @@ def _create_notification(user_id, user_type, notification_type_key, title, messa
         return None
     finally:
         _safe_close(conn, cur)
+
+
+def _notify_admin_payment_received(cur, amount, reference, hotel_id=None):
+    recipients = []
+    cur.execute("SELECT id FROM admins")
+    recipients.extend(
+        (row.get("id") if hasattr(row, "get") else row[0], "admin", "admin_payment_received")
+        for row in (cur.fetchall() or [])
+    )
+    if hotel_id:
+        cur.execute("SELECT owner_id FROM hotels WHERE id=%s", (hotel_id,))
+        hotel_row = cur.fetchone()
+        owner_id = hotel_row.get("owner_id") if hasattr(hotel_row, "get") else (hotel_row[0] if hotel_row else None)
+        if owner_id:
+            recipients.append((owner_id, "owner", "owner_payment_received"))
+
+    for user_id, user_type, notification_key in recipients:
+        _create_notification(
+            user_id, user_type, notification_key, "Payment Received",
+            f"Payment received: PHP {_to_float(amount, 0):,.2f} ({reference}).",
+            data={"reference": reference, "hotelId": hotel_id, "amount": _to_float(amount, 0)},
+        )
+
+
+def _notify_daily_low_stock(cur, hotel_id, inventory_rows):
+    if not inventory_rows:
+        return
+
+    cur.execute("SELECT owner_id FROM hotels WHERE id=%s", (hotel_id,))
+    hotel = cur.fetchone()
+    if not hotel:
+        return
+    owner_id = hotel.get("owner_id") if hasattr(hotel, "get") else hotel[0]
+    cur.execute("SELECT id FROM admins")
+    admin_ids = [
+        row.get("id") if hasattr(row, "get") else row[0]
+        for row in (cur.fetchall() or [])
+    ]
+    cur.execute(
+        """
+        SELECT id FROM staff
+        WHERE hotel_id=%s AND LOWER(COALESCE(role, '')) LIKE '%inventory%'
+          AND LOWER(COALESCE(status, 'active')) = 'active'
+        """,
+        (hotel_id,),
+    )
+    staff_ids = [
+        row.get("id") if hasattr(row, "get") else row[0]
+        for row in (cur.fetchall() or [])
+    ]
+    recipients = [(admin_id, "admin", "admin_low_inventory") for admin_id in admin_ids]
+    if owner_id:
+        recipients.append((owner_id, "owner", "owner_low_inventory"))
+    recipients.extend((staff_id, "staff", "staff_inventory_alert") for staff_id in staff_ids)
+    today = datetime.utcnow().date()
+
+    for item in inventory_rows:
+        for recipient_id, user_type, notification_key in recipients:
+            cur.execute(
+                """
+                SELECT 1
+                FROM notifications n
+                JOIN notification_types nt ON nt.id=n.notification_type_id
+                WHERE n.user_id=%s AND n.user_type=%s AND nt.type_key=%s
+                  AND n.data->>'itemId'=%s AND DATE(n.created_at)=%s
+                LIMIT 1
+                """,
+                (recipient_id, user_type, notification_key, str(item["id"]), today),
+            )
+            if cur.fetchone():
+                continue
+            _create_notification(
+                recipient_id,
+                user_type,
+                notification_key,
+                "Low Inventory Reminder",
+                f"{item.get('item_name') or 'An inventory item'} is low: "
+                f"{item.get('stock_level', 0)} remaining; reorder point is {item.get('reorder_point', 0)}.",
+                data={
+                    "itemId": item["id"],
+                    "hotelId": hotel_id,
+                    "stockLevel": item.get("stock_level", 0),
+                    "reorderPoint": item.get("reorder_point", 0),
+                },
+            )
 
 
 def _send_notification_async(notification_id):
@@ -4585,6 +4681,65 @@ def admin_create_notification():
         return jsonify({'error': 'Failed to create notification'}), 500
 
 
+@app.route('/api/admin/notifications/system-maintenance', methods=['POST'])
+def admin_notify_system_maintenance():
+    data = request.get_json() or {}
+    scheduled_time = str(data.get('scheduledTime') or '').strip()
+    details = str(data.get('message') or '').strip()
+    if not scheduled_time:
+        return jsonify({'error': 'scheduledTime is required.'}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _seed_notification_types(cur)
+        _ensure_notification_tables(cur)
+        conn.commit()
+        recipients = []
+        for user_type, table_name, notification_key in (
+            ('admin', 'admins', 'system_maintenance'),
+            ('owner', 'owners', 'owner_system_maintenance'),
+            ('staff', 'staff', 'staff_system_maintenance'),
+        ):
+            if user_type == 'staff':
+                cur.execute(
+                    "SELECT id FROM staff WHERE LOWER(COALESCE(role, '')) LIKE '%inventory%' AND LOWER(COALESCE(status, 'active')) = 'active'"
+                )
+            else:
+                cur.execute(f"SELECT id FROM {table_name}")
+            recipients.extend((row['id'], user_type, notification_key) for row in cur.fetchall() or [])
+
+        message = f"System maintenance is scheduled for {scheduled_time}."
+        if details:
+            message = f"{message} {details}"
+        created = 0
+        for user_id, user_type, notification_key in recipients:
+            cur.execute(
+                """
+                SELECT 1 FROM notifications n
+                JOIN notification_types nt ON nt.id=n.notification_type_id
+                WHERE n.user_id=%s AND n.user_type=%s AND nt.type_key=%s
+                  AND n.data->>'scheduledTime'=%s
+                LIMIT 1
+                """,
+                (user_id, user_type, notification_key, scheduled_time),
+            )
+            if cur.fetchone():
+                continue
+            if _create_notification(
+                user_id, user_type, notification_key, "System Maintenance Scheduled",
+                message, data={'scheduledTime': scheduled_time},
+            ):
+                created += 1
+        return jsonify({'message': 'Maintenance notifications sent.', 'notificationsCreated': created}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
 @app.route('/api/admin/notifications/types', methods=['GET'])
 def admin_get_notification_types():
     """Admin: Get all notification types"""
@@ -5793,7 +5948,7 @@ def owner_signup():
     if not hotel_code and not hotel_name:
         return jsonify({'error': 'Please provide a hotel code or enter a hotel name to create a new hotel.'}), 400
     if hotel_code and not _is_valid_hotel_code(hotel_code):
-        return jsonify({'error': 'Hotel code must follow the INNOVAHMS-123 format.'}), 400
+        return jsonify({'error': 'Enter a valid hotel code, such as INNOVAHMS-123 or DEMO-OWNER-01.'}), 400
 
     hashed_pw = generate_password_hash(password)
     conn = None
@@ -8075,7 +8230,7 @@ def register_staff():
     }:
         return jsonify({"error": "Select a valid staff role."}), 400
     if not _is_valid_hotel_code(hotel_code):
-        return jsonify({"error": "Hotel code must follow the INNOVAHMS-123 format."}), 400
+        return jsonify({"error": "Enter a valid hotel code, such as INNOVAHMS-123 or DEMO-OWNER-01."}), 400
     password_error = _password_strength_message(password)
     if password_error:
         return jsonify({"error": password_error}), 400
@@ -8190,6 +8345,7 @@ def get_rooms(hotel_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         _ensure_room_type_options(cur)
         _ensure_room_status_options(cur)
+        _ensure_hourly_room_rate_columns(cur)
         conn.commit()
         cur.execute("SELECT * FROM rooms WHERE hotel_id = %s ORDER BY room_number", (hotel_id,))
         rows = cur.fetchall() or []
@@ -8705,11 +8861,19 @@ def verify_payment(link_id):
             cur = conn.cursor(cursor_factory=RealDictCursor)
             _ensure_reservation_pricing_columns(cur)
             cur.execute(
-                "UPDATE reservations SET status = 'CONFIRMED', payment_method = 'online' WHERE paymongo_payment_id = %s RETURNING id, booking_number",
+                """UPDATE reservations
+                      SET status = 'CONFIRMED', payment_method = 'online'
+                    WHERE paymongo_payment_id = %s
+                      AND UPPER(COALESCE(status, '')) <> 'CONFIRMED'
+                    RETURNING id, booking_number, total_amount, hotel_id""",
                 (link_id,)
             )
             row = cur.fetchone()
             conn.commit()
+            if row:
+                _notify_admin_payment_received(
+                    cur, row.get('total_amount'), row.get('booking_number') or row.get('id'), row.get('hotel_id')
+                )
             return jsonify({
                 'status': 'paid',
                 'reservationId': row.get('id') if row else None,
@@ -8806,10 +8970,22 @@ def paymongo_webhook():
                 cur = conn.cursor()
                 _ensure_reservation_pricing_columns(cur)
                 cur.execute(
-                    "UPDATE reservations SET status = 'CONFIRMED', payment_method = 'online' WHERE paymongo_payment_id = %s",
+                    """UPDATE reservations
+                          SET status = 'CONFIRMED', payment_method = 'online'
+                        WHERE paymongo_payment_id = %s
+                          AND UPPER(COALESCE(status, '')) <> 'CONFIRMED'
+                        RETURNING id, booking_number, total_amount, hotel_id""",
                     (payment_intent_id,)
                 )
+                paid_reservations = cur.fetchall() or []
                 conn.commit()
+                for paid_reservation in paid_reservations:
+                    _notify_admin_payment_received(
+                        cur,
+                        paid_reservation[2],
+                        paid_reservation[1] or paid_reservation[0],
+                        paid_reservation[3],
+                    )
 
         return jsonify({'received': True}), 200
     except Exception as e:
@@ -9093,14 +9269,14 @@ def create_reservation():
             INSERT INTO reservations
               (booking_number, customer_id, room_id, hotel_id, check_in_date, check_out_date,
                check_in_time, check_out_time,
-               total_nights, stay_duration_hours, rate_type, total_amount, base_amount, privilege_discount_percent, privilege_discount_amount,
+               total_nights, adults, children, stay_duration_hours, rate_type, total_amount, base_amount, privilege_discount_percent, privilege_discount_amount,
                subtotal_amount, vat_percent, vat_amount, tax_percent, tax_amount, points_redeemed,
                applied_privilege_slug, applied_privilege_name, payment_method, special_requests, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id, booking_number
         """, (booking_number, customer_id, room_id, room.get('hotel_id'),
                check_in, check_out, check_in_time, check_out_time,
-               nights, duration_hours or None, rate_type, total, pricing["baseAmount"], pricing["discountPercent"], pricing["discountAmount"],
+               nights, adults, children, duration_hours or None, rate_type, total, pricing["baseAmount"], pricing["discountPercent"], pricing["discountAmount"],
                pricing["subtotalAmount"], pricing["vatPercent"], pricing["vatAmount"], pricing["taxPercent"], pricing["taxAmount"], pricing["pointsRedeemed"],
                privilege.get("packageSlug"), privilege.get("packageName"), payment_method, special_requests, 'PENDING'))
         row = cur.fetchone()
@@ -10165,7 +10341,6 @@ def get_rooms_catalog():
                 "id": row.get('id'),
                 "hotelId": row.get('hotel_id'),
                 "hotel_id": row.get('hotel_id'),
-                "roomNumber": row.get('room_number') or '',
                 "roomName": display_name,
                 "roomType": row.get('room_type') or "Suite",
                 "bedType": row.get('bed_type') or "",
@@ -11019,6 +11194,7 @@ def get_customer_dashboard(customer_id):
         preferred_room_type = None
 
         if _table_exists(cur, "reservations"):
+            _ensure_reservation_pricing_columns(cur)
             try:
                 cur.execute(
                     """
@@ -11029,6 +11205,9 @@ def get_customer_dashboard(customer_id):
                         r.check_out_date,
                         r.total_amount,
                         r.deposit_amount,
+                        r.adults,
+                        r.children,
+                        r.stay_duration_hours,
                         r.status,
                         r.room_id,
                         r.payment_method,
@@ -11073,10 +11252,13 @@ def get_customer_dashboard(customer_id):
                         "totalPrice": total_amount,
                         "status": status_text,
                         "roomType": row.get("room_name") or row.get("room_type") or "Suite",
-                        "hotelName": row.get("hotel_name") or "Innova HMS",
-                        "roomId": row.get("room_id"),
                         "roomNumber": row.get("room_number") or "",
+                        "hotelName": row.get("hotel_name") or "Innova HMS",
                         "hotelId": row.get("hotel_id"),
+                        "roomId": row.get("room_id"),
+                        "adults": _to_int(row.get("adults"), 1),
+                        "children": _to_int(row.get("children"), 0),
+                        "stayDurationHours": _to_int(row.get("stay_duration_hours"), 0),
                         "paymentMethod": row.get("payment_method") or "cash",
                     })
             except Exception:
@@ -11782,8 +11964,17 @@ def chatbot_rasa_fallback():
         if not message:
             return jsonify({"error": "message is required"}), 400
 
+        lower_msg = message.lower()
+        is_booking_status_intent = any(
+            phrase in lower_msg
+            for phrase in (
+                "booking status", "reservation status", "check my booking", "check my reservation",
+                "where is my booking", "where is my reservation", "where's my booking", "where's my reservation",
+                "track my booking", "track my reservation", "status of my booking", "status of my reservation",
+            )
+        )
         rasa_endpoint = (os.getenv("RASA_WEBHOOK_URL") or "").strip()
-        if rasa_endpoint:
+        if rasa_endpoint and not is_booking_status_intent:
             try:
                 rasa_response = requests.post(
                     rasa_endpoint,
@@ -11812,7 +12003,6 @@ def chatbot_rasa_fallback():
                 # Falls back to built-in concierge replies when external Rasa is unavailable.
                 pass
 
-        lower_msg = message.lower()
         replies = []
 
         conn = get_db_connection()
@@ -11821,6 +12011,40 @@ def chatbot_rasa_fallback():
 
         context_path = str(payload.get("context_path") or "").strip().lower()
         selected_hotel_id = _to_int_or_none(payload.get("hotel_id"))
+        customer_id = _to_int_or_none(customer_id)
+        if is_booking_status_intent:
+            if not customer_id:
+                return jsonify({
+                    "messages": ["Please sign in to your guest account before I look up your reservation. Go to /login, then ask me again."],
+                    "source": "innova-assistant",
+                }), 200
+            cur.execute("""
+                SELECT id, booking_number, check_in_date, check_out_date, status
+                FROM reservations
+                WHERE customer_id=%s
+                ORDER BY created_at DESC, id DESC
+                LIMIT 5
+            """, (customer_id,))
+            customer_reservations = cur.fetchall() or []
+            if customer_reservations:
+                status_lines = []
+                for row in customer_reservations:
+                    booking_label = row.get('booking_number') or f"Booking #{row.get('id')}"
+                    status_lines.append(
+                        f"{booking_label}: "
+                        f"{str(row.get('status') or 'pending').replace('_', ' ').title()}, "
+                        f"{_serialize_date(row.get('check_in_date')) or 'date not set'} to "
+                        f"{_serialize_date(row.get('check_out_date')) or 'date not set'}."
+                    )
+                return jsonify({
+                    "messages": ["Here are your latest reservations: " + " ".join(status_lines)],
+                    "source": "innova-assistant",
+                }), 200
+            return jsonify({
+                "messages": ["I couldn't find a reservation on your account. You can start a booking from Vision Suites."],
+                "source": "innova-assistant",
+            }), 200
+
         from_date_raw = str(payload.get("from") or payload.get("checkIn") or "").strip()
         to_date_raw = str(payload.get("to") or payload.get("checkOut") or "").strip()
         requested_guests = _to_int(payload.get("guests"), 0) or _extract_chat_guest_count(message)
@@ -12143,7 +12367,6 @@ def vision_rooms():
         query = """
             SELECT
                 r.id,
-                r.room_number,
                 r.room_name,
                 r.room_type,
                 r.description,
@@ -12222,7 +12445,6 @@ def vision_rooms():
             amenities = _parse_text_array(row.get("amenities"))
             capacity = max(_to_int(row.get("max_adults")) + _to_int(row.get("max_children")), 1)
             room_id = row.get("id")
-            room_number = row.get("room_number") or ""
             room_name = row.get("room_name") or row.get("room_type") or "Vision Suite"
             has_tour = False
             try:
@@ -12236,7 +12458,6 @@ def vision_rooms():
             rooms.append({
                 "id": room_id,
                 "name": room_name,
-                "roomNumber": room_number,
                 "type": row.get("room_type") or "Suite",
                 "tagline": row.get("hotel_name") or "Luxury accommodation",
                 "description": (row.get("description") or "").strip() or "",
@@ -12462,24 +12683,126 @@ def modify_booking(booking_id):
         customer_id = payload.get("customerId")
         check_in = payload.get("checkInDate")
         check_out = payload.get("checkOutDate")
+        room_id = _to_int_or_none(payload.get("roomId"))
+        adults = _to_int(payload.get("adults"), 0)
+        children = _to_int(payload.get("children"), 0)
 
-        if not customer_id or not check_in or not check_out:
-            return jsonify({"error": "customerId, checkInDate, and checkOutDate are required"}), 400
+        if not customer_id or not check_in or not check_out or not room_id:
+            return jsonify({"error": "customerId, checkInDate, checkOutDate, and roomId are required"}), 400
+        if adults < 1 or children < 0:
+            return jsonify({"error": "Provide at least one adult and a non-negative child count."}), 400
+
+        try:
+            requested_check_in = datetime.strptime(str(check_in), "%Y-%m-%d").date()
+            requested_check_out = datetime.strptime(str(check_out), "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            return jsonify({"error": "Use valid check-in and check-out dates in YYYY-MM-DD format."}), 400
+        if requested_check_in < datetime.utcnow().date() + timedelta(days=2) or requested_check_out <= requested_check_in:
+            return jsonify({"error": "Check-in must be at least two days ahead, and check-out must be after check-in."}), 400
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         if not _table_exists(cur, "reservations"):
             return jsonify({"error": "Reservation data is unavailable"}), 404
+        _ensure_reservation_pricing_columns(cur)
+
+        cur.execute("""
+            SELECT id, room_id, hotel_id, check_in_date, check_out_date,
+                   total_amount, deposit_amount, total_nights, stay_duration_hours,
+                   base_amount, privilege_discount_percent, vat_percent, tax_percent,
+                   points_redeemed
+            FROM reservations
+            WHERE id=%s AND customer_id=%s
+              AND status IN ('PENDING', 'CONFIRMED')
+              AND check_in_date >= CURRENT_DATE + 2
+            FOR UPDATE
+        """, (booking_id, customer_id))
+        booking = cur.fetchone()
+        if not booking:
+            return jsonify({"error": "Only your pending or confirmed bookings with check-in at least two days away can be modified."}), 404
+        current_check_in = booking.get("check_in_date")
+        current_check_out = booking.get("check_out_date")
+        duration_hours = _to_int(booking.get("stay_duration_hours"), 0)
+        if duration_hours:
+            return jsonify({"error": "Short-stay hourly bookings cannot be changed online. Please contact the hotel."}), 400
+        if not current_check_in or not current_check_out:
+            return jsonify({"error": "The booking dates are unavailable for modification."}), 400
+        requested_nights = (requested_check_out - requested_check_in).days
+        if requested_nights < 1:
+            return jsonify({"error": "The booking must include at least one night."}), 400
+
+        cur.execute("""
+            SELECT id, hotel_id, price_per_night, max_adults, max_children, status
+            FROM rooms
+            WHERE id=%s AND hotel_id=%s
+            FOR UPDATE
+        """, (room_id, booking.get("hotel_id")))
+        room = cur.fetchone()
+        if not room:
+            return jsonify({"error": "Choose a room at the same hotel."}), 400
+        if str(room.get("status") or "").strip().lower() in {"maintenance", "out of order", "inactive"}:
+            return jsonify({"error": "The selected room is not available for booking."}), 409
+        if adults > _to_int(room.get("max_adults"), 0) or children > _to_int(room.get("max_children"), 0):
+            return jsonify({"error": "The selected room does not have capacity for this guest count."}), 400
+
+        cur.execute("""
+            SELECT 1
+            FROM reservations
+            WHERE room_id=%s AND id<>%s
+              AND UPPER(COALESCE(status, 'PENDING')) NOT IN ('CANCELLED', 'FAILED', 'CHECKED_OUT')
+              AND check_in_date < %s AND check_out_date > %s
+            LIMIT 1
+        """, (room_id, booking_id, requested_check_out, requested_check_in))
+        if cur.fetchone():
+            return jsonify({"error": "The selected room is not available for the requested dates."}), 409
+
+        base_amount = round(_to_float(room.get("price_per_night"), 0) * requested_nights, 2)
+        discount_percent = max(0, _to_int(booking.get("privilege_discount_percent"), 0))
+        discount_amount = round(base_amount * discount_percent / 100, 2)
+        subtotal_amount = round(max(base_amount - discount_amount, 0), 2)
+        vat_percent = max(0, _to_float(booking.get("vat_percent"), CUSTOMER_BOOKING_VAT_PERCENT))
+        tax_percent = max(0, _to_float(booking.get("tax_percent"), CUSTOMER_BOOKING_TAX_PERCENT))
+        vat_amount = round(subtotal_amount * vat_percent / 100, 2)
+        tax_amount = round(subtotal_amount * tax_percent / 100, 2)
+        total_before_points = round(subtotal_amount + vat_amount + tax_amount, 2)
+        points_redeemed = max(0, _to_int(booking.get("points_redeemed"), 0))
+        total_amount = round(max(0, total_before_points - points_redeemed), 2)
+        deposit_amount = _to_float(booking.get("deposit_amount"), 0)
+        if total_amount < deposit_amount:
+            return jsonify({
+                "error": "This change would make the new total lower than the amount already paid. Please contact the hotel to arrange a refund.",
+            }), 409
 
         cur.execute(
             """
             UPDATE reservations
-            SET check_in_date = %s, check_out_date = %s
+            SET room_id = %s,
+                check_in_date = %s,
+                check_out_date = %s,
+                total_nights = %s,
+                adults = %s,
+                children = %s,
+                base_amount = %s,
+                privilege_discount_amount = %s,
+                subtotal_amount = %s,
+                vat_percent = %s,
+                vat_amount = %s,
+                tax_percent = %s,
+                tax_amount = %s,
+                total_amount = %s,
+                payment_status = CASE WHEN deposit_amount >= %s THEN 'FULLY_PAID' ELSE 'DOWNPAYMENT' END
             WHERE id = %s AND customer_id = %s
+              AND status IN ('PENDING', 'CONFIRMED')
+              AND check_in_date >= CURRENT_DATE + 2
             RETURNING id
             """,
-            (check_in, check_out, booking_id, customer_id),
+            (
+                room_id, requested_check_in, requested_check_out, requested_nights,
+                adults, children, base_amount, discount_amount, subtotal_amount,
+                vat_percent, vat_amount, tax_percent, tax_amount, total_amount,
+                total_amount, booking_id, customer_id,
+            ),
         )
         updated = cur.fetchone()
         if not updated:
@@ -12487,7 +12810,12 @@ def modify_booking(booking_id):
             return jsonify({"error": "Booking not found or not owned by customer."}), 404
 
         conn.commit()
-        return jsonify({"message": "Booking dates updated successfully."}), 200
+        return jsonify({
+            "message": "Booking updated successfully.",
+            "totalAmount": total_amount,
+            "amountPaid": deposit_amount,
+            "remainingBalance": round(max(total_amount - deposit_amount, 0), 2),
+        }), 200
     except Exception as e:
         if conn:
             conn.rollback()
@@ -13946,6 +14274,181 @@ def _ensure_inventory_settings_table(cur):
     )
 
 
+def _ensure_supplier_purchase_tables(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS purchase_orders (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+            po_number VARCHAR(100) UNIQUE NOT NULL,
+            supplier VARCHAR(200) NOT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+            total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+            ordered_at TIMESTAMP DEFAULT NOW(),
+            expected_delivery DATE,
+            received_at TIMESTAMP,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS suppliers (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+            name VARCHAR(200) NOT NULL,
+            contact_person VARCHAR(200) DEFAULT '',
+            email VARCHAR(200) DEFAULT '',
+            phone VARCHAR(50) DEFAULT '',
+            address TEXT DEFAULT '',
+            notes TEXT DEFAULT '',
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE (hotel_id, name)
+        )
+    """)
+    cur.execute("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL")
+    cur.execute("ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS purchase_order_items (
+            id SERIAL PRIMARY KEY,
+            po_id INTEGER NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+            item_id INTEGER NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
+            quantity INTEGER NOT NULL CHECK (quantity > 0),
+            unit_cost NUMERIC(10, 2) NOT NULL DEFAULT 0,
+            UNIQUE (po_id, item_id)
+        )
+    """)
+
+
+@app.route('/api/inventory/suppliers', methods=['GET'])
+def inv_get_suppliers():
+    conn = None
+    cur = None
+    try:
+        hotel_id = request.args.get('hotel_id', type=int)
+        if not hotel_id:
+            return jsonify({'error': 'hotel_id is required.'}), 400
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_supplier_purchase_tables(cur)
+        cur.execute("""
+            SELECT id, name, contact_person, email, phone, address, notes, is_active
+            FROM suppliers
+            WHERE hotel_id = %s
+            ORDER BY is_active DESC, name ASC
+        """, (hotel_id,))
+        return jsonify({'suppliers': cur.fetchall() or []}), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/inventory/suppliers', methods=['POST'])
+def inv_create_supplier():
+    conn = None
+    cur = None
+    try:
+        data = request.get_json() or {}
+        hotel_id = _to_int(data.get('hotelId'), 0)
+        name = str(data.get('name') or '').strip()
+        if not hotel_id or not name:
+            return jsonify({'error': 'hotelId and supplier name are required.'}), 400
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_supplier_purchase_tables(cur)
+        cur.execute("""
+            INSERT INTO suppliers (hotel_id, name, contact_person, email, phone, address, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, name, contact_person, email, phone, address, notes, is_active
+        """, (
+            hotel_id, name, str(data.get('contactPerson') or '').strip(),
+            str(data.get('email') or '').strip(), str(data.get('phone') or '').strip(),
+            str(data.get('address') or '').strip(), str(data.get('notes') or '').strip(),
+        ))
+        supplier = cur.fetchone()
+        conn.commit()
+        return jsonify({'supplier': supplier}), 201
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        if 'unique constraint' in str(e).lower():
+            return jsonify({'error': 'A supplier with this name already exists for this hotel.'}), 409
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/inventory/suppliers/<int:supplier_id>', methods=['PUT'])
+def inv_update_supplier(supplier_id):
+    conn = None
+    cur = None
+    try:
+        data = request.get_json() or {}
+        hotel_id = _to_int(data.get('hotelId'), 0)
+        name = str(data.get('name') or '').strip()
+        if not hotel_id or not name:
+            return jsonify({'error': 'hotelId and supplier name are required.'}), 400
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_supplier_purchase_tables(cur)
+        cur.execute("""
+            UPDATE suppliers
+            SET name=%s, contact_person=%s, email=%s, phone=%s, address=%s,
+                notes=%s, updated_at=NOW()
+            WHERE id=%s AND hotel_id=%s
+            RETURNING id, name, contact_person, email, phone, address, notes, is_active
+        """, (
+            name, str(data.get('contactPerson') or '').strip(),
+            str(data.get('email') or '').strip(), str(data.get('phone') or '').strip(),
+            str(data.get('address') or '').strip(), str(data.get('notes') or '').strip(),
+            supplier_id, hotel_id,
+        ))
+        supplier = cur.fetchone()
+        if not supplier:
+            conn.rollback()
+            return jsonify({'error': 'Supplier not found for this hotel.'}), 404
+        conn.commit()
+        return jsonify({'supplier': supplier}), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/inventory/suppliers/<int:supplier_id>', methods=['DELETE'])
+def inv_archive_supplier(supplier_id):
+    conn = None
+    cur = None
+    try:
+        hotel_id = request.args.get('hotel_id', type=int)
+        if not hotel_id:
+            return jsonify({'error': 'hotel_id is required.'}), 400
+        conn = get_db_connection()
+        cur = conn.cursor()
+        _ensure_supplier_purchase_tables(cur)
+        cur.execute(
+            "UPDATE suppliers SET is_active=FALSE, updated_at=NOW() WHERE id=%s AND hotel_id=%s",
+            (supplier_id, hotel_id),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return jsonify({'error': 'Supplier not found for this hotel.'}), 404
+        conn.commit()
+        return jsonify({'message': 'Supplier archived.'}), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
 @app.route('/api/inventory/items', methods=['GET'])
 def inv_items():
     conn = None; cur = None
@@ -13954,6 +14457,7 @@ def inv_items():
         category = request.args.get('category', '').strip()
         search   = request.args.get('search', '').strip()
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_supplier_purchase_tables(cur)
         q = "SELECT * FROM inventory_items WHERE 1=1"
         p = []
         if hotel_id: q += " AND hotel_id = %s"; p.append(hotel_id)
@@ -13969,6 +14473,7 @@ def inv_items():
                 'id': r['id'], 'skuId': r['sku_id'], 'name': r['item_name'],
                 'description': r.get('description') or '', 'category': r['category'],
                 'unit': r['unit'], 'supplier': r.get('supplier') or '',
+                'supplierId': r.get('supplier_id'),
                 'stockLevel': r['stock_level'], 'minStock': r['min_stock'],
                 'maxStock': r['max_stock'], 'reorderPoint': r['reorder_point'],
                 'unitCost': _to_float(r.get('unit_cost'), 0),
@@ -13991,13 +14496,22 @@ def inv_add_item():
     try:
         d = request.json or {}
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_supplier_purchase_tables(cur)
+        supplier_id = _to_int_or_none(d.get('supplierId'))
+        supplier_name = str(d.get('supplier') or '').strip()
+        if supplier_id:
+            cur.execute("SELECT name FROM suppliers WHERE id=%s AND hotel_id=%s AND is_active=TRUE", (supplier_id, d.get('hotelId')))
+            supplier_row = cur.fetchone()
+            if not supplier_row:
+                return jsonify({'error': 'Active supplier not found for this hotel.'}), 400
+            supplier_name = supplier_row['name']
         cur.execute("""
             INSERT INTO inventory_items
-              (hotel_id,sku_id,item_name,description,category,unit,supplier,
+              (hotel_id,sku_id,item_name,description,category,unit,supplier,supplier_id,
                stock_level,min_stock,max_stock,reorder_point,unit_cost)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id,sku_id
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id,sku_id
         """, (d.get('hotelId'), d.get('skuId'), d.get('name'), d.get('description',''),
-               d.get('category','General'), d.get('unit','pcs'), d.get('supplier',''),
+               d.get('category','General'), d.get('unit','pcs'), supplier_name, supplier_id,
                _to_int(d.get('stockLevel'),0), _to_int(d.get('minStock'),10),
                _to_int(d.get('maxStock'),100), _to_int(d.get('reorderPoint'),10),
                _to_float(d.get('unitCost'),0)))
@@ -14014,16 +14528,25 @@ def inv_update_item(item_id):
     conn = None; cur = None
     try:
         d = request.json or {}
-        conn = get_db_connection(); cur = conn.cursor()
+        conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_supplier_purchase_tables(cur)
+        supplier_id = _to_int_or_none(d.get('supplierId'))
+        supplier_name = str(d.get('supplier') or '').strip()
+        if supplier_id:
+            cur.execute("SELECT name FROM suppliers WHERE id=%s AND hotel_id=%s AND is_active=TRUE", (supplier_id, d.get('hotelId')))
+            supplier_row = cur.fetchone()
+            if not supplier_row:
+                return jsonify({'error': 'Active supplier not found for this hotel.'}), 400
+            supplier_name = supplier_row['name']
         cur.execute("""
             UPDATE inventory_items SET
-              item_name=%s, description=%s, category=%s, unit=%s, supplier=%s,
+              item_name=%s, description=%s, category=%s, unit=%s, supplier=%s, supplier_id=%s,
               min_stock=%s, max_stock=%s, reorder_point=%s, unit_cost=%s, updated_at=NOW()
-            WHERE id=%s
+            WHERE id=%s AND hotel_id=%s
         """, (d.get('name'), d.get('description',''), d.get('category','General'),
-               d.get('unit','pcs'), d.get('supplier',''),
+               d.get('unit','pcs'), supplier_name, supplier_id,
                _to_int(d.get('minStock'),10), _to_int(d.get('maxStock'),100),
-               _to_int(d.get('reorderPoint'),10), _to_float(d.get('unitCost'),0), item_id))
+               _to_int(d.get('reorderPoint'),10), _to_float(d.get('unitCost'),0), item_id, d.get('hotelId')))
         conn.commit()
         return jsonify({'message': 'Item updated.'}), 200
     except Exception as e:
@@ -14036,8 +14559,13 @@ def inv_update_item(item_id):
 def inv_delete_item(item_id):
     conn = None; cur = None
     try:
+        hotel_id = request.args.get('hotel_id', type=int)
+        if not hotel_id:
+            return jsonify({'error': 'hotel_id is required.'}), 400
         conn = get_db_connection(); cur = conn.cursor()
-        cur.execute("DELETE FROM inventory_items WHERE id=%s", (item_id,))
+        cur.execute("DELETE FROM inventory_items WHERE id=%s AND hotel_id=%s", (item_id, hotel_id))
+        if cur.rowcount == 0:
+            return jsonify({'error': 'Inventory item not found for this hotel.'}), 404
         conn.commit()
         return jsonify({'message': 'Item deleted.'}), 200
     except Exception as e:
@@ -14150,6 +14678,11 @@ def inv_low_stock():
             ORDER BY (stock_level::float / NULLIF(max_stock,0)) ASC
         """, hp)
         rows = cur.fetchall() or []
+        if hotel_id and rows:
+            _seed_notification_types(cur)
+            _ensure_notification_tables(cur)
+            _notify_daily_low_stock(cur, hotel_id, rows)
+            conn.commit()
         items = [{
             'id': r['id'], 'skuId': r['sku_id'], 'name': r['item_name'],
             'category': r['category'], 'unit': r['unit'], 'supplier': r.get('supplier') or '',
@@ -14169,32 +14702,48 @@ def inv_purchase_orders():
     try:
         hotel_id = request.args.get('hotel_id', type=int)
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_supplier_purchase_tables(cur)
         po_cols = _table_columns(cur, "purchase_orders")
-        has_po_items = _table_exists(cur, "purchase_order_items")
         select_cols = ["po.id", "po.po_number", "po.supplier", "po.status"]
-        for col in ("total_amount", "notes", "created_at", "created_by", "staff_id", "expected_date", "expected_delivery", "received_date", "received_at"):
+        for col in ("total_amount", "notes", "created_at", "created_by", "staff_id", "expected_date", "expected_delivery", "received_date", "received_at", "supplier_id"):
             if col in po_cols:
                 select_cols.append(f"po.{col}")
-        item_count_sql = "COUNT(poi.id) AS item_count" if has_po_items else "0 AS item_count"
-        query = f"SELECT {', '.join(select_cols)}, {item_count_sql} FROM purchase_orders po"
+        query = f"SELECT {', '.join(select_cols)} FROM purchase_orders po"
         params = []
-        if has_po_items:
-            query += " LEFT JOIN purchase_order_items poi ON poi.po_id = po.id"
         if hotel_id and "hotel_id" in po_cols:
             query += " WHERE po.hotel_id = %s"
             params.append(hotel_id)
-        if has_po_items:
-            query += " GROUP BY " + ", ".join(select_cols)
         order_col = "po.created_at" if "created_at" in po_cols else "po.id"
         query += f" ORDER BY {order_col} DESC"
         cur.execute(query, tuple(params))
         rows = cur.fetchall() or []
+        po_ids = [row['id'] for row in rows]
+        items_by_po = {}
+        if po_ids:
+            cur.execute("""
+                SELECT poi.po_id, poi.item_id, poi.quantity, poi.unit_cost, ii.item_name, ii.sku_id, ii.unit
+                FROM purchase_order_items poi
+                JOIN inventory_items ii ON ii.id = poi.item_id
+                WHERE poi.po_id = ANY(%s)
+                ORDER BY poi.id
+            """, (po_ids,))
+            for item in cur.fetchall() or []:
+                items_by_po.setdefault(item['po_id'], []).append({
+                    'itemId': item['item_id'],
+                    'name': item['item_name'],
+                    'skuId': item['sku_id'],
+                    'unit': item['unit'],
+                    'quantity': item['quantity'],
+                    'unitCost': _to_float(item['unit_cost'], 0),
+                })
         orders = [{
             'id': r['id'], 'poNumber': r['po_number'], 'supplier': r['supplier'],
+            'supplierId': r.get('supplier_id'),
             'status': r['status'], 'totalAmount': _to_float(r.get('total_amount'),0),
             'expectedDate': _serialize_date(r.get('expected_date') or r.get('expected_delivery')),
             'receivedDate': _serialize_date(r.get('received_date') or r.get('received_at')),
-            'itemCount': _to_int(r.get('item_count'),0),
+            'itemCount': len(items_by_po.get(r['id'], [])),
+            'items': items_by_po.get(r['id'], []),
             'notes': r.get('notes') or '', 'createdBy': r.get('created_by') or '',
             'createdAt': _serialize_date(r.get('created_at')),
         } for r in rows]
@@ -14207,10 +14756,46 @@ def inv_purchase_orders():
 def inv_create_po():
     conn = None; cur = None
     try:
-        d = request.json or {}
+        d = request.get_json() or {}
+        hotel_id = _to_int(d.get('hotelId'), 0)
+        supplier_id = _to_int(d.get('supplierId'), 0)
+        requested_items = d.get('items') or []
+        if not hotel_id or not supplier_id or not isinstance(requested_items, list) or not requested_items:
+            return jsonify({'error': 'hotelId, supplierId, and at least one item are required.'}), 400
         import random, string
         po_num = 'PO-' + ''.join(random.choices(string.digits, k=8))
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_supplier_purchase_tables(cur)
+        cur.execute(
+            "SELECT id, name FROM suppliers WHERE id=%s AND hotel_id=%s AND is_active=TRUE",
+            (supplier_id, hotel_id),
+        )
+        supplier = cur.fetchone()
+        if not supplier:
+            return jsonify({'error': 'Active supplier not found for this hotel.'}), 404
+
+        order_items = []
+        seen_item_ids = set()
+        total_amount = 0
+        for requested_item in requested_items:
+            item_id = _to_int((requested_item or {}).get('itemId'), 0)
+            quantity = _to_int((requested_item or {}).get('quantity'), 0)
+            if not item_id or quantity <= 0 or item_id in seen_item_ids:
+                return jsonify({'error': 'Each order item must have a unique itemId and quantity greater than zero.'}), 400
+            seen_item_ids.add(item_id)
+            cur.execute(
+                "SELECT id, unit_cost FROM inventory_items WHERE id=%s AND hotel_id=%s",
+                (item_id, hotel_id),
+            )
+            inventory_item = cur.fetchone()
+            if not inventory_item:
+                return jsonify({'error': 'An order item does not belong to this hotel.'}), 400
+            unit_cost = _to_float(requested_item.get('unitCost'), _to_float(inventory_item.get('unit_cost'), 0))
+            if unit_cost < 0:
+                return jsonify({'error': 'Unit cost cannot be negative.'}), 400
+            total_amount += quantity * unit_cost
+            order_items.append({'item_id': item_id, 'quantity': quantity, 'unit_cost': unit_cost})
+
         po_cols = _table_columns(cur, "purchase_orders")
         insert_cols = []
         params = []
@@ -14222,9 +14807,10 @@ def inv_create_po():
 
         add_po_value("hotel_id", d.get('hotelId'))
         add_po_value("po_number", po_num)
-        add_po_value("supplier", d.get('supplier'))
+        add_po_value("supplier", supplier['name'])
+        add_po_value("supplier_id", supplier_id)
         add_po_value("status", 'PENDING')
-        add_po_value("total_amount", _to_float(d.get('totalAmount'), 0))
+        add_po_value("total_amount", total_amount)
         if "expected_date" in po_cols:
             add_po_value("expected_date", d.get('expectedDate'))
         elif "expected_delivery" in po_cols:
@@ -14242,7 +14828,13 @@ def inv_create_po():
             """,
             tuple(params),
         )
-        row = cur.fetchone(); conn.commit()
+        row = cur.fetchone()
+        for item in order_items:
+            cur.execute("""
+                INSERT INTO purchase_order_items (po_id, item_id, quantity, unit_cost)
+                VALUES (%s, %s, %s, %s)
+            """, (row['id'], item['item_id'], item['quantity'], item['unit_cost']))
+        conn.commit()
         return jsonify({'message': 'Purchase order created.', 'id': row['id'], 'poNumber': row['po_number']}), 201
     except Exception as e:
         if conn: conn.rollback()
@@ -14252,38 +14844,55 @@ def inv_create_po():
 
 @app.route('/api/inventory/purchase-orders/<int:po_id>/receive', methods=['PUT'])
 def inv_receive_po(po_id):
-    """Mark PO as received and update stock levels."""
+    """Receive a saved PO once and atomically add its quantities to hotel stock."""
     conn = None; cur = None
     try:
         d = request.json or {}
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_supplier_purchase_tables(cur)
         po_cols = _table_columns(cur, "purchase_orders")
-        updates = []
-        if "status" in po_cols:
-            updates.append("status='RECEIVED'")
-        if "received_date" in po_cols:
-            updates.append("received_date=NOW()")
-        elif "received_at" in po_cols:
-            updates.append("received_at=NOW()")
-        if "updated_at" in po_cols:
-            updates.append("updated_at=NOW()")
-        return_cols = ["id", "po_number"]
-        if "hotel_id" in po_cols:
-            return_cols.append("hotel_id")
         cur.execute(
-            f"UPDATE purchase_orders SET {', '.join(updates)} WHERE id=%s RETURNING {', '.join(return_cols)}",
+            "SELECT id, po_number, hotel_id, supplier, supplier_id, status FROM purchase_orders WHERE id=%s FOR UPDATE",
             (po_id,),
         )
         po = cur.fetchone()
         if not po: return jsonify({'error': 'PO not found'}), 404
-        # Update stock for each item in the PO
-        items = d.get('items', [])
+        if str(po.get('status') or '').upper() == 'RECEIVED':
+            return jsonify({'error': 'This purchase order has already been received.'}), 409
+        cur.execute("""
+            SELECT item_id, quantity, unit_cost
+            FROM purchase_order_items
+            WHERE po_id=%s
+            ORDER BY id
+        """, (po_id,))
+        items = cur.fetchall() or []
+        if not items:
+            return jsonify({'error': 'This purchase order has no saved line items.'}), 400
+
         for item in items:
-            cur.execute("UPDATE inventory_items SET stock_level = stock_level + %s, updated_at=NOW() WHERE id=%s", (_to_int(item.get('quantity'),0), item.get('itemId')))
             cur.execute("""
-                INSERT INTO stock_movements (hotel_id,item_id,movement_type,quantity,po_number,performed_by)
-                VALUES (%s,%s,'IN',%s,%s,%s)
-            """, (po.get('hotel_id'), item.get('itemId'), _to_int(item.get('quantity'),0), po['po_number'], d.get('receivedBy','Staff')))
+                UPDATE inventory_items
+                SET stock_level=stock_level + %s,
+                    supplier=%s,
+                    supplier_id=COALESCE(%s, supplier_id),
+                    updated_at=NOW()
+                WHERE id=%s AND hotel_id=%s
+            """, (item['quantity'], po['supplier'], po.get('supplier_id'), item['item_id'], po['hotel_id']))
+            if cur.rowcount != 1:
+                raise ValueError('A purchase-order item is no longer linked to this hotel inventory.')
+            cur.execute("""
+                INSERT INTO stock_movements
+                    (hotel_id,item_id,movement_type,quantity,unit_cost,supplier,po_number,performed_by)
+                VALUES (%s,%s,'IN',%s,%s,%s,%s,%s)
+            """, (
+                po['hotel_id'], item['item_id'], item['quantity'], item['unit_cost'],
+                po['supplier'], po['po_number'], d.get('receivedBy', 'Staff'),
+            ))
+        received_column = "received_date" if "received_date" in po_cols else "received_at"
+        cur.execute(
+            f"UPDATE purchase_orders SET status='RECEIVED', {received_column}=NOW(), updated_at=NOW() WHERE id=%s",
+            (po_id,),
+        )
         conn.commit()
         return jsonify({'message': f"PO {po['po_number']} received. Stock updated."}), 200
     except Exception as e:
@@ -14361,6 +14970,15 @@ def inv_dashboard():
         total_skus = _to_int((cur.fetchone() or {}).get('c'), 0)
         cur.execute(f"SELECT COUNT(*) AS c FROM inventory_items WHERE stock_level <= reorder_point {hf}", hp)
         low_stock = _to_int((cur.fetchone() or {}).get('c'), 0)
+        if hotel_id and low_stock:
+            _seed_notification_types(cur)
+            _ensure_notification_tables(cur)
+            cur.execute(
+                "SELECT * FROM inventory_items WHERE hotel_id=%s AND stock_level <= reorder_point",
+                (hotel_id,),
+            )
+            _notify_daily_low_stock(cur, hotel_id, cur.fetchall() or [])
+            conn.commit()
         cur.execute(f"SELECT COUNT(*) AS c FROM inventory_items WHERE stock_level <= 0 {hf}", hp)
         out_of_stock = _to_int((cur.fetchone() or {}).get('c'), 0)
         today = datetime.now().date()
@@ -14507,14 +15125,29 @@ def staff_guest_requests():
               (hotel_id, reservation_id, guest_name, room_number, inventory_id, item_name,
                quantity, priority, notes, status, requested_by, relayed_by, relayed_at)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s = 'RELAYED' THEN NOW() END)
-            RETURNING id
+            RETURNING id, room_number, item_name, quantity
         """, (hotel_id, reservation_id,
               f"{guest.get('first_name') or ''} {guest.get('last_name') or ''}".strip(),
               guest['room_number'], inventory_id, item_name, quantity,
               data.get('priority') or 'NORMAL', data.get('notes') or '', status,
               data.get('requested_by'), data.get('requested_by'), status))
-        request_id = cur.fetchone()['id']
+        request_row = cur.fetchone()
+        request_id = request_row['id']
+        assigned_staff_ids = []
+        if status == 'RELAYED':
+            cur.execute("""
+                SELECT id FROM staff
+                WHERE hotel_id = %s AND role = 'Housekeeping & Maintenance' AND status = 'Active'
+            """, (hotel_id,))
+            assigned_staff_ids = [row['id'] for row in cur.fetchall() or []]
         conn.commit()
+        for assigned_staff_id in assigned_staff_ids:
+            _create_notification(
+                assigned_staff_id, 'staff', 'staff_task_assigned',
+                f"Guest request for Room {request_row['room_number']}",
+                f"{request_row['quantity']} × {request_row['item_name']} is ready for delivery.",
+                data={'requestId': request_id, 'destination': '/housekeeping/guest-requests'},
+            )
         return jsonify({'message': 'Guest request saved.', 'id': request_id, 'status': status}), 201
     except Exception as e:
         if conn: conn.rollback()
@@ -14545,15 +15178,24 @@ def staff_guest_request_action(request_id, action):
             if not cur.fetchone():
                 return jsonify({'error': 'Selected housekeeper is not available at this hotel.'}), 400
             cur.execute(f"""UPDATE guest_requests SET status = %s, {timestamp_field} = NOW(), hk_staff_id = %s
-                          WHERE id = %s AND hotel_id = %s AND status = %s RETURNING id""",
+                          WHERE id = %s AND hotel_id = %s AND status = %s
+                          RETURNING id, room_number, item_name, quantity""",
                         (target_status, housekeeper_id, request_id, hotel_id, 'RECEIVED'))
         else:
             cur.execute(f"""UPDATE guest_requests SET status = %s, {timestamp_field} = NOW()
                           WHERE id = %s AND (%s IS NULL OR hotel_id = %s)
                             AND status = %s RETURNING id""", (target_status, request_id, hotel_id, hotel_id, 'RECEIVED'))
-        if not cur.fetchone():
+        updated_request = cur.fetchone()
+        if not updated_request:
             return jsonify({'error': 'Request is no longer in an actionable state.'}), 409
         conn.commit()
+        if action == 'relay':
+            _create_notification(
+                housekeeper_id, 'staff', 'staff_task_assigned',
+                f"Guest request for Room {updated_request['room_number']}",
+                f"{updated_request['quantity']} × {updated_request['item_name']} is ready for delivery.",
+                data={'requestId': request_id, 'destination': '/housekeeping/guest-requests'},
+            )
         return jsonify({'message': f'Request {target_status.lower()}.'}), 200
     except Exception as e:
         if conn: conn.rollback()
@@ -14643,6 +15285,14 @@ def hk_dashboard_stats():
         cur.execute(f"SELECT COUNT(*) AS c FROM hk_tasks {q} AND status='Completed' AND completed_at::date=CURRENT_DATE" if hotel_id else "SELECT COUNT(*) AS c FROM hk_tasks WHERE status='Completed' AND completed_at::date=CURRENT_DATE", p)
         completed = (cur.fetchone() or {}).get('c', 0)
 
+        cur.execute(
+            "SELECT COUNT(*) AS c FROM guest_requests WHERE hotel_id = %s AND status IN ('RELAYED', 'IN_PROGRESS')"
+            if hotel_id else
+            "SELECT COUNT(*) AS c FROM guest_requests WHERE status IN ('RELAYED', 'IN_PROGRESS')",
+            [hotel_id] if hotel_id else [],
+        )
+        guest_requests = (cur.fetchone() or {}).get('c', 0)
+
         cur.execute(f"SELECT COUNT(*) AS c FROM rooms {q} AND status='Dirty'" if hotel_id else "SELECT COUNT(*) AS c FROM rooms WHERE status='Dirty'", p)
         dirty = (cur.fetchone() or {}).get('c', 0)
 
@@ -14675,6 +15325,7 @@ def hk_dashboard_stats():
         return jsonify({
             'pendingTasks': pending, 'inProgress': in_prog,
             'completedToday': completed, 'roomsNeedingClean': dirty,
+            'guestRequests': guest_requests,
             'priorityTasks': priority_tasks, 'roomGrid': room_grid, 'supplies': supplies
         }), 200
     except Exception as e:
@@ -14706,7 +15357,7 @@ def hk_get_tasks():
 
 @app.route('/api/housekeeping/tasks', methods=['POST'])
 def hk_create_task():
-    d = request.json
+    d = request.json or {}
     conn = None; cur = None
     try:
         conn = get_db_connection()
@@ -14719,6 +15370,13 @@ def hk_create_task():
               d.get('staff_name'), d.get('priority','NORMAL'), d.get('notes'), d.get('scheduled_time') or None])
         task = cur.fetchone()
         conn.commit()
+        if task.get('assigned_to'):
+            _create_notification(
+                task['assigned_to'], 'staff', 'staff_task_assigned',
+                f"Housekeeping task for Room {task.get('room_label') or '—'}",
+                f"New task assigned: {task.get('task_type') or 'Housekeeping task'}.",
+                data={'taskId': task['id'], 'destination': '/housekeeping/tasks'},
+            )
         return jsonify({'task': _hk_json_row(task)}), 201
     except Exception as e:
         if conn: conn.rollback()
@@ -14872,14 +15530,107 @@ def hk_get_inventory():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         _ensure_housekeeping_tables(cur)
+        _ensure_hk_inventory_movements_table(cur)
         conn.commit()
         if hotel_id:
             cur.execute("SELECT * FROM hk_inventory WHERE hotel_id=%s ORDER BY category, item_name", [hotel_id])
         else:
             cur.execute("SELECT * FROM hk_inventory ORDER BY category, item_name")
         rows = cur.fetchall()
-        return jsonify({'inventory': [dict(r) for r in rows]}), 200
+        if hotel_id:
+            cur.execute("""
+                SELECT m.id, m.inventory_id, i.item_name, m.quantity, i.unit,
+                       m.room_label, m.notes, m.created_at, s.first_name, s.last_name
+                FROM hk_inventory_movements m
+                JOIN hk_inventory i ON i.id = m.inventory_id
+                LEFT JOIN staff s ON s.id = m.staff_id
+                WHERE m.hotel_id = %s
+                ORDER BY m.created_at DESC LIMIT 100
+            """, [hotel_id])
+        else:
+            cur.execute("""
+                SELECT m.id, m.inventory_id, i.item_name, m.quantity, i.unit,
+                       m.room_label, m.notes, m.created_at, s.first_name, s.last_name
+                FROM hk_inventory_movements m
+                JOIN hk_inventory i ON i.id = m.inventory_id
+                LEFT JOIN staff s ON s.id = m.staff_id
+                ORDER BY m.created_at DESC LIMIT 100
+            """)
+        movements = []
+        for movement in cur.fetchall() or []:
+            movement = dict(movement)
+            movement['created_at'] = _serialize_date(movement.get('created_at'))
+            movement['staff_name'] = f"{movement.get('first_name') or ''} {movement.get('last_name') or ''}".strip()
+            movements.append(movement)
+        return jsonify({'inventory': [dict(r) for r in rows], 'movements': movements}), 200
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+def _ensure_hk_inventory_movements_table(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS hk_inventory_movements (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER REFERENCES hotels(id) ON DELETE CASCADE,
+            inventory_id INTEGER NOT NULL REFERENCES hk_inventory(id) ON DELETE CASCADE,
+            staff_id INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+            quantity INTEGER NOT NULL CHECK (quantity > 0),
+            room_label VARCHAR(50),
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_hk_inventory_movements_hotel_created ON hk_inventory_movements(hotel_id, created_at DESC)")
+
+
+@app.route('/api/housekeeping/inventory/<int:item_id>/consume', methods=['POST'])
+def hk_consume_inventory(item_id):
+    data = request.json or {}
+    quantity = _to_int(data.get('quantity'), 0)
+    hotel_id = request.args.get('hotel_id', type=int)
+    staff_id = _to_int_or_none(data.get('staff_id'))
+    room_label = (data.get('room_label') or '').strip() or None
+    notes = (data.get('notes') or '').strip() or None
+    if quantity < 1:
+        return jsonify({'error': 'Quantity must be at least one.'}), 400
+    conn = None; cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_housekeeping_tables(cur)
+        _ensure_hk_inventory_movements_table(cur)
+        cur.execute("""
+            SELECT id, hotel_id, item_name, current_qty, unit
+            FROM hk_inventory
+            WHERE id = %s AND (%s IS NULL OR hotel_id = %s)
+            FOR UPDATE
+        """, (item_id, hotel_id, hotel_id))
+        item = cur.fetchone()
+        if not item:
+            return jsonify({'error': 'Inventory item not found.'}), 404
+        if quantity > item['current_qty']:
+            return jsonify({'error': f"Only {item['current_qty']} {item['unit']} available."}), 409
+        cur.execute("""
+            UPDATE hk_inventory
+            SET current_qty = current_qty - %s, updated_at = NOW()
+            WHERE id = %s
+            RETURNING current_qty
+        """, (quantity, item_id))
+        remaining = cur.fetchone()['current_qty']
+        cur.execute("""
+            INSERT INTO hk_inventory_movements
+                (hotel_id, inventory_id, staff_id, quantity, room_label, notes)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (item['hotel_id'], item_id, staff_id, quantity, room_label, notes))
+        conn.commit()
+        return jsonify({
+            'message': f"{quantity} {item['unit']} recorded as used.",
+            'remaining': remaining,
+        }), 200
+    except Exception as e:
+        if conn: conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)
@@ -14914,10 +15665,38 @@ def hk_get_history():
         _ensure_housekeeping_tables(cur)
         conn.commit()
         if hotel_id:
-            cur.execute("SELECT * FROM hk_history WHERE hotel_id=%s ORDER BY completed_at DESC LIMIT 50", [hotel_id])
+            cur.execute("SELECT * FROM hk_history WHERE hotel_id=%s ORDER BY completed_at DESC", [hotel_id])
         else:
-            cur.execute("SELECT * FROM hk_history ORDER BY completed_at DESC LIMIT 50")
-        rows = cur.fetchall()
+            cur.execute("SELECT * FROM hk_history ORDER BY completed_at DESC")
+        rows = [_hk_json_row(row) for row in cur.fetchall() or []]
+
+        cur.execute("""
+            SELECT gr.id, gr.room_number, gr.item_name, gr.quantity, gr.guest_name,
+                   gr.status, gr.notes, gr.hk_note, gr.delivered_at,
+                   s.first_name, s.last_name
+            FROM guest_requests gr
+            LEFT JOIN staff s ON s.id = gr.hk_staff_id
+            WHERE gr.status = 'DELIVERED'
+              AND (%s IS NULL OR gr.hotel_id = %s)
+        """, (hotel_id, hotel_id))
+        for row in cur.fetchall() or []:
+            guest_request = dict(row)
+            staff_name = f"{guest_request.get('first_name') or ''} {guest_request.get('last_name') or ''}".strip()
+            notes = f"Guest: {guest_request.get('guest_name') or 'Guest'}"
+            if guest_request.get('notes'):
+                notes += f" · {guest_request['notes']}"
+            if guest_request.get('hk_note'):
+                notes += f" · {guest_request['hk_note']}"
+            rows.append({
+                'id': f"guest-request-{guest_request['id']}",
+                'room_label': guest_request['room_number'],
+                'task_type': f"Guest Delivery: {guest_request['item_name']} × {guest_request['quantity']}",
+                'staff_name': staff_name,
+                'status': 'Delivered',
+                'notes': notes,
+                'completed_at': _serialize_date(guest_request.get('delivered_at')),
+            })
+        rows.sort(key=lambda row: _serialize_date(row.get('completed_at')) or '', reverse=True)
 
         cur.execute("SELECT COUNT(*) AS c FROM hk_history WHERE hotel_id=%s AND completed_at >= NOW() - INTERVAL '7 days'" if hotel_id else "SELECT COUNT(*) AS c FROM hk_history WHERE completed_at >= NOW() - INTERVAL '7 days'", [hotel_id] if hotel_id else [])
         week_count = (cur.fetchone() or {}).get('c', 0)
@@ -14926,7 +15705,7 @@ def hk_get_history():
         avg_time = round((cur.fetchone() or {}).get('avg') or 0)
 
         return jsonify({
-            'history': [_hk_json_row(r) for r in rows],
+            'history': rows,
             'stats': {'completedThisWeek': week_count, 'avgTaskTime': f"{avg_time}min" if avg_time else 'N/A', 'performanceScore': '89%'}
         }), 200
     except Exception as e:

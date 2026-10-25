@@ -74,6 +74,39 @@ class HousekeepingRoomStatusTest(unittest.TestCase):
         self.assertIn('WHERE hotel_id = %s', connection.cursor_instance.query)
         self.assertEqual(connection.cursor_instance.params, [7])
 
+    def test_public_room_catalog_does_not_expose_room_numbers(self):
+        connection = FakeConnection([{
+            'id': 8,
+            'hotel_id': 7,
+            'room_number': '301',
+            'room_name': 'Double Room',
+            'room_type': 'Double',
+            'bed_type': 'Queen',
+            'price_per_night': 2800,
+            'rate_3_hours': 0,
+            'rate_6_hours': 0,
+            'rate_12_hours': 0,
+            'description': 'Sample Double room on the third floor.',
+            'images': [],
+            'amenities': [],
+            'features': [],
+            'highlights': [],
+            'max_adults': 2,
+            'max_children': 1,
+            'status': 'Available',
+            'hotel_name': 'Sample Hotel',
+            'hotel_address': 'Sample address',
+        }])
+
+        with patch.object(app_module, 'get_db_connection', return_value=connection):
+            response = app_module.app.test_client().get('/api/rooms')
+
+        self.assertEqual(response.status_code, 200)
+        room = response.get_json()['rooms'][0]
+        self.assertEqual(room['roomType'], 'Double')
+        self.assertEqual(room['description'], 'Sample Double room on the third floor.')
+        self.assertNotIn('roomNumber', room)
+
 
 if __name__ == '__main__':
     unittest.main()

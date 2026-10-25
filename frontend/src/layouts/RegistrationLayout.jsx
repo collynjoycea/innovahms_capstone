@@ -10,10 +10,8 @@ export default function RegistrationLayout() {
   const isOwnerPage = location.pathname.startsWith("/owner/");
   const isStaffPage = location.pathname.startsWith("/staff/");
   const isAdminLogin = location.pathname === "/admin/login";
-  const isHotelierHome = location.pathname === "/hotelier";
   const audience = isOwnerPage ? "Hotel Owner" : isStaffPage ? "Hotel Staff" : isAdminLogin ? "Admin" : "Hotelier";
   const isLoginPage = location.pathname.endsWith("/login");
-  const footerLabel = isHotelierHome ? "Hotelier Home" : `${audience} ${isLoginPage ? "Login" : "Registration"}`;
 
   const registrationOptions = [
     { to: "/owner/signup", label: "Signup as Hotel Owner", icon: <Building2 size={16} className="text-emerald-600" /> },

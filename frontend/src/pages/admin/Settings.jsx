@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Save, Building2, Shield, Database, RotateCcw, CheckCircle2, Cpu, Mail } from 'lucide-react';
+import { Save, Building2, Shield, Database, RotateCcw, CheckCircle2, Cpu, Mail, Bell, AlertCircle } from 'lucide-react';
 
 const defaultSettings = {
   platformName: 'INNOVA-HMS',
@@ -22,10 +22,12 @@ const Settings = () => {
   const { isDarkMode } = useOutletContext();
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+  const [toastIsError, setToastIsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState(defaultSettings);
   const [errors, setErrors] = useState({});
+  const [maintenanceSchedule, setMaintenanceSchedule] = useState("");
 
   const bgMain = isDarkMode ? 'bg-[#09090b]' : 'bg-[#F4F5F7]';
   const cardBg = isDarkMode ? 'bg-[#111111]' : 'bg-white';
@@ -33,8 +35,9 @@ const Settings = () => {
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
   const inputBg = isDarkMode ? 'bg-black/40' : 'bg-gray-50';
 
-  const triggerToast = (msg) => {
+  const triggerToast = (msg, isError = false) => {
     setToastMsg(msg);
+    setToastIsError(isError);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   };
@@ -81,6 +84,10 @@ const Settings = () => {
       triggerToast('Please correct the highlighted setting fields.');
       return;
     }
+    if (settings.maintenanceMode && !maintenanceSchedule) {
+      triggerToast('Choose a maintenance date and time before saving.', true);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -97,9 +104,22 @@ const Settings = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Unable to save settings.');
       setSettings({ ...defaultSettings, ...(data.settings || {}) });
-      triggerToast('INNOVA-HMS Admin settings updated successfully!');
+      if (settings.maintenanceMode) {
+        const notificationResponse = await fetch('/api/admin/notifications/system-maintenance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scheduledTime: maintenanceSchedule }),
+        });
+        const notificationData = await notificationResponse.json();
+        if (!notificationResponse.ok) {
+          throw new Error(notificationData.error || 'Settings saved, but maintenance notifications could not be sent.');
+        }
+        triggerToast(`${notificationData.notificationsCreated} maintenance notifications sent.`);
+      } else {
+        triggerToast('INNOVA-HMS Admin settings updated successfully!');
+      }
     } catch (error) {
-      triggerToast(error.message || 'Unable to save settings.');
+      triggerToast(error.message || 'Unable to save settings.', true);
     } finally {
       setSaving(false);
     }
@@ -122,8 +142,8 @@ const Settings = () => {
   return (
     <div className={`p-6 space-y-5 text-left min-h-screen relative transition-all duration-300 ${bgMain}`}>
       {showToast && (
-        <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-[#2FA084] text-black px-5 py-3 rounded-lg shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
-          <CheckCircle2 size={18} strokeWidth={3} />
+        <div className={`fixed top-6 right-6 z-50 flex items-center gap-3 ${toastIsError ? 'bg-rose-600 text-white' : 'bg-[#2FA084] text-black'} px-5 py-3 rounded-lg shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300`}>
+          {toastIsError ? <AlertCircle size={18} strokeWidth={3} /> : <CheckCircle2 size={18} strokeWidth={3} />}
           <span className="text-[11px] font-black uppercase tracking-wider">{toastMsg}</span>
         </div>
       )}
@@ -202,6 +222,17 @@ const Settings = () => {
               {renderToggle('Strict Session Timeout (30 mins)', 'sessionTimeout')}
               {renderToggle('IP Whitelisting for System Admin', 'ipWhitelisting')}
               {renderToggle('System-Wide Maintenance Mode', 'maintenanceMode')}
+              {settings.maintenanceMode && (
+                <label className={`block py-3 text-[10px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Scheduled maintenance date and time
+                  <input
+                    type="datetime-local"
+                    value={maintenanceSchedule}
+                    onChange={(event) => setMaintenanceSchedule(event.target.value)}
+                    className={`mt-2 w-full rounded-lg border p-3 text-xs font-semibold outline-none ${borderColor} ${inputBg} ${textColor}`}
+                  />
+                </label>
+              )}
             </div>
           </div>
 
@@ -242,6 +273,17 @@ const Settings = () => {
               <button onClick={() => triggerToast('Restoration protocol verified.')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border ${borderColor} ${textColor} text-[9px] font-black uppercase hover:bg-white/5 active:scale-95 transition-all`}>
                 <RotateCcw size={14}/> Restore Logs
               </button>
+            </div>
+          </div>
+          <div className={`p-6 rounded-xl border ${cardBg} ${borderColor}`}>
+            <div className="flex items-center gap-2 mb-4">
+              <Bell size={16} className="text-[#2FA084]" />
+              <h2 className={`text-xs font-black uppercase tracking-widest ${textColor}`}>Notification Settings</h2>
+            </div>
+            <div className="space-y-0 divide-y divide-white/5">
+              {renderToggle('Email alerts for new hotel signups', 'emailAlerts')}
+              {renderToggle('SMS on payment failures', 'smsFailures')}
+              {renderToggle('Error log digest (daily)', 'errorLogDigest')}
             </div>
           </div>
         </div>

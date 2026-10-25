@@ -5,12 +5,13 @@ import useStaffSession from '../../../hooks/useStaffSession';
 
 const CATEGORIES = ['All', 'Linens', 'Toiletries', 'Cleaning', 'F&B', 'Paper', 'Maintenance', 'Safety', 'General'];
 
-const EMPTY = { skuId: '', name: '', description: '', category: 'General', unit: 'pcs', supplier: '', stockLevel: 0, minStock: 10, maxStock: 100, reorderPoint: 10, unitCost: 0 };
+const EMPTY = { skuId: '', name: '', description: '', category: 'General', unit: 'pcs', supplier: '', supplierId: '', stockLevel: 0, minStock: 10, maxStock: 100, reorderPoint: 10, unitCost: 0 };
 
 export default function StockManagement() {
   const { isDarkMode } = useOutletContext();
   const { qs, hotelId, firstName } = useStaffSession();
   const [items, setItems] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -31,15 +32,20 @@ export default function StockManagement() {
       const res = await fetch(`/api/inventory/items?${params}`);
       const d = await res.json();
       if (res.ok) { setItems(d.items || []); setSummary(d.summary || {}); }
+      if (hotelId) {
+        const suppliersRes = await fetch(`/api/inventory/suppliers?hotel_id=${encodeURIComponent(hotelId)}`);
+        const suppliersData = await suppliersRes.json();
+        if (suppliersRes.ok) setSuppliers(suppliersData.suppliers || []);
+      }
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  }, [qs, search, category]);
+  }, [qs, search, category, hotelId]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   const openAdd = () => { setForm({ ...EMPTY, hotelId }); setEditId(null); setModal('add'); setMsg(''); };
   const openEdit = (item) => {
-    setForm({ skuId: item.skuId, name: item.name, description: item.description, category: item.category, unit: item.unit, supplier: item.supplier, stockLevel: item.stockLevel, minStock: item.minStock, maxStock: item.maxStock, reorderPoint: item.reorderPoint, unitCost: item.unitCost, hotelId });
+    setForm({ skuId: item.skuId, name: item.name, description: item.description, category: item.category, unit: item.unit, supplier: item.supplier, supplierId: item.supplierId || (item.supplier ? '__legacy__' : ''), stockLevel: item.stockLevel, minStock: item.minStock, maxStock: item.maxStock, reorderPoint: item.reorderPoint, unitCost: item.unitCost, hotelId });
     setEditId(item.id); setModal('edit'); setMsg('');
   };
 
@@ -60,8 +66,10 @@ export default function StockManagement() {
     if (!window.confirm('Delete this item permanently?')) return;
     setDeleting(id);
     try {
-      const res = await fetch(`/api/inventory/items/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/inventory/items/${id}?hotel_id=${encodeURIComponent(hotelId)}`, { method: 'DELETE' });
+      const data = await res.json();
       if (res.ok) fetchItems();
+      else setMsg(data.error || 'Could not delete inventory item.');
     } catch { /* ignore */ }
     finally { setDeleting(null); }
   };
@@ -201,7 +209,6 @@ export default function StockManagement() {
                 { label: 'SKU ID', key: 'skuId', type: 'text', disabled: modal === 'edit' },
                 { label: 'Item Name', key: 'name', type: 'text' },
                 { label: 'Unit', key: 'unit', type: 'text' },
-                { label: 'Supplier', key: 'supplier', type: 'text' },
                 { label: 'Stock Level', key: 'stockLevel', type: 'number' },
                 { label: 'Unit Cost (â‚±)', key: 'unitCost', type: 'number' },
                 { label: 'Min Stock', key: 'minStock', type: 'number' },
@@ -215,6 +222,17 @@ export default function StockManagement() {
                     className={`w-full p-3 rounded-xl border outline-none focus:border-[#2FA084] transition-all ${inp} ${f.disabled ? 'opacity-50 cursor-not-allowed' : ''}`} required />
                 </div>
               ))}
+              <div className="col-span-2">
+                <label className={`text-[9px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Supplier</label>
+                <select value={form.supplierId} onChange={e => {
+                  const supplier = suppliers.find(item => String(item.id) === e.target.value);
+                  setForm(p => ({ ...p, supplierId: e.target.value, supplier: supplier?.name || '' }));
+                }} className={`w-full p-3 rounded-xl border outline-none focus:border-[#2FA084] transition-all ${inp}`}>
+                  <option value="">No linked supplier</option>
+                  {form.supplierId === '__legacy__' && <option value="__legacy__">Existing supplier: {form.supplier}</option>}
+                  {suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+                </select>
+              </div>
               <div>
                 <label className={`text-[9px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Category</label>
                 <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}

@@ -87,7 +87,6 @@ export default function Footer() {
               </li>
             </ul>
           </div>
-
           <div className="space-y-4">
             <h3 className="w-fit border-b-2 border-emerald-700 pb-1 text-xs font-bold uppercase tracking-wider text-slate-900 dark:border-emerald-500 dark:text-white">
               Join Us

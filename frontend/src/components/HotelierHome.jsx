@@ -23,15 +23,15 @@ const FALLBACK_PACKAGES = [
     id: 'starter',
     slug: 'starter',
     name: 'Starter',
-    monthlyPrice: 8000,
+    monthlyPrice: 1,
     description: 'List your hotel and start receiving bookings directly.',
     features: ['Hotel profile and photo gallery', 'Room and rate management', 'Basic booking analytics'],
   },
   {
-    id: 'pro',
-    slug: 'pro',
-    name: 'Pro',
-    monthlyPrice: 25000,
+    id: 'standard',
+    slug: 'standard',
+    name: 'Standard',
+    monthlyPrice: 999,
     description: 'Stand out in search and track how you compare with competitors.',
     features: [
       'Everything in Starter',
@@ -41,13 +41,13 @@ const FALLBACK_PACKAGES = [
     ],
   },
   {
-    id: 'enterprise',
-    slug: 'enterprise',
-    name: 'Enterprise',
-    monthlyPrice: 50000,
+    id: 'premium',
+    slug: 'premium',
+    name: 'Premium',
+    monthlyPrice: 1999,
     description: 'Full promotional toolkit with deep guest insights.',
     features: [
-      'Everything in Pro',
+      'Everything in Standard',
       'Featured hotel on the portal home page',
       'Guest and search-trend insights',
       'Customized analytics reports',
@@ -102,16 +102,16 @@ export default function HotelierHome() {
     let cancelled = false;
     const loadPackages = async () => {
       try {
-        const response = await fetch('/api/owner/packages');
+        const session = readSession();
+        const url = session?.id ? `/api/owner/subscription/${session.id}` : '/api/owner/packages';
+        const response = await fetch(url);
         const data = await response.json();
         if (!response.ok) throw new Error();
-
         const list = (data.packages || []).map((pkg) => ({
           ...pkg,
           monthlyPrice: Number(pkg.monthlyPrice ?? pkg.monthly_price ?? 0),
           annualPrice: Number(pkg.annualPrice ?? pkg.annual_price ?? 0),
         }));
-
         if (!cancelled) setPackages(list.length ? list : FALLBACK_PACKAGES);
       } catch {
         if (!cancelled) setPackages(FALLBACK_PACKAGES);

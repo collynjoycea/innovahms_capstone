@@ -40,15 +40,65 @@ END $$;
 INSERT INTO membership_packages (name, slug, description, monthly_price, annual_price, max_rooms, features, is_active)
 VALUES
     ('Starter', 'starter', 'Perfect for small hotels just getting started', 2999.00, 29990.00, 10,
-     ARRAY['Dashboard overview', 'Room management', 'Reservations and customers', 'Guest reviews', 'Up to 30 rooms'],
+     '["Dashboard overview", "Room management", "Reservations and customers", "Guest reviews", "Up to 30 rooms"]'::jsonb,
      true),
     ('Professional', 'professional', 'Ideal for growing hotels with advanced needs', 5999.00, 59990.00, 50,
-     ARRAY['Dashboard overview', 'Room management', 'Advanced reservations', 'Staff management', 'Inventory', 'Housekeeping', 'Reports', 'Up to 50 rooms'],
+     '["Dashboard overview", "Room management", "Advanced reservations", "Staff management", "Inventory", "Housekeeping", "Reports", "Up to 50 rooms"]'::jsonb,
      true),
-    ('Enterprise', 'enterprise', 'Complete solution for large hotel chains', 9999.00, 99990.00, 200,
-     ARRAY['Dashboard overview', 'Room management', 'Advanced reservations', 'Staff management', 'Inventory', 'Housekeeping', 'Reports', 'Multi-property', 'API access', 'Up to 200 rooms'],
+    ('Enterprise', 'enterprise', 'Full management suite with analytics and premium operator controls.', 50000.00, 540000.00, NULL,
+     '["Everything in Pro", "Advanced reports", "Simulation tools", "Promotion management", "Unlimited rooms"]'::jsonb,
      true)
 ON CONFLICT (slug) DO NOTHING;
+
+-- Activate Enterprise for the demo owner so Enterprise features are available
+-- when testing the owner subscription flow.
+DO $$
+DECLARE
+    demo_hotel RECORD;
+    enterprise_package RECORD;
+    demo_hotel_found BOOLEAN;
+    enterprise_package_found BOOLEAN;
+BEGIN
+    SELECT id, owner_id
+    INTO demo_hotel
+    FROM hotels
+    WHERE hotel_code = 'DEMO-OWNER-01'
+    ORDER BY id
+    LIMIT 1;
+    demo_hotel_found := FOUND;
+
+    IF demo_hotel_found AND demo_hotel.owner_id IS NOT NULL THEN
+        SELECT id, monthly_price
+        INTO enterprise_package
+        FROM membership_packages
+        WHERE slug = 'enterprise' AND COALESCE(is_active, TRUE) = TRUE
+        LIMIT 1;
+        enterprise_package_found := FOUND;
+
+        IF enterprise_package_found THEN
+            INSERT INTO hotel_package_subscriptions (
+                owner_id, hotel_id, package_id, billing_cycle, amount, status,
+                payment_status, last_paid_at, starts_at, renewal_date, updated_at
+            )
+            VALUES (
+                demo_hotel.owner_id, demo_hotel.id, enterprise_package.id, 'MONTHLY',
+                enterprise_package.monthly_price, 'ACTIVE', 'PAID', NOW(),
+                CURRENT_DATE, CURRENT_DATE + INTERVAL '1 month', NOW()
+            )
+            ON CONFLICT (hotel_id) DO UPDATE SET
+                owner_id = EXCLUDED.owner_id,
+                package_id = EXCLUDED.package_id,
+                billing_cycle = EXCLUDED.billing_cycle,
+                amount = EXCLUDED.amount,
+                status = 'ACTIVE',
+                payment_status = 'PAID',
+                last_paid_at = NOW(),
+                starts_at = CURRENT_DATE,
+                renewal_date = CURRENT_DATE + INTERVAL '1 month',
+                updated_at = NOW();
+        END IF;
+    END IF;
+END $$;
 
 -- Initialize loyalty for existing customers
 INSERT INTO customer_loyalty (customer_id, points, tier, points_this_month)
@@ -218,15 +268,28 @@ INSERT INTO notification_types (type_key, name, description, category, priority,
  'Maintenance due: {{equipment_name}} - {{location}}')
 ON CONFLICT (type_key) DO NOTHING;
 
--- Test housekeeping staff (login: hk.test@innovahms.test / Housekeep@2026, hotel code = first hotel's code)
+-- Demo housekeeping login: hk.demo@innovahms.test / Housekeep@2026 / hotel code DEMO-OWNER-01.
+DELETE FROM hk_tasks
+WHERE assigned_to IN (
+    SELECT id FROM staff WHERE email = 'hk.test@innovahms.test'
+);
+DELETE FROM staff WHERE email = 'hk.test@innovahms.test';
+
 INSERT INTO staff (hotel_id, first_name, last_name, email, contact_number, password_hash, role, hotel_code, status)
-SELECT h.id, 'Test', 'Housekeeper', 'hk.test@innovahms.test', '+639171234567',
-       'scrypt:32768:8:1$S29q5nLvBt9P43tS$c1e1e8cdf9ed312569042559784795ee3766430d9dfee37e389760c63a386b54508e74d59bae335317e0ebf54e3f23d0b55f6082ba90e9a7ae85ad06aed1a755',
-       'Housekeeping & Maintenance', COALESCE(NULLIF(UPPER(h.hotel_code), ''), 'INNOVAHMS-' || h.id), 'Active'
+SELECT h.id, 'Demo', 'Housekeeper', 'hk.demo@innovahms.test', '+639171234568',
+       'scrypt:32768:8:1$XzClpKoX8RJJWvSk$f679f860f5027e6dd0193e02797e94017b9b273f6a74730b32381ac40aca37e54154beb56d00cd4f7c7661c6190c9da5745f95d0bbef5fd5d0efd22adec223f2',
+       'Housekeeping & Maintenance', h.hotel_code, 'Active'
 FROM hotels h
-ORDER BY h.id
-LIMIT 1
-ON CONFLICT (email) DO NOTHING;
+WHERE h.hotel_code = 'DEMO-OWNER-01'
+ON CONFLICT (email) DO UPDATE SET
+    hotel_id = EXCLUDED.hotel_id,
+    first_name = EXCLUDED.first_name,
+    last_name = EXCLUDED.last_name,
+    contact_number = EXCLUDED.contact_number,
+    password_hash = EXCLUDED.password_hash,
+    role = EXCLUDED.role,
+    hotel_code = EXCLUDED.hotel_code,
+    status = EXCLUDED.status;
 
 -- Rooms: allow housekeeping statuses. After front desk check-out a room is set to 'Dirty'
 -- and must go Dirty -> InProgress -> Clean -> Available before it can be booked again.
@@ -244,7 +307,7 @@ BEGIN
         CHECK (status IN ('Available','Occupied','Maintenance','Cleaning','Dirty','InProgress','Clean','Reserved')) NOT VALID;
 END $$;
 
--- Allow Standard and Single room types in databases created before they were introduced.
+-- Allow Standard, Single, and Family Room types in older databases.
 DO $$
 DECLARE c RECORD;
 BEGIN
@@ -259,38 +322,54 @@ BEGIN
         CHECK (room_type IN ('Single','Double','Suite','Deluxe','Standard','Family Room')) NOT VALID;
 END $$;
 
--- Sample Standard room for the demo hotel; safe to run repeatedly.
+-- Remove the demo room/task samples that used to overlap real hotel records.
 DO $$
 DECLARE hid INTEGER;
 BEGIN
     SELECT id INTO hid FROM hotels WHERE hotel_code = 'DEMO-OWNER-01' ORDER BY id LIMIT 1;
-    IF hid IS NULL THEN
-        SELECT id INTO hid FROM hotels ORDER BY id LIMIT 1;
-    END IF;
 
     IF hid IS NOT NULL THEN
-        INSERT INTO rooms (
-            hotel_id, room_number, room_name, room_type, description, amenities, images,
-            max_adults, max_children, price_per_night, status
-        )
-        SELECT
-            hid, 'STD-101', 'Standard Room', 'Standard',
-            'Comfortable sample Standard room for room search and booking demos.',
-            ARRAY['Wi-Fi', 'Air conditioning', 'Private bathroom'],
-            ARRAY['/images/standard-room.jpg'], 2, 1, 2500.00, 'Available'
-        WHERE NOT EXISTS (
-            SELECT 1 FROM rooms WHERE hotel_id = hid AND room_number = 'STD-101'
-        );
+        DELETE FROM hk_tasks
+        WHERE hotel_id = hid
+          AND staff_name = 'Demo Housekeeper'
+          AND notes = 'Demo task - prepare room for the next check-in';
+
+        DELETE FROM rooms
+        WHERE hotel_id = hid
+          AND (
+              UPPER(room_number) IN ('DP-1', 'DP-2')
+              OR (
+                  room_number IN ('101', '102', '103', '201', '202', '203', '301', '302', '303', '401', '402', '403', '501', '502', '503')
+                  AND description IN (
+                      'Comfortable standard room on Floor 1 with a city view.',
+                      'Compact single room on Floor 1, suited for solo stays.',
+                      'Bright double room on Floor 1 with space for a small family.',
+                      'Quiet single room on Floor 2 with essential comforts.',
+                      'Family room on Floor 2 with added sleeping space.',
+                      'Twin standard room on Floor 2 for friends or family.',
+                      'Spacious double room on Floor 3 with a seating corner.',
+                      'Upgraded deluxe room on Floor 3 with premium furnishings.',
+                      'Well-appointed single room on Floor 3 for a restful stay.',
+                      'High-floor deluxe room on Floor 4 with a city outlook.',
+                      'One-bedroom suite on Floor 4 with a separate lounge area.',
+                      'Comfortable family room on Floor 4 with extra guest capacity.',
+                      'Top-floor suite on Floor 5 with a lounge and premium amenities.',
+                      'Top-floor double room on Floor 5 with room for up to three guests.',
+                      'Corner deluxe room on Floor 5 with enhanced comfort and city views.'
+                  )
+              )
+              OR (
+                  room_number = 'STD-101'
+                  AND room_name = 'Standard Room'
+                  AND description = 'Comfortable sample Standard room for room search and booking demos.'
+              )
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM reservations
+              WHERE reservations.room_id = rooms.id
+          );
     END IF;
 END $$;
-
--- Sample housekeeping tasks for the test user's hotel (uses that hotel's real rooms; only if it has no tasks yet)
-INSERT INTO hk_tasks (hotel_id, room_id, room_label, task_type, assigned_to, staff_name, priority, status, notes, scheduled_time)
-SELECT s.hotel_id, r.id, r.room_number, 'Full Clean', s.id, 'Test Housekeeper', 'HIGH', 'Pending', 'Sample task - clean before next check-in', '14:00'
-FROM staff s
-JOIN LATERAL (SELECT id, room_number FROM rooms WHERE hotel_id = s.hotel_id ORDER BY id LIMIT 3) r ON TRUE
-WHERE s.email = 'hk.test@innovahms.test'
-  AND NOT EXISTS (SELECT 1 FROM hk_tasks t WHERE t.hotel_id = s.hotel_id);
 
 -- Sample guest requests for the front desk and housekeeping request boards.
 DO $$

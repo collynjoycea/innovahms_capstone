@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { 
-  Home, Wrench, Clock, CheckCircle2, 
-  TrendingUp, Activity, RefreshCcw,
+  Clock, Activity,
   AlertTriangle, Loader2,
   Package, ClipboardList, ChevronRight
 } from 'lucide-react';
@@ -53,7 +52,7 @@ const HousekeepingMainteDashboard = () => {
         });
         */
         // Never present demo values when the database is unavailable.
-        setData({ pendingTasks: 0, inProgress: 0, completedToday: 0, roomsNeedingClean: 0, priorityTasks: [], roomGrid: [], supplies: [] });
+        setData({ pendingTasks: 0, completedToday: 0, guestRequests: 0, priorityTasks: [], roomGrid: [], supplies: [] });
       } finally {
         setLoading(false);
       }
@@ -126,17 +125,16 @@ const HousekeepingMainteDashboard = () => {
       </div>
 
       {/* STATS CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {[
           { label: "Pending Tasks",    val: data.pendingTasks,       icon: <ClipboardList />, path: '/housekeeping/tasks' },
-          { label: "In Progress",      val: data.inProgress,         icon: <RefreshCcw />,    path: '/housekeeping/tasks' },
-          { label: "Completed Today",  val: data.completedToday,     icon: <CheckCircle2 />,  path: '/housekeeping/history' },
-          { label: "Needs Cleaning",   val: data.roomsNeedingClean,  icon: <Home />,          path: '/housekeeping/rooms' },
+          { label: "Completed Today",  val: data.completedToday,     icon: <Clock />,         path: '/housekeeping/history' },
+          { label: "Guest Requests",   val: data.guestRequests,      icon: <Package />,       path: '/housekeeping/guest-requests' },
         ].map((s, i) => (
           <div key={i} onClick={() => navigate(s.path)} className={`p-6 rounded-[2rem] border transition-all duration-300 cursor-pointer hover:scale-[1.02] ${theme.card}`}>
             <div className="flex justify-between items-center mb-4">
               <span className={`p-2.5 rounded-xl bg-[#2FA084]/10 text-[#2FA084] border border-[#2FA084]/10`}>{s.icon}</span>
-              <TrendingUp size={16} className={theme.textSub} />
+              <ChevronRight size={16} className={theme.textSub} />
             </div>
             <h3 className={`text-4xl font-black tracking-tighter ${theme.textMain}`}>{s.val}</h3>
             <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${theme.textSub}`}>{s.label}</p>

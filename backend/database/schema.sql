@@ -96,6 +96,8 @@ CREATE TABLE IF NOT EXISTS reservations (
     guest_name VARCHAR(120),
     check_in DATE,
     check_out DATE,
+    adults INTEGER NOT NULL DEFAULT 1,
+    children INTEGER NOT NULL DEFAULT 0,
     total_amount_php NUMERIC(12,2) NOT NULL DEFAULT 0,
     deposit_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
     payment_status VARCHAR(20) NOT NULL DEFAULT 'DOWNPAYMENT',

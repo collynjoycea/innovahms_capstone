@@ -620,8 +620,7 @@ export default function VisionSuites() {
         !query ||
         String(room.hotelName || "").toLowerCase().includes(query) ||
         String(room.name || "").toLowerCase().includes(query) ||
-        String(room.type || "").toLowerCase().includes(query) ||
-        String(room.roomNumber || "").toLowerCase().includes(query);
+        String(room.type || "").toLowerCase().includes(query);
 
       let matchRating = true;
       if (selectedRating !== "all") {

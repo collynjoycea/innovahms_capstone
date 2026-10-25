@@ -1,6 +1,6 @@
 const emailPattern = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 const namePattern = /^[A-Za-z][A-Za-z\s'.-]{1,49}$/;
-const hotelCodePattern = /^INNOVAHMS-\d+$/i;
+const hotelCodePattern = /^(?:INNOVAHMS-\d+|DEMO-OWNER-\d+)$/i;
 
 export const normalizeEmail = (value = "") => String(value).trim().toLowerCase();
 export const normalizePhone = (value = "") => String(value).replace(/[^\d+]/g, "");
@@ -56,7 +56,7 @@ export const validateStaffSignup = (formData) => {
     return "Enter a valid contact number.";
   }
   if (!isValidHotelCode(formData.hotelCode)) {
-    return "Hotel code must follow the INNOVAHMS-123 format.";
+    return "Enter a valid hotel code, such as INNOVAHMS-123 or DEMO-OWNER-01.";
   }
   return getPasswordStrengthMessage(formData.password);
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { Activity, Download, Clock, Truck, Package, ShoppingCart, ArrowUpRight, Plus, X, Loader2, RefreshCcw } from 'lucide-react';
+import { Link, useOutletContext } from 'react-router-dom';
+import { Activity, Clock, Truck, Package, ShoppingCart, ArrowUpRight, RefreshCcw } from 'lucide-react';
 import useStaffSession from '../../../hooks/useStaffSession';
 
 const STATUS_STYLE = {
@@ -13,13 +13,9 @@ const STATUS_STYLE = {
 
 export default function ConsumptionReports() {
   const { isDarkMode } = useOutletContext();
-  const { qs, hotelId, firstName } = useStaffSession();
+  const { qs } = useStaffSession();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ supplier: '', expectedDate: '', totalAmount: 0, notes: '' });
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState('');
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -32,20 +28,6 @@ export default function ConsumptionReports() {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  const handleCreate = async (e) => {
-    e.preventDefault(); setSaving(true); setMsg('');
-    try {
-      const res = await fetch('/api/inventory/purchase-orders', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, hotelId, createdBy: firstName || 'Staff' }),
-      });
-      const d = await res.json();
-      if (res.ok) { setMsg(`PO ${d.poNumber} created.`); setShowAdd(false); fetchOrders(); }
-      else setMsg(d.error || 'Failed.');
-    } catch { setMsg('Server error.'); }
-    finally { setSaving(false); }
-  };
-
   const stats = {
     pending:   orders.filter(o => ['PENDING','ORDERED'].includes(o.status)).length,
     inTransit: orders.filter(o => o.status === 'IN_TRANSIT').length,
@@ -55,7 +37,6 @@ export default function ConsumptionReports() {
   const card = isDarkMode ? 'bg-[#0c0c0e] border-white/5' : 'bg-white border-zinc-200 shadow-sm';
   const text = isDarkMode ? 'text-white' : 'text-zinc-900';
   const sub  = isDarkMode ? 'text-zinc-500' : 'text-zinc-400';
-  const inp  = isDarkMode ? 'bg-black/40 border-zinc-800 text-white' : 'bg-zinc-50 border-zinc-200 text-zinc-900';
 
   return (
     <div className={`p-8 space-y-8 text-left animate-in fade-in duration-500 min-h-screen ${isDarkMode ? 'bg-[#050505]' : 'bg-[#f8f9fa]'}`}>
@@ -70,9 +51,9 @@ export default function ConsumptionReports() {
           </h1>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 bg-[#2FA084] text-black px-6 py-3 rounded-xl font-black text-[10px] uppercase hover:scale-105 transition-all shadow-lg shadow-[#2FA084]/20">
-            <Plus size={14} /> New PO
-          </button>
+          <Link to="/inventory/suppliers" className="flex items-center gap-2 bg-[#2FA084] text-black px-6 py-3 rounded-xl font-black text-[10px] uppercase hover:scale-105 transition-all shadow-lg shadow-[#2FA084]/20">
+            <ShoppingCart size={14} /> Manage suppliers & POs
+          </Link>
           <button onClick={fetchOrders} className={`p-3 rounded-xl border ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border-zinc-200 text-zinc-400'} transition-all`}>
             <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -139,42 +120,6 @@ export default function ConsumptionReports() {
         </div>
       </div>
 
-      {/* ADD PO MODAL */}
-      {showAdd && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className={`w-full max-w-md rounded-[2.5rem] border shadow-2xl overflow-hidden ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800' : 'bg-white border-zinc-200'}`}>
-            <div className={`p-6 border-b ${isDarkMode ? 'border-zinc-800' : 'border-zinc-100'} flex justify-between items-center`}>
-              <h2 className="text-xl font-black uppercase tracking-tighter text-[#2FA084]">New Purchase Order</h2>
-              <button onClick={() => setShowAdd(false)} className={`${sub} hover:text-red-500`}><X size={20} /></button>
-            </div>
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
-              {[
-                { label: 'Supplier', key: 'supplier', type: 'text' },
-                { label: 'Expected Date', key: 'expectedDate', type: 'date' },
-                { label: 'Total Amount (â‚±)', key: 'totalAmount', type: 'number' },
-              ].map(f => (
-                <div key={f.key}>
-                  <label className={`text-[9px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>{f.label}</label>
-                  <input type={f.type} value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    className={`w-full p-3 rounded-xl border outline-none focus:border-[#2FA084] ${inp}`} required={f.key !== 'totalAmount'} />
-                </div>
-              ))}
-              <div>
-                <label className={`text-[9px] font-black uppercase tracking-widest block mb-1.5 ${sub}`}>Notes</label>
-                <textarea rows={2} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
-                  className={`w-full p-3 rounded-xl border outline-none focus:border-[#2FA084] resize-none ${inp}`} />
-              </div>
-              {msg && <p className="text-[11px] font-bold text-emerald-500">{msg}</p>}
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setShowAdd(false)} className={`flex-1 py-3 rounded-xl border font-black uppercase text-[10px] ${isDarkMode ? 'border-zinc-800 text-zinc-500' : 'border-zinc-200 text-zinc-500'} transition-all`}>Cancel</button>
-                <button type="submit" disabled={saving} className="flex-1 py-3 rounded-xl bg-[#2FA084] text-black font-black uppercase text-[10px] hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {saving ? <Loader2 size={14} className="animate-spin" /> : null} Create PO
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

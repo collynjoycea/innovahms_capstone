@@ -84,7 +84,7 @@ export default function StaffSignUp() {
 
     if (key === 'hotelCode') {
       if (!value.trim()) error = 'Hotel verification code is required.';
-      else if (!isValidHotelCode(value)) error = 'Invalid format (e.g. INNOVAHMS-123).';
+      else if (!isValidHotelCode(value)) error = 'Use INNOVAHMS-123 or DEMO-OWNER-01 format.';
     }
 
     if (key === 'password') {
@@ -409,7 +409,7 @@ export default function StaffSignUp() {
                   <Key size={15} className="absolute left-3 top-2.5 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="e.g. INNOVAHMS-123"
+                    placeholder="e.g. INNOVAHMS-123 or DEMO-OWNER-01"
                     value={formData.hotelCode}
                     onChange={(e) => updateField('hotelCode', e.target.value)}
                     onBlur={() => handleBlur('hotelCode')}

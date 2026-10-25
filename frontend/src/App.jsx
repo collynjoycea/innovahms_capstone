@@ -120,6 +120,7 @@ import InnovaSuites from "./customer/InnovaSuites";
 import Rewards from "./pages/customer/Rewards";
 import VisionSuites from "./pages/customer/VisionSuites";
 import TermsOfService from "./pages/TermsOfService";
+import SupplierPurchaseOrders from "./pages/SupplierPurchaseOrders";
 
 // --- PROTECTED ROUTE COMPONENTS ---
 const ProtectedAdmin = ({ children }) => {
@@ -223,11 +224,15 @@ function App() {
           />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
-          <Route path="/staff/login" element={<StaffLogin />} />
-          <Route path="/staff/signup" element={<StaffSignUp />} />
-          <Route path="/owner/login" element={<OwnerLogin />} />
-          <Route path="/owner/signup" element={<OwnerSignUp />} />
+        </Route>
+
+        <Route element={<RegistrationLayout />}>
+          <Route path="/hotelier" element={<HotelierHome />} />
           <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/staff/login" element={<StaffLogin />} />
+          <Route path="/owner/login" element={<OwnerLogin />} />
+          <Route path="/staff/signup" element={<StaffSignUp />} />
+          <Route path="/owner/signup" element={<OwnerSignUp />} />
         </Route>
 
         <Route element={<RegistrationLayout />}>
@@ -245,6 +250,7 @@ function App() {
           <Route path="customers" element={<OwnerCustomers />} />
           <Route path="housekeeping" element={<OwnerHousekeeping />} />
           <Route path="inventory" element={<OwnerInventory />} />
+          <Route path="suppliers" element={<SupplierPurchaseOrders audience="owner" />} />
           <Route path="staff" element={<OwnerStaff />} />
           <Route path="reports" element={<OwnerReports />} />
           <Route path="reviews" element={<OwnerReviews />} />
@@ -317,6 +323,7 @@ function App() {
           <Route path="simulation" element={<InventorySimulation />} />
           <Route path="history" element={<HistoryLogs />} />
           <Route path="settings" element={<InventorySettings />} />
+          <Route path="suppliers" element={<SupplierPurchaseOrders audience="staff" />} />
         </Route>
 
         {/* GROUP 6: SUPER ADMIN DASHBOARD */}

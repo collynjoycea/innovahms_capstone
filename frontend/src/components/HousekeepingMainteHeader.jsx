@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, User, LogOut, Moon, Sun, Hammer, ChevronDown, ClipboardList } from 'lucide-react';
+import { User, LogOut, Moon, Sun, Hammer, ChevronDown, ClipboardList } from 'lucide-react';
 import ShiftClockWidget from './ShiftClockWidget';
 import useStaffSession from '../hooks/useStaffSession';
 import StaffNotificationBell from './StaffNotificationBell';
@@ -31,7 +31,6 @@ const HousekeepingMainteHeader = ({ isDarkMode, toggleTheme }) => {
     textMain: isDarkMode ? 'text-white'      : 'text-zinc-900',
     textSub:  isDarkMode ? 'text-zinc-500'   : 'text-zinc-400',
     border:   isDarkMode ? 'border-zinc-900' : 'border-zinc-200',
-    input:    isDarkMode ? 'bg-zinc-950 border-zinc-900' : 'bg-zinc-100 border-zinc-200',
     dropdown: isDarkMode ? 'bg-[#0d0c0a] border-white/10' : 'bg-white border-gray-100',
     gold: '#2FA084',
   };
@@ -54,15 +53,6 @@ const HousekeepingMainteHeader = ({ isDarkMode, toggleTheme }) => {
               Housekeeping & Maintenance Â· {new Date().toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
             <p className={`text-[8px] font-black ${theme.textSub} uppercase tracking-widest mt-1`}>{hotelName || 'Assigned Hotel'}</p>
-          </div>
-        </div>
-
-        {/* CENTER */}
-        <div className="hidden md:flex flex-1 max-w-md mx-8">
-          <div className="relative w-full group transition-all">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors group-focus-within:text-[#2FA084]" size={16} color={isDarkMode ? '#3f3f46' : '#a1a1aa'} />
-            <input type="text" placeholder="Search tasks, rooms, or inventory..."
-              className={`w-full h-11 pl-12 pr-4 rounded-xl border text-[11px] font-bold uppercase tracking-widest transition-all outline-none focus:ring-1 focus:ring-[#2FA084]/30 ${theme.input} ${theme.textMain} placeholder:text-zinc-600`} />
           </div>
         </div>
 

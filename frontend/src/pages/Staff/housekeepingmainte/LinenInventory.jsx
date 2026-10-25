@@ -4,23 +4,31 @@ import axios from 'axios';
 import useStaffSession from '../../../hooks/useStaffSession';
 import { 
   Package, AlertTriangle, CheckCircle2, 
-  ShoppingCart, History, Search,
-  Plus
+  ShoppingCart, History, Search, Plus, MinusCircle
 } from 'lucide-react';
 
 const LinenInventory = () => {
   const { isDarkMode } = useOutletContext() || { isDarkMode: true };
-  const { qs } = useStaffSession();
+  const { qs, staffId } = useStaffSession();
   const [inventory, setInventory] = useState([]);
+  const [movements, setMovements] = useState([]);
   const [search, setSearch] = useState('');
   const [lastSync, setLastSync] = useState(null);
+  const [usageQty, setUsageQty] = useState({});
+  const [usageRoom, setUsageRoom] = useState({});
+  const [consumingId, setConsumingId] = useState(null);
+  const [error, setError] = useState('');
 
   const fetchInventory = async () => {
     try {
       const res = await axios.get(`/api/housekeeping/inventory${qs}`);
       setInventory(res.data.inventory || []);
+      setMovements(res.data.movements || []);
       setLastSync(new Date());
-    } catch {}
+      setError('');
+    } catch (e) {
+      setError(e.response?.data?.error || 'Could not load linen inventory.');
+    }
   };
 
   useEffect(() => { fetchInventory(); }, [qs]);
@@ -29,7 +37,33 @@ const LinenInventory = () => {
     try {
       await axios.patch(`/api/housekeeping/inventory/${id}/restock`, { qty: 20 });
       fetchInventory();
-    } catch {}
+    } catch (e) {
+      setError(e.response?.data?.error || 'Could not update inventory.');
+    }
+  };
+
+  const handleConsume = async (item) => {
+    const quantity = Number(usageQty[item.id]);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      setError('Enter a whole quantity of at least one to record usage.');
+      return;
+    }
+    setConsumingId(item.id);
+    setError('');
+    try {
+      await axios.post(`/api/housekeeping/inventory/${item.id}/consume${qs}`, {
+        quantity,
+        staff_id: staffId,
+        room_label: usageRoom[item.id] || '',
+      });
+      setUsageQty(current => ({ ...current, [item.id]: '' }));
+      setUsageRoom(current => ({ ...current, [item.id]: '' }));
+      await fetchInventory();
+    } catch (e) {
+      setError(e.response?.data?.error || 'Could not record inventory usage.');
+    } finally {
+      setConsumingId(null);
+    }
   };
 
   const linens     = inventory.filter(i => i.category === 'Linens'     && i.item_name.toLowerCase().includes(search.toLowerCase()));
@@ -48,8 +82,11 @@ const LinenInventory = () => {
   const toRows = (items) => items.map(i => ({
     id:     i.id,
     item:   i.item_name,
-    stock:  Math.round((i.current_qty / i.max_qty) * 100),
+    sourceItem: i,
+    stock:  Math.min(100, Math.round((i.current_qty / Math.max(i.max_qty, 1)) * 100)),
     qty:    `${i.current_qty}/${i.max_qty} ${i.unit}`,
+    available: i.current_qty,
+    unit: i.unit,
     status: i.current_qty < i.max_qty * 0.4 ? 'Low Stock' : 'In Stock',
   }));
 
@@ -72,12 +109,13 @@ const LinenInventory = () => {
               <th className="px-8 py-5">Stock Level</th>
               <th className="px-8 py-5">Qty / Max</th>
               <th className="px-8 py-5">Status</th>
-              <th className="px-8 py-5 text-right">Action</th>
+              <th className="px-8 py-5">Usage</th>
+              <th className="px-8 py-5 text-right">Restock</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {items.length === 0 ? (
-              <tr><td colSpan={5} className={`px-8 py-10 text-center text-[11px] ${theme.textSub}`}>No items found.</td></tr>
+              <tr><td colSpan={6} className={`px-8 py-10 text-center text-[11px] ${theme.textSub}`}>No items found.</td></tr>
             ) : items.map((row, i) => (
               <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
                 <td className={`px-8 py-5 text-[11px] font-bold ${theme.textMain}`}>{row.item}</td>
@@ -97,6 +135,35 @@ const LinenInventory = () => {
                     {row.status === 'Low Stock' && <AlertTriangle size={10} className="inline mr-1 mb-0.5" />}
                     {row.status}
                   </span>
+                </td>
+                <td className="px-8 py-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max={row.available}
+                      aria-label={`Quantity of ${row.item} used`}
+                      value={usageQty[row.id] || ''}
+                      onChange={e => setUsageQty(current => ({ ...current, [row.id]: e.target.value }))}
+                      className={`w-16 rounded-lg border px-2 py-2 text-xs ${isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-white border-zinc-300 text-zinc-900'}`}
+                    />
+                    <input
+                      type="text"
+                      aria-label={`Room for ${row.item} usage`}
+                      placeholder="Room"
+                      value={usageRoom[row.id] || ''}
+                      onChange={e => setUsageRoom(current => ({ ...current, [row.id]: e.target.value }))}
+                      className={`w-20 rounded-lg border px-2 py-2 text-xs ${isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500' : 'bg-white border-zinc-300 text-zinc-900 placeholder:text-zinc-400'}`}
+                    />
+                    <button
+                      onClick={() => handleConsume(row.sourceItem)}
+                      disabled={consumingId === row.id || row.available < 1}
+                      className="rounded-lg bg-[#6FCF97] px-3 py-2 text-[9px] font-black uppercase tracking-widest text-black disabled:opacity-50"
+                    >
+                      <MinusCircle size={13} className="mr-1 inline" />
+                      {consumingId === row.id ? 'Saving' : 'Use'}
+                    </button>
+                  </div>
                 </td>
                 <td className="px-8 py-5 text-right">
                   <button onClick={() => handleRestock(row.id)} className={`p-2 rounded-lg border ${theme.border} text-[#6FCF97] hover:bg-[#6FCF97] hover:text-black transition-all`}>
@@ -141,6 +208,12 @@ const LinenInventory = () => {
         </div>
       </div>
 
+      {error && (
+        <p role="alert" className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-500">
+          {error}
+        </p>
+      )}
+
       {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         {[
@@ -165,6 +238,38 @@ const LinenInventory = () => {
       <InventoryTable title="Linens Inventory"     items={toRows(linens)} />
       <InventoryTable title="Toiletries Inventory" items={toRows(toiletries)} />
 
+      <div className={`${theme.card} border ${theme.border} rounded-[2rem] overflow-hidden ${theme.shadow}`}>
+        <div className={`px-8 py-6 border-b ${theme.border}`}>
+          <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Recent Usage</h2>
+          <p className={`mt-1 text-[10px] font-bold uppercase tracking-widest ${theme.textSub}`}>Recorded quantities taken from housekeeping inventory</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className={`text-[9px] font-black uppercase tracking-widest ${theme.textSub} border-b ${theme.border}`}>
+                <th className="px-8 py-4">Date</th>
+                <th className="px-8 py-4">Item</th>
+                <th className="px-8 py-4">Quantity</th>
+                <th className="px-8 py-4">Room</th>
+                <th className="px-8 py-4">Taken By</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {movements.length === 0 ? (
+                <tr><td colSpan={5} className={`px-8 py-8 text-center text-[11px] ${theme.textSub}`}>No usage recorded yet.</td></tr>
+              ) : movements.map(movement => (
+                <tr key={movement.id}>
+                  <td className={`px-8 py-4 text-[10px] ${theme.textSub}`}>{movement.created_at ? new Date(movement.created_at).toLocaleString() : '—'}</td>
+                  <td className={`px-8 py-4 text-[11px] font-bold ${theme.textMain}`}>{movement.item_name}</td>
+                  <td className={`px-8 py-4 text-[11px] font-black text-[#6FCF97]`}>{movement.quantity} {movement.unit}</td>
+                  <td className={`px-8 py-4 text-[10px] ${theme.textSub}`}>{movement.room_label || '—'}</td>
+                  <td className={`px-8 py-4 text-[10px] ${theme.textSub}`}>{movement.staff_name || 'Staff'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 };

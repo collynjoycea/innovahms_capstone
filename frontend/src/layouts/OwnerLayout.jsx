@@ -39,6 +39,7 @@ const OWNER_ROUTE_FEATURES = [
   { path: '/owner/customers', feature: 'customers', label: 'Customers', requiredPlan: 'Starter' },
   { path: '/owner/housekeeping', feature: 'housekeeping', label: 'Housekeeping', requiredPlan: 'Pro' },
   { path: '/owner/inventory', feature: 'inventory', label: 'Inventory', requiredPlan: 'Pro' },
+  { path: '/owner/suppliers', feature: 'inventory', label: 'Suppliers & Purchase Orders', requiredPlan: 'Pro' },
   { path: '/owner/staff', feature: 'staff', label: 'Staff Management', requiredPlan: 'Pro' },
   { path: '/owner/reports', feature: 'reports', label: 'Reports', requiredPlan: 'Enterprise' },
   { path: '/owner/reviews', feature: 'reviews', label: 'Reviews', requiredPlan: 'Starter' },
@@ -206,7 +207,7 @@ const OwnerLayout = () => {
   const toggleTheme = () => setIsDarkMode((current) => !current);
 
   return (
-    <div className={`flex h-screen transition-colors duration-300 ${isDarkMode ? 'bg-[#090b10] text-white' : 'bg-gray-50 text-slate-900'}`}>
+    <div className={`owner-portal flex h-screen transition-colors duration-300 ${isDarkMode ? 'bg-[#090b10] text-white' : 'bg-gray-50 text-slate-900'}`}>
       <OwnerSidebar isDarkMode={isDarkMode} isExpanded={isSidebarOpen} />
       
       <div className="flex-1 flex flex-col overflow-hidden">
