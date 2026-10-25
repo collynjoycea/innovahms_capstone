@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import useStaffSession from '../../../hooks/useStaffSession';
-import { Search, Filter, CheckCircle2, Clock, RefreshCw, Loader2, Camera, X, ArrowRight } from 'lucide-react';
+import { Search, RefreshCw, Loader2, Camera, X, ArrowRight } from 'lucide-react';
 
 const STATUS_COLORS = {
   Available:   { border: 'border-emerald-500/50', text: 'text-emerald-500', bg: 'bg-emerald-500/5',  dot: 'bg-emerald-500',  label: 'Available' },
@@ -14,9 +14,21 @@ const STATUS_COLORS = {
 };
 
 // The room filter keeps every operational status; the modal only exposes housekeeping statuses.
-const STATUS_CYCLE = ['Dirty', 'InProgress', 'Clean', 'Available', 'Occupied', 'Maintenance'];
-const HOUSEKEEPING_STATUSES = ['Dirty', 'InProgress', 'Clean', 'Maintenance'];
+const STATUS_CYCLE = ['Available', 'Occupied', 'Dirty', 'Clean', 'InProgress', 'Cleaning', 'Maintenance'];
+const HOUSEKEEPING_STATUSES = ['Dirty', 'InProgress', 'Cleaning', 'Clean', 'Maintenance'];
 const getStyle = (s) => STATUS_COLORS[s] || { border: 'border-zinc-700', text: 'text-zinc-400', bg: '', dot: 'bg-zinc-500', label: s || '—' };
+const getRoomFloor = (room) => {
+  if (Number(room.floor) > 0) return Number(room.floor);
+  const roomNumber = Number(String(room.room_label || '').match(/\d+/)?.[0]);
+  return Number.isFinite(roomNumber) && roomNumber >= 100 ? Math.floor(roomNumber / 100) : 'Other';
+};
+const floorName = (floor) => {
+  if (floor === 'Other') return '—';
+  const suffix = floor % 10 === 1 && floor % 100 !== 11 ? 'st'
+    : floor % 10 === 2 && floor % 100 !== 12 ? 'nd'
+      : floor % 10 === 3 && floor % 100 !== 13 ? 'rd' : 'th';
+  return `${floor}${suffix} Floor`;
+};
 
 export default function RoomStatusMap() {
   const { isDarkMode } = useOutletContext() || { isDarkMode: true };
@@ -26,7 +38,6 @@ export default function RoomStatusMap() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
-  const [lastSync, setLastSync] = useState(null);
   const [error, setError] = useState('');
 
   // Capture-before-status-change modal
@@ -46,7 +57,6 @@ export default function RoomStatusMap() {
       if (res.ok) {
         setRooms(data.rooms || []);
         setCounts(data.counts || {});
-        setLastSync(new Date());
       } else {
         setError(data.error || 'Failed to load rooms.');
       }
@@ -140,11 +150,27 @@ export default function RoomStatusMap() {
     }
   };
 
-  const filtered = rooms.filter(r => {
-    const matchSearch = !search || r.room_label?.toLowerCase().includes(search.toLowerCase()) || r.room_name?.toLowerCase().includes(search.toLowerCase());
+  const roomsForMap = rooms;
+  const displayedCounts = roomsForMap.reduce((totals, room) => {
+    totals[room.status] = (totals[room.status] || 0) + 1;
+    return totals;
+  }, {});
+  const filtered = roomsForMap.filter(r => {
+    const matchSearch = !search || r.room_label?.toLowerCase().includes(search.toLowerCase()) || r.room_name?.toLowerCase().includes(search.toLowerCase()) || r.room_type?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'All' || r.status === filterStatus;
     return matchSearch && matchStatus;
   });
+  const roomsByFloor = filtered.reduce((groups, room) => {
+    const floor = getRoomFloor(room);
+    groups[floor] = [...(groups[floor] || []), room];
+    return groups;
+  }, {});
+  const floorGroups = Object.entries(roomsByFloor).sort(([a], [b]) => {
+    if (a === 'Other') return 1;
+    if (b === 'Other') return -1;
+    return Number(a) - Number(b);
+  });
+  const visibleStatuses = Object.entries(STATUS_COLORS).filter(([status]) => (displayedCounts[status] || 0) > 0);
 
   const theme = {
     bg:       isDarkMode ? 'bg-[#0c0c0e]'      : 'bg-[#f0f0f3]',
@@ -273,7 +299,7 @@ export default function RoomStatusMap() {
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
             className={`px-4 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer ${theme.input}`}>
             <option value="All">All Status</option>
-            {STATUS_CYCLE.map(s => <option key={s} value={s}>{s}</option>)}
+            {STATUS_CYCLE.filter(status => (displayedCounts[status] || 0) > 0).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
           <button onClick={fetchRooms}
             className={`p-2.5 rounded-xl border transition-all ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border-zinc-200 text-zinc-400 hover:text-zinc-900'}`}>
@@ -284,16 +310,16 @@ export default function RoomStatusMap() {
 
       {/* LEGEND */}
       <div className={`${theme.card} border ${theme.border} p-4 rounded-2xl mb-6 flex flex-wrap gap-4 items-center`}>
-        {Object.entries(STATUS_COLORS).map(([key, val]) => (
+        {visibleStatuses.map(([key, val]) => (
           <div key={key} className="flex items-center gap-2">
             <div className={`w-2.5 h-2.5 rounded-full ${val.dot}`} />
             <span className={`text-[10px] font-black uppercase tracking-widest ${theme.textSub}`}>
-              {key} <span className="text-[#6FCF97]">({counts[key] || 0})</span>
+              {key} <span className="text-[#6FCF97]">({displayedCounts[key] || 0})</span>
             </span>
           </div>
         ))}
         <span className={`ml-auto text-[10px] font-black uppercase tracking-widest ${theme.textSub}`}>
-          {filtered.length} / {rooms.length} rooms
+          {filtered.length} / {roomsForMap.length} rooms
         </span>
       </div>
 
@@ -312,72 +338,53 @@ export default function RoomStatusMap() {
           </div>
         ) : filtered.length === 0 ? (
           <p className={`text-center py-16 text-[11px] font-bold uppercase tracking-widest ${theme.textSub}`}>
-            {rooms.length === 0 ? 'No rooms found. Add rooms via the Owner panel.' : 'No rooms match your filter.'}
+            {roomsForMap.length === 0 ? 'No rooms found. Add rooms via the Owner panel.' : 'No rooms match your filter.'}
           </p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-            {filtered.map((room) => {
-              const sc = getStyle(room.status);
-              return (
-                <button
-                  key={room.id}
-                  onClick={() => openCaptureModal(room)}
-                  className={`relative p-4 rounded-2xl border-2 transition-all duration-300 hover:scale-105 active:scale-95 group ${sc.border} ${sc.bg}`}
-                >
-                  <div className="text-center space-y-1">
-                    <h4 className={`text-xl font-black uppercase tracking-tighter ${theme.textMain} group-hover:text-[#6FCF97] transition-colors`}>
-                      {room.room_label}
-                    </h4>
-                    <p className={`text-[8px] font-black uppercase tracking-[0.15em] ${theme.textSub}`}>
-                      {room.room_type}
-                    </p>
-                  </div>
-                  <div className={`mt-3 py-1 rounded-lg border ${sc.border}`}>
-                    <span className={`text-[8px] font-black uppercase tracking-widest ${sc.text}`}>
-                      {sc.label}
-                    </span>
-                  </div>
-                  <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 rounded-tr-xl opacity-0 group-hover:opacity-100 transition-opacity border-[#6FCF97]" />
-                </button>
-              );
-            })}
+          <div>
+            <div className="flex items-center gap-4 border-b border-white/10 pb-3 mb-4">
+              <h3 className={`w-24 shrink-0 text-[10px] font-black uppercase tracking-widest ${theme.textMain}`}>Floors</h3>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${theme.textSub}`}>Rooms</span>
+            </div>
+            <div className="space-y-6">
+              {floorGroups.map(([floor, floorRooms]) => (
+                <section key={floor} className="flex flex-col lg:flex-row lg:items-start gap-4">
+                <h3 className={`lg:w-24 shrink-0 text-[10px] font-black uppercase tracking-widest ${theme.textMain} lg:pt-2`}>
+                  {floorName(floor)}
+                </h3>
+                <div className="flex min-w-0 flex-1 gap-4 overflow-x-auto pb-2">
+                  {floorRooms.map((room) => {
+                    const sc = getStyle(room.status);
+                    return (
+                      <button
+                        key={room.id}
+                        type="button"
+                        onClick={() => openCaptureModal(room)}
+                        className={`relative w-36 shrink-0 p-4 rounded-2xl border-2 transition-all duration-300 group ${sc.border} ${sc.bg} hover:scale-105 active:scale-95`}
+                      >
+                        <div className="text-center space-y-1">
+                          <h4 className={`text-xl font-black uppercase tracking-tighter ${theme.textMain} group-hover:text-[#6FCF97] transition-colors`}>
+                            {room.room_label}
+                          </h4>
+                          <p className={`text-[8px] font-black uppercase tracking-[0.15em] ${theme.textSub}`}>
+                            {room.room_type}
+                          </p>
+                        </div>
+                        <div className={`mt-3 py-1 rounded-lg border ${sc.border}`}>
+                          <span className={`text-[8px] font-black uppercase tracking-widest ${sc.text}`}>
+                            {sc.label}
+                          </span>
+                        </div>
+                        <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 rounded-tr-xl opacity-0 group-hover:opacity-100 transition-opacity border-[#6FCF97]" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+              ))}
+            </div>
           </div>
         )}
-      </div>
-
-      {/* FOOTER STATS */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className={`p-5 rounded-2xl border ${theme.border} ${theme.card} flex items-center gap-4`}>
-          <div className="p-3 rounded-xl bg-[#6FCF97] text-black shrink-0">
-            <Clock size={18} strokeWidth={3} />
-          </div>
-          <div className="text-left">
-            <p className={`text-[9px] font-black uppercase tracking-widest ${theme.textSub}`}>Last Sync</p>
-            <p className={`text-[11px] font-bold ${theme.textMain}`}>
-              {lastSync ? lastSync.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Not synced'}
-            </p>
-          </div>
-        </div>
-        <div className={`p-5 rounded-2xl border ${theme.border} ${theme.card} flex items-center gap-4`}>
-          <div className="p-3 rounded-xl bg-emerald-500 text-black shrink-0">
-            <CheckCircle2 size={18} strokeWidth={3} />
-          </div>
-          <div className="text-left">
-            <p className={`text-[9px] font-black uppercase tracking-widest ${theme.textSub}`}>Available</p>
-            <p className={`text-[11px] font-bold text-emerald-500`}>{counts['Available'] || 0} rooms ready</p>
-          </div>
-        </div>
-        <div className={`p-5 rounded-2xl border ${theme.border} ${theme.card} flex items-center gap-4`}>
-          <div className="p-3 rounded-xl bg-red-500 text-white shrink-0">
-            <RefreshCw size={18} strokeWidth={3} />
-          </div>
-          <div className="text-left">
-            <p className={`text-[9px] font-black uppercase tracking-widest ${theme.textSub}`}>Needs Attention</p>
-            <p className={`text-[11px] font-bold text-red-400`}>
-              {(counts['Dirty'] || 0) + (counts['Maintenance'] || 0)} rooms
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );

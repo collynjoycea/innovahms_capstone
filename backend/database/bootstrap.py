@@ -60,10 +60,11 @@ def ensure_room_type_options(cur):
               OR LOWER(COALESCE(room_type, '')) LIKE '%executive%'
               OR LOWER(COALESCE(room_type, '')) LIKE '%presidential%' THEN 'Suite'
             WHEN LOWER(COALESCE(room_type, '')) LIKE '%double%' THEN 'Double'
+            WHEN LOWER(COALESCE(room_type, '')) LIKE '%single%' THEN 'Single'
             ELSE 'Standard'
         END
         WHERE room_type IS NULL
-           OR room_type NOT IN ('Standard', 'Double', 'Suite', 'Deluxe', 'Family Room')
+           OR room_type NOT IN ('Single', 'Standard', 'Double', 'Suite', 'Deluxe', 'Family Room')
         """
     )
 
@@ -87,7 +88,7 @@ def ensure_room_type_options(cur):
         """
         ALTER TABLE rooms
         ADD CONSTRAINT rooms_room_type_check
-        CHECK (room_type IN ('Standard', 'Double', 'Suite', 'Deluxe', 'Family Room'))
+        CHECK (room_type IN ('Single', 'Standard', 'Double', 'Suite', 'Deluxe', 'Family Room'))
         """
     )
 
@@ -307,7 +308,7 @@ def ensure_membership_tables(cur):
             monthly_price NUMERIC(12, 2) DEFAULT 0,
             annual_price NUMERIC(12, 2) DEFAULT 0,
             max_rooms INTEGER,
-            features TEXT[] DEFAULT ARRAY[]::TEXT[],
+            features JSONB DEFAULT '[]'::JSONB,
             is_popular BOOLEAN DEFAULT FALSE,
             is_active BOOLEAN DEFAULT TRUE,
             display_order INTEGER DEFAULT 0,
@@ -323,7 +324,7 @@ def ensure_membership_tables(cur):
         "ALTER TABLE membership_packages ADD COLUMN IF NOT EXISTS monthly_price NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE membership_packages ADD COLUMN IF NOT EXISTS annual_price NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE membership_packages ADD COLUMN IF NOT EXISTS max_rooms INTEGER",
-        "ALTER TABLE membership_packages ADD COLUMN IF NOT EXISTS features TEXT[] DEFAULT ARRAY[]::TEXT[]",
+        "ALTER TABLE membership_packages ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '[]'::JSONB",
         "ALTER TABLE membership_packages ADD COLUMN IF NOT EXISTS is_popular BOOLEAN DEFAULT FALSE",
         "ALTER TABLE membership_packages ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE",
         "ALTER TABLE membership_packages ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0",
@@ -514,6 +515,8 @@ def ensure_reservation_operational_columns(cur):
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS check_in_date DATE",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS check_out_date DATE",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS total_nights INTEGER DEFAULT 1",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS adults INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS children INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE reservations ADD COLUMN IF NOT EXISTS payment_method VARCHAR(30) DEFAULT 'cash'",
@@ -811,10 +814,12 @@ def seed_notification_types(cur):
         ("system_maintenance", "System Maintenance", "Scheduled system maintenance notifications", "SYSTEM", "HIGH"),
         ("admin_user_registration", "New User Registration", "New user registration alerts for admins", "SYSTEM", "NORMAL"),
         ("admin_payment_received", "Payment Received", "Payment received notifications for admins", "PAYMENT", "HIGH"),
+        ("owner_payment_received", "Payment Received", "Payment received notifications for hotel owners", "PAYMENT", "HIGH"),
         ("owner_subscription_expiring", "Subscription Expiring", "Subscription renewal reminders for owners", "PAYMENT", "HIGH"),
         ("owner_new_booking", "New Booking", "New booking notifications for owners", "BOOKING", "NORMAL"),
         ("owner_staff_task_completed", "Staff Task Completed", "Task completion notifications for owners", "STAFF", "NORMAL"),
         ("owner_low_inventory", "Low Inventory Alert", "Low inventory alerts for owners", "INVENTORY", "HIGH"),
+        ("admin_low_inventory", "Low Inventory Alert", "Low inventory alerts for admins", "INVENTORY", "HIGH"),
         ("owner_api_disabled", "Service Unavailable", "Integration outage alerts for owners", "SYSTEM", "HIGH"),
         ("owner_api_restored", "Service Restored", "Integration restoration alerts for owners", "SYSTEM", "NORMAL"),
         ("customer_booking_confirmed", "Booking Confirmed", "Booking confirmation for customers", "BOOKING", "HIGH"),
@@ -824,6 +829,8 @@ def seed_notification_types(cur):
         ("staff_task_assigned", "Task Assigned", "New task assignments for staff", "STAFF", "HIGH"),
         ("staff_shift_reminder", "Shift Reminder", "Shift schedule reminders for staff", "STAFF", "NORMAL"),
         ("staff_inventory_alert", "Inventory Alert", "Inventory alerts for staff", "INVENTORY", "HIGH"),
+        ("owner_system_maintenance", "System Maintenance", "System maintenance reminders for owners", "SYSTEM", "HIGH"),
+        ("staff_system_maintenance", "System Maintenance", "System maintenance reminders for staff", "SYSTEM", "HIGH"),
         ("staff_maintenance_due", "Maintenance Due", "Maintenance reminders for staff", "MAINTENANCE", "NORMAL"),
     ]
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  LayoutDashboard, CreditCard, Building2, Calendar, 
+  LayoutDashboard, CreditCard, Building2, Calendar, Truck,
   Users, Sparkles, Package, Shield, BarChart3, Star 
 } from 'lucide-react';
 
@@ -54,6 +54,7 @@ const OwnerSidebar = ({ isExpanded = false }) => {
     { name: 'Customers', path: '/owner/customers', feature: 'customers', requiredPlan: 'Starter', icon: <Users size={18} /> },
     { name: 'Housekeeping', path: '/owner/housekeeping', feature: 'housekeeping', requiredPlan: 'Pro', icon: <Sparkles size={18} /> },
     { name: 'Inventory', path: '/owner/inventory', feature: 'inventory', requiredPlan: 'Pro', icon: <Package size={18} /> },
+    { name: 'Suppliers & POs', path: '/owner/suppliers', feature: 'inventory', requiredPlan: 'Pro', icon: <Truck size={18} /> },
     { name: 'Staff', path: '/owner/staff', feature: 'staff', requiredPlan: 'Pro', icon: <Shield size={18} /> },
     { name: 'Reports', path: '/owner/reports', feature: 'reports', requiredPlan: 'Enterprise', icon: <BarChart3 size={18} /> },
     { name: 'Reviews', path: '/owner/reviews', feature: 'reviews', requiredPlan: 'Starter', icon: <Star size={18} /> },

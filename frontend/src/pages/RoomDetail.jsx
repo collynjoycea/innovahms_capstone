@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
-  MapPin,
   Users,
   Star,
   X,
@@ -12,6 +11,7 @@ import {
   Navigation,
   ChevronDown,
   ChevronUp,
+  MapPin,
 } from "lucide-react";
 import Marzipano from "marzipano";
 import resolveImg from "../utils/resolveImg";
@@ -48,6 +48,7 @@ export default function RoomDetail() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [helpfulCounts, setHelpfulCounts] = useState({});
   const [isExpanded, setIsExpanded] = useState(false);
+  const [reviewsExpanded, setReviewsExpanded] = useState(false);
 
   // 360 tour state
   const [tourOpen, setTourOpen] = useState(false);
@@ -119,8 +120,6 @@ export default function RoomDetail() {
   const currentImg = imgError ? FALLBACKS[0] : roomImg;
 
   const roomReviews = useMemo(() => {
-    // The API already filters by this page's room_id. Do not match by room
-    // name because two rooms can share the same display name.
     return reviews.filter((rev) => String(rev.roomId) === String(id));
   }, [id, reviews]);
 
@@ -148,6 +147,12 @@ export default function RoomDetail() {
     }
     return roomReviews;
   }, [roomReviews, activeFilter]);
+
+  // Limit reviews to 2 unless expanded
+  const displayedReviews = useMemo(() => {
+    if (reviewsExpanded) return filteredReviews;
+    return filteredReviews.slice(0, 2);
+  }, [filteredReviews, reviewsExpanded]);
 
   const toggleHelpful = (revId) => {
     setHelpfulCounts((prev) => ({
@@ -304,11 +309,11 @@ export default function RoomDetail() {
         </nav>
 
         {/* TOP SECTION: IMAGE & BOOKING SUMMARY GRID */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-5">
           
           {/* IMAGE CONTAINER */}
           <div className="lg:col-span-7">
-            <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-[#0f1a17] h-[340px] shadow-sm">
+            <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-[#0f1a17] h-[320px] shadow-sm">
               <img
                 src={currentImg}
                 alt={room.roomName || "Room"}
@@ -325,15 +330,12 @@ export default function RoomDetail() {
             </div>
           </div>
 
-          {/* ROOM SPECIFICATIONS CARD */}
+          {/* ROOM SPECIFICATIONS CARD (Location removed) */}
           <div className="lg:col-span-5 bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-sm flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2">
                 <span className="text-[11px] font-semibold tracking-wider text-[#1F6F5F] dark:text-[#2FA084] uppercase">
                   {room.roomType || "Executive Suite"}
-                </span>
-                <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 font-medium">
-                  {String(room.status || "Available").toUpperCase()}
                 </span>
               </div>
               
@@ -341,25 +343,11 @@ export default function RoomDetail() {
                 {room.roomName || room.name || "Innova Room"}
               </h1>
               
-              <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed mb-4 line-clamp-3 whitespace-pre-line">
+              <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed mb-3 line-clamp-3 whitespace-pre-line">
                 {room.description || "No room description has been added by the owner yet."}
               </p>
 
-              <div className="space-y-1.5 border-t border-slate-100 dark:border-white/5 pt-3 mb-4 text-xs text-slate-600 dark:text-zinc-300">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 truncate pr-2">
-                    <MapPin size={14} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
-                    <span className="truncate">{room.location_description || "Innova Smart Hotel Main Property"}</span>
-                  </div>
-                  <button
-                    onClick={handleGetDirections}
-                    disabled={routeLoading}
-                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#1F6F5F] dark:text-[#2FA084] hover:underline shrink-0"
-                    title="Share location and view route from your position"
-                  >
-                    <Navigation size={12} /> {routeLoading ? "Locating..." : "Get Directions"}
-                  </button>
-                </div>
+              <div className="space-y-1.5 border-t border-slate-100 dark:border-white/5 pt-3 mb-3 text-xs text-slate-600 dark:text-zinc-300">
                 <div className="flex items-center gap-2">
                   <Users size={14} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
                   <span>Maximum Capacity: {Math.max(guestCount, 1)} Guests</span>
@@ -367,7 +355,7 @@ export default function RoomDetail() {
               </div>
 
               {/* AMENITIES BADGES */}
-              <div className="flex flex-wrap gap-1.5 mb-4">
+              <div className="flex flex-wrap gap-1.5 mb-3">
                 {amenities.list.slice(0, 4).map((item, index) => (
                   <span
                     key={index}
@@ -398,220 +386,198 @@ export default function RoomDetail() {
 
         </div>
 
-        {/* DESCRIPTION SECTION WITH INLINE SEE MORE */}
-        <section className="mb-6 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0f1a17] p-5 shadow-sm">
-          <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Room Description</h2>
-          <p className="whitespace-pre-line text-sm leading-7 text-slate-600 dark:text-zinc-300">
-            {room.description || "No room description has been added by the owner yet."}
-          </p>
-
-          {/* SEE MORE / SEE LESS TOGGLE TEXT */}
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
-            >
-              <span>{isExpanded ? "See Less" : "See More"}</span>
-              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
-          </div>
-
-          {/* EXPANDED CONTENT UNDER SEE MORE (Room Highlights, Amenities, Room Features) */}
-          {isExpanded && (
-            <div className="mt-5 space-y-4 border-t border-slate-100 dark:border-white/5 pt-4">
-              {detailSections.map((section) => (
-                <div key={section.title} className="rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] p-4">
-                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[#1F6F5F] dark:text-[#2FA084]">
-                    {section.title}
-                  </h3>
-                  {section.items && section.items.length > 0 ? (
-                    <ul className="space-y-1.5 text-sm text-slate-600 dark:text-zinc-300">
-                      {section.items.map((item, index) => (
-                        <li key={`${section.title}-${index}`} className="flex items-start gap-2">
-                          <span className="text-[#1F6F5F] dark:text-[#2FA084] font-bold">•</span>
-                          <span className="whitespace-pre-line">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-slate-400">No {section.title.toLowerCase()} listed.</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* BOTTOM SECTION: REVIEWS & INTERACTIVE MAP SIDE-BY-SIDE */}
+        {/* MIDDLE-BOTTOM SECTION: DESCRIPTION & REVIEWS SIDE-BY-SIDE */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           
-          {/* REVIEWS SECTION (~7 Cols) */}
-          <div className="lg:col-span-7 bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-sm flex flex-col">
-            
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-white/5">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white">Guest Reviews & Ratings</h2>
-              <div className="flex items-center gap-1.5">
-                {reviewStats.count > 0 ? (
-                  [1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      size={13}
-                      fill={star <= Math.round(Number(reviewStats.average)) ? "#1F6F5F" : "transparent"}
-                      className={star <= Math.round(Number(reviewStats.average)) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
-                    />
-                  ))
-                ) : (
-                  <Star size={14} className="text-slate-300 dark:text-zinc-700" />
-                )}
-                <span className="text-xs font-bold text-slate-800 dark:text-zinc-100">
-                  {reviewStats.count > 0 ? reviewStats.average : "No ratings yet"}
-                </span>
-                <span className="text-[11px] text-slate-400">({reviewStats.count})</span>
+          {/* DESCRIPTION SECTION (~6 Cols) */}
+          <div className="lg:col-span-6 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0f1a17] p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Room Description</h2>
+              <p className="whitespace-pre-line text-xs sm:text-sm leading-6 text-slate-600 dark:text-zinc-300">
+                {room.description || "No room description has been added by the owner yet."}
+              </p>
+
+              {/* SEE MORE / SEE LESS TOGGLE TEXT */}
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
+                >
+                  <span>{isExpanded ? "See Less" : "See More"}</span>
+                  {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
               </div>
-            </div>
 
-            {/* COMPACT FILTER CHIPS */}
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              {["All", "5 Star", "4 Star", "3 Star", "2 Star", "1 Star"].map((filter) => {
-                let label = filter;
-                if (filter === "All") label = `All (${reviewStats.count})`;
-                else if (filter.includes("Star")) {
-                  const starNum = parseInt(filter);
-                  label = `${filter} (${reviewStats.countsByStar[starNum] || 0})`;
-                }
-                const isSelected = activeFilter === filter;
-
-                return (
-                  <button
-                    key={filter}
-                    onClick={() => setActiveFilter(filter)}
-                    className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-all ${
-                      isSelected
-                        ? "border-[#1F6F5F] text-[#1F6F5F] bg-emerald-50/40 dark:bg-[#1F6F5F]/20 dark:text-[#2FA084] dark:border-[#2FA084]"
-                        : "border-slate-200 dark:border-white/10 text-slate-600 dark:text-zinc-300 hover:border-slate-300"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* REVIEWS LIST */}
-            <div className="flex-1 overflow-y-auto max-h-[360px] pr-1 space-y-4 divide-y divide-slate-100 dark:divide-white/5">
-              {filteredReviews.length > 0 ? (
-                filteredReviews.map((rev) => {
-                  const nameInitial = rev.guestName ? rev.guestName[0].toUpperCase() : "G";
-                  const displayUsername = maskUsername(rev.guestName);
-                  const reviewDate = rev.createdAt
-                    ? new Date(rev.createdAt).toISOString().replace("T", " ").substring(0, 10)
-                    : "2026-04-12";
-                  const currentHelpful = helpfulCounts[rev.id] || { count: 0, active: false };
-
-                  return (
-                    <div key={rev.id} className="pt-3 first:pt-0">
-                      <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-white/10 flex items-center justify-center shrink-0 text-slate-600 dark:text-zinc-300 text-[11px] font-semibold">
-                          {nameInitial}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200">{displayUsername}</span>
-                            <span className="text-[10px] text-slate-400">{reviewDate}</span>
-                          </div>
-
-                          <div className="flex gap-0.5 my-1">
-                            {[1, 2, 3, 4, 5].map((s) => (
-                              <Star
-                                key={s}
-                                size={11}
-                                fill={s <= (rev.rating || 5) ? "#1F6F5F" : "transparent"}
-                                className={s <= (rev.rating || 5) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
-                              />
-                            ))}
-                          </div>
-
-                          <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed mb-2">
-                            {rev.comment || "Clean facilities, excellent accommodation experience."}
-                          </p>
-
-                          <button
-                            onClick={() => toggleHelpful(rev.id)}
-                            className={`inline-flex items-center gap-1 text-[11px] transition-colors ${
-                              currentHelpful.active
-                                ? "text-[#1F6F5F] dark:text-[#2FA084] font-semibold"
-                                : "text-slate-400 hover:text-slate-600"
-                            }`}
-                          >
-                            <ThumbsUp size={11} />
-                            <span>Helpful {currentHelpful.count > 0 && `(${currentHelpful.count})`}</span>
-                          </button>
-                        </div>
-                      </div>
+              {/* EXPANDED CONTENT UNDER SEE MORE */}
+              {isExpanded && (
+                <div className="mt-4 space-y-3 border-t border-slate-100 dark:border-white/5 pt-3">
+                  {detailSections.map((section) => (
+                    <div key={section.title} className="rounded-lg border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] p-3">
+                      <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[#1F6F5F] dark:text-[#2FA084]">
+                        {section.title}
+                      </h3>
+                      {section.items && section.items.length > 0 ? (
+                        <ul className="space-y-1 text-xs text-slate-600 dark:text-zinc-300">
+                          {section.items.map((item, index) => (
+                            <li key={`${section.title}-${index}`} className="flex items-start gap-1.5">
+                              <span className="text-[#1F6F5F] dark:text-[#2FA084] font-bold">•</span>
+                              <span className="whitespace-pre-line">{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-[11px] text-slate-400">No {section.title.toLowerCase()} listed.</p>
+                      )}
                     </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-8 text-slate-400 text-xs">
-                  No reviews available for this filter.
+                  ))}
                 </div>
               )}
             </div>
 
+            {/* LOCATION QUICK ACCESS IN DESCRIPTION BOX */}
+            <div className="mt-5 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400">
+              <div className="flex items-center gap-1.5 truncate pr-2">
+                <MapPin size={13} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
+                <span className="truncate">{room.location_description || "Innova Smart Hotel Main Property"}</span>
+              </div>
+              <button
+                onClick={() => { setRouteMode(false); setMapModalOpen(true); }}
+                className="text-[11px] font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline shrink-0"
+              >
+                View Map
+              </button>
+            </div>
           </div>
 
-          {/* INTERACTIVE MAP CONTAINER (~5 Cols) */}
-          <div className="lg:col-span-5 bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl p-4 shadow-sm flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                <MapPin size={14} className="text-[#1F6F5F] dark:text-[#2FA084]" />
-                Location & Directions
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleGetDirections}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
-                >
-                  <Navigation size={12} /> Route
-                </button>
-                <button
-                  onClick={() => { setRouteMode(false); setMapModalOpen(true); }}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-zinc-300 hover:underline"
-                  title="Expand map view"
-                >
-                  <Maximize2 size={12} /> Expand
-                </button>
+          {/* REVIEWS & RATINGS SECTION (~6 Cols) with See More / See Less (up to 2 reviews initially) */}
+          <div className="lg:col-span-6 bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-white/5">
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white">Ratings & Reviews</h2>
+                <div className="flex items-center gap-1.5">
+                  {reviewStats.count > 0 ? (
+                    [1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        size={12}
+                        fill={star <= Math.round(Number(reviewStats.average)) ? "#1F6F5F" : "transparent"}
+                        className={star <= Math.round(Number(reviewStats.average)) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
+                      />
+                    ))
+                  ) : (
+                    <Star size={13} className="text-slate-300 dark:text-zinc-700" />
+                  )}
+                  <span className="text-xs font-bold text-slate-800 dark:text-zinc-100">
+                    {reviewStats.count > 0 ? reviewStats.average : "No ratings"}
+                  </span>
+                  <span className="text-[10px] text-slate-400">({reviewStats.count})</span>
+                </div>
+              </div>
+
+              {/* COMPACT FILTER CHIPS */}
+              <div className="flex flex-wrap gap-1 mb-3">
+                {["All", "5 Star", "4 Star", "3 Star", "2 Star", "1 Star"].map((filter) => {
+                  let label = filter;
+                  if (filter === "All") label = `All (${reviewStats.count})`;
+                  else if (filter.includes("Star")) {
+                    const starNum = parseInt(filter);
+                    label = `${filter} (${reviewStats.countsByStar[starNum] || 0})`;
+                  }
+                  const isSelected = activeFilter === filter;
+
+                  return (
+                    <button
+                      key={filter}
+                      onClick={() => { setActiveFilter(filter); setReviewsExpanded(false); }}
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${
+                        isSelected
+                          ? "border-[#1F6F5F] text-[#1F6F5F] bg-emerald-50/40 dark:bg-[#1F6F5F]/20 dark:text-[#2FA084] dark:border-[#2FA084]"
+                          : "border-slate-200 dark:border-white/10 text-slate-600 dark:text-zinc-300 hover:border-slate-300"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* REVIEWS LIST (Limited to 2 initially) */}
+              <div className="space-y-3 divide-y divide-slate-100 dark:divide-white/5">
+                {displayedReviews.length > 0 ? (
+                  displayedReviews.map((rev) => {
+                    const nameInitial = rev.guestName ? rev.guestName[0].toUpperCase() : "G";
+                    const displayUsername = maskUsername(rev.guestName);
+                    const reviewDate = rev.createdAt
+                      ? new Date(rev.createdAt).toISOString().replace("T", " ").substring(0, 10)
+                      : "2026-04-12";
+                    const currentHelpful = helpfulCounts[rev.id] || { count: 0, active: false };
+
+                    return (
+                      <div key={rev.id} className="pt-2.5 first:pt-0">
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-white/10 flex items-center justify-center shrink-0 text-slate-600 dark:text-zinc-300 text-[10px] font-semibold">
+                            {nameInitial}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-semibold text-slate-800 dark:text-zinc-200">{displayUsername}</span>
+                              <span className="text-[10px] text-slate-400">{reviewDate}</span>
+                            </div>
+
+                            <div className="flex gap-0.5 my-0.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star
+                                  key={s}
+                                  size={10}
+                                  fill={s <= (rev.rating || 5) ? "#1F6F5F" : "transparent"}
+                                  className={s <= (rev.rating || 5) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
+                                />
+                              ))}
+                            </div>
+
+                            <p className="text-[11px] text-slate-600 dark:text-zinc-300 leading-normal mb-1.5">
+                              {rev.comment || "Clean facilities, excellent accommodation experience."}
+                            </p>
+
+                            <button
+                              onClick={() => toggleHelpful(rev.id)}
+                              className={`inline-flex items-center gap-1 text-[10px] transition-colors ${
+                                currentHelpful.active
+                                  ? "text-[#1F6F5F] dark:text-[#2FA084] font-semibold"
+                                  : "text-slate-400 hover:text-slate-600"
+                              }`}
+                            >
+                              <ThumbsUp size={10} />
+                              <span>Helpful {currentHelpful.count > 0 && `(${currentHelpful.count})`}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-6 text-slate-400 text-xs">
+                    No reviews available for this filter.
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Map Preview Box */}
-            <div 
-              onClick={() => { setRouteMode(false); setMapModalOpen(true); }}
-              className="relative flex-1 min-h-[260px] rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 cursor-pointer group bg-slate-100 dark:bg-zinc-900"
-            >
-              <div className="absolute inset-0 pointer-events-none">
-                <NeighborhoodMap
-                  hotels={[{
-                    id: room.id || 1,
-                    name: room.roomName || room.name || "Innova Suite",
-                    lat: room.lat || 14.5995,
-                    lng: room.lng || 120.9842,
-                    address: room.location_description || "Hotel Location",
-                  }]}
-                  landmarks={[]}
-                  hotelCenter={{ lat: room.lat || 14.5995, lng: room.lng || 120.9842 }}
-                  focusedHotelId={room.id}
-                  isDarkMode={false}
-                />
+            {/* SEE MORE / SEE LESS FOR REVIEWS */}
+            {filteredReviews.length > 2 && (
+              <div className="mt-4 pt-2 border-t border-slate-100 dark:border-white/5">
+                <button
+                  type="button"
+                  onClick={() => setReviewsExpanded(!reviewsExpanded)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
+                >
+                  <span>{reviewsExpanded ? "See Less" : `See More (${filteredReviews.length - 2} more)`}</span>
+                  {reviewsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
               </div>
-              
-              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <span className="bg-black/75 text-white text-[11px] font-medium px-3 py-1.5 rounded-md backdrop-blur-sm shadow">
-                  Click to Expand Map & Directions
-                </span>
-              </div>
-            </div>
+            )}
+
           </div>
 
         </div>

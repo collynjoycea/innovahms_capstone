@@ -1,129 +1,136 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import axios from 'axios';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import useStaffSession from '../../../hooks/useStaffSession';
-import { 
-  CheckCircle2, Clock, Star, 
-  ChevronRight, Calendar, Filter, Download 
-} from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
+
+const columns = ['Completed', 'Room', 'Task', 'Staff', 'Status', 'Notes'];
+const exportValues = (item) => [
+  item.completed_at ? new Date(item.completed_at).toLocaleString() : '',
+  item.room_label || '',
+  item.task_type || '',
+  item.staff_name || '',
+  item.status || '',
+  item.notes || '',
+];
 
 const HKHistory = () => {
   const { isDarkMode } = useOutletContext() || { isDarkMode: true };
   const { qs } = useStaffSession();
   const [historyData, setHistoryData] = useState([]);
-  const [stats, setStats] = useState({ completedThisWeek: 0, avgTaskTime: 'N/A', performanceScore: '—' });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    axios.get(`/api/housekeeping/history${qs}`).then(res => {
-      setHistoryData(res.data.history || []);
-      setStats(res.data.stats || {});
-    }).catch(() => {});
+    let active = true;
+    setLoading(true);
+    axios.get(`/api/housekeeping/history${qs}`)
+      .then(res => {
+        if (!active) return;
+        setHistoryData(res.data.history || []);
+        setError('');
+      })
+      .catch(e => {
+        if (active) setError(e.response?.data?.error || 'Could not load task history.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
   }, [qs]);
 
-  const performanceStats = [
-    { label: 'COMPLETED THIS WEEK', value: String(stats.completedThisWeek ?? 0), icon: <CheckCircle2 className="text-emerald-500" size={24} /> },
-    { label: 'AVG TASK TIME',        value: stats.avgTaskTime || 'N/A',           icon: <Clock className="text-purple-500" size={24} /> },
-    { label: 'PERFORMANCE SCORE',   value: stats.performanceScore || '—',         icon: <Star className="text-yellow-500" size={24} /> },
-  ];
+  const downloadCsv = () => {
+    const rows = [columns, ...historyData.map(exportValues)];
+    const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `housekeeping-history-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(16);
+    doc.text('Housekeeping Task History', 14, 16);
+    autoTable(doc, {
+      startY: 22,
+      head: [columns],
+      body: historyData.map(exportValues),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [47, 160, 132] },
+    });
+    doc.save(`housekeeping-history-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
 
   const theme = {
-    bg:        isDarkMode ? 'bg-[#0c0c0e]'   : 'bg-[#f4f4f7]',
-    card:      isDarkMode ? 'bg-[#111111]/90 backdrop-blur-xl border-white/5' : 'bg-white border-zinc-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)]',
-    innerCard: isDarkMode ? 'bg-white/[0.03]' : 'bg-zinc-50',
-    textMain:  isDarkMode ? 'text-white'      : 'text-zinc-900',
-    textSub:   isDarkMode ? 'text-zinc-500'   : 'text-zinc-500',
-    border:    isDarkMode ? 'border-white/5'  : 'border-zinc-200',
-    gold:      '#6FCF97',
-    shadow:    isDarkMode ? 'shadow-[0_20px_50px_rgba(0,0,0,0.5)]' : 'shadow-[0_15px_40px_rgba(0,0,0,0.08)]',
+    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#f4f4f7]',
+    card: isDarkMode ? 'bg-[#111111]/90 backdrop-blur-xl border-white/5' : 'bg-white border-zinc-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)]',
+    textMain: isDarkMode ? 'text-white' : 'text-zinc-900',
+    textSub: isDarkMode ? 'text-zinc-500' : 'text-zinc-500',
+    border: isDarkMode ? 'border-white/5' : 'border-zinc-200',
   };
-  const goldTextClass = 'text-[#6FCF97]';
 
   return (
     <div className={`p-8 min-h-screen transition-all duration-500 ${theme.bg}`}>
-      
-      {/* 1. ADAPTIVE HEADER */}
-      <div className={`flex flex-col md:flex-row justify-between items-end border-b pb-8 ${theme.border} mb-12`}>
+      <div className={`flex flex-col md:flex-row justify-between items-end border-b pb-8 ${theme.border} mb-8`}>
         <div className="text-left">
           <h1 className={`text-3xl font-black uppercase tracking-tighter ${theme.textMain}`}>
-            Task <span className={goldTextClass}>History</span>
+            Task <span className="text-[#6FCF97]">History</span>
           </h1>
           <p className={`text-[10px] font-bold ${theme.textSub} uppercase tracking-[0.3em] mt-2`}>
-            Operations Portal • Performance & Cleaning Logs
+            Completed housekeeping assignments
           </p>
         </div>
-        <div className="flex gap-4 mt-6 md:mt-0">
-          <button className={`p-3 rounded-xl border ${theme.border} ${theme.card} ${theme.textMain} hover:border-[#6FCF97]/50 transition-all`}>
-            <Download size={18} />
+        <div className="flex gap-3 mt-6 md:mt-0">
+          <button type="button" onClick={downloadCsv} disabled={!historyData.length}
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl border ${theme.border} ${theme.card} ${theme.textMain} text-[10px] font-black uppercase tracking-widest hover:border-[#6FCF97]/50 disabled:opacity-40`}>
+            <Download size={16} /> CSV
           </button>
-          <button className={`p-3 rounded-xl border ${theme.border} ${theme.card} ${theme.textMain} hover:border-[#6FCF97]/50 transition-all`}>
-            <Calendar size={18} />
+          <button type="button" onClick={downloadPdf} disabled={!historyData.length}
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl border ${theme.border} ${theme.card} ${theme.textMain} text-[10px] font-black uppercase tracking-widest hover:border-[#6FCF97]/50 disabled:opacity-40`}>
+            <FileText size={16} /> PDF
           </button>
         </div>
       </div>
 
-      {/* 2. STATS CARDS GRID (GOLDEN ACCENTS) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-        {performanceStats.map((stat, i) => (
-          <div key={i} className={`p-8 rounded-[2.5rem] border ${theme.border} ${theme.card} flex items-center justify-between shadow-xl shadow-black/10 transition-all hover:scale-[1.02]`}>
-            <div className="text-left space-y-1">
-              <p className={`text-[10px] font-black uppercase tracking-widest ${theme.textSub}`}>{stat.label}</p>
-              <h3 className={`text-4xl font-black tracking-tight ${theme.textMain}`}>{stat.value}</h3>
-            </div>
-            <div className={`p-5 rounded-2xl ${isDarkMode ? 'bg-white/5' : 'bg-zinc-100'} border ${theme.border}`}>
-              {stat.icon}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 3. COMPLETED TASKS LIST */}
-      <div className={`${theme.card} border rounded-[3rem] p-10 ${theme.shadow} overflow-hidden`}>
-        <div className="flex items-center gap-4 mb-10">
-          <div className={`p-4 rounded-2xl ${isDarkMode ? 'bg-[#6FCF97]/10' : 'bg-[#6FCF97]/5'} text-[#6FCF97] border border-[#6FCF97]/20`}>
-            <Clock size={24} />
-          </div>
-          <div className="text-left">
-            <h2 className={`text-xl font-black uppercase tracking-widest ${theme.textMain}`}>Completed Tasks</h2>
-            <p className={`text-[10px] font-bold ${theme.textSub} uppercase tracking-wider`}>Finished assignments and performance notes</p>
-          </div>
+      <div className={`${theme.card} border rounded-3xl overflow-hidden`}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className={`text-[9px] font-black uppercase tracking-widest ${theme.textSub} border-b ${theme.border}`}>
+                {columns.map(column => <th key={column} className="px-6 py-5">{column}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {loading ? (
+                <tr><td colSpan={columns.length} className={`px-6 py-12 text-center text-sm ${theme.textSub}`}>Loading history...</td></tr>
+              ) : error ? (
+                <tr><td colSpan={columns.length} role="alert" className="px-6 py-12 text-center text-sm text-red-500">{error}</td></tr>
+              ) : historyData.length === 0 ? (
+                <tr><td colSpan={columns.length} className={`px-6 py-12 text-center text-sm ${theme.textSub}`}>No completed tasks yet.</td></tr>
+              ) : historyData.map(item => (
+                <tr key={item.id} className="hover:bg-white/[0.02]">
+                  <td className={`px-6 py-4 text-xs ${theme.textSub}`}>{exportValues(item)[0] || '—'}</td>
+                  <td className={`px-6 py-4 text-xs font-black ${theme.textMain}`}>{item.room_label || '—'}</td>
+                  <td className={`px-6 py-4 text-xs font-bold ${theme.textMain}`}>{item.task_type || '—'}</td>
+                  <td className={`px-6 py-4 text-xs ${theme.textSub}`}>{item.staff_name || '—'}</td>
+                  <td className="px-6 py-4">
+                    <span className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-500">
+                      {item.status || 'Completed'}
+                    </span>
+                  </td>
+                  <td className={`px-6 py-4 text-xs ${theme.textSub}`}>{item.notes || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-
-        <div className="space-y-6">
-          {historyData.length === 0 ? (
-            <p className={`text-center py-12 text-[11px] ${theme.textSub}`}>No completed tasks yet.</p>
-          ) : historyData.map((item, i) => (
-            <div 
-              key={i} 
-              className={`group flex items-center justify-between p-6 rounded-3xl border ${theme.border} ${theme.innerCard} hover:border-[#6FCF97]/40 transition-all duration-300 cursor-pointer text-left relative overflow-hidden`}
-            >
-              <div className="flex items-center gap-6 relative z-10">
-                <div className={`w-14 h-14 rounded-2xl ${isDarkMode ? 'bg-emerald-500/10' : 'bg-emerald-50'} flex items-center justify-center border ${isDarkMode ? 'border-emerald-500/20' : 'border-emerald-100'}`}>
-                  <CheckCircle2 size={24} className="text-emerald-500" />
-                </div>
-                <div>
-                  <h4 className={`text-[15px] font-black uppercase tracking-tight ${theme.textMain}`}>
-                    {item.task_type} — <span className={goldTextClass}>{item.room_label}</span>
-                  </h4>
-                  <p className={`text-[12px] font-medium ${theme.textSub} mt-1 leading-relaxed`}>
-                    {item.staff_name ? `Assigned to ${item.staff_name} • ` : ''}{item.completed_at ? new Date(item.completed_at).toLocaleString() : ''}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-5 relative z-10">
-                <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${theme.border} text-emerald-500 bg-emerald-500/5`}>
-                  {item.status}
-                </span>
-                <ChevronRight size={20} className={`${theme.textSub} group-hover:translate-x-1 group-hover:text-[#6FCF97] transition-all`} />
-              </div>
-              <div className={`absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 rounded-tr-3xl opacity-0 group-hover:opacity-100 transition-opacity border-[#6FCF97]`} />
-            </div>
-          ))}
-        </div>
-
-        <button className={`w-full mt-10 py-5 rounded-2xl border-2 border-dashed ${theme.border} ${theme.card} ${theme.textSub} font-black uppercase tracking-widest text-[11px] hover:text-[#6FCF97] hover:border-[#6FCF97]/50 transition-all`}>
-          Load Older Records
-        </button>
       </div>
+      <p className={`mt-4 text-right text-[10px] font-bold ${theme.textSub}`}>{historyData.length} records</p>
     </div>
   );
 };

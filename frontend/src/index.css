@@ -17,6 +17,18 @@ html, body {
   min-height: 100%;
 }
 
+.dark .owner-portal [class~="bg-white"],
+.dark .owner-portal [class~="bg-slate-50"],
+.dark .owner-portal [class~="bg-gray-50"],
+.dark .owner-portal [class~="bg-zinc-50"],
+.dark .owner-portal [class~="bg-[#fcfcfc]"],
+.dark .inventory-portal [class~="bg-white"],
+.dark .inventory-portal [class~="bg-slate-50"],
+.dark .inventory-portal [class~="bg-gray-50"],
+.dark .inventory-portal [class~="bg-zinc-50"] {
+  background-color: #111827;
+}
+
 /* Optional: Subtle animation para sa card pagbukas */
 @keyframes fadeInZoom {
   from {

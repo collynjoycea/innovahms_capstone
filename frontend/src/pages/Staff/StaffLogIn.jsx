@@ -34,7 +34,7 @@ const StaffLogin = () => {
 
     if (key === "hotelCode") {
       if (!value.trim()) err = "Hotel verification code is required.";
-      else if (!isValidHotelCode(value)) err = "Hotel code must follow the INNOVAHMS-123 format.";
+      else if (!isValidHotelCode(value)) err = "Enter a valid hotel code, such as INNOVAHMS-123 or DEMO-OWNER-01.";
     }
 
     return err;
@@ -80,7 +80,7 @@ const StaffLogin = () => {
       setFieldErrors((prev) => ({ ...prev, hotelCode: null }));
       setError("");
     } else {
-      setFieldErrors((prev) => ({ ...prev, hotelCode: "Invalid format (e.g. INNOVAHMS-123)." }));
+      setFieldErrors((prev) => ({ ...prev, hotelCode: "Use INNOVAHMS-123 or DEMO-OWNER-01 format." }));
       setIsVerified(false);
     }
   };

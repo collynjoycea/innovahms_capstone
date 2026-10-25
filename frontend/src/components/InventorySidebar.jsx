@@ -10,7 +10,7 @@ import {
   LogOut, 
   Clock,
   AlertCircle,
-  ArrowLeftRight
+  ArrowLeftRight, Truck
 } from 'lucide-react';
 
 const InventorySidebar = ({ isDarkMode }) => {
@@ -43,6 +43,7 @@ const InventorySidebar = ({ isDarkMode }) => {
       title: "STOCK CONTROL",
       items: [
         { name: "Inventory List", path: "/inventory/stock", icon: <ClipboardList /> },
+        { name: "Suppliers & POs", path: "/inventory/suppliers", icon: <Truck /> },
         { 
           name: "Stock In / Out", 
           path: "/inventory/movements", 

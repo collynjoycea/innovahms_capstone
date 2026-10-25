@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, Marker, Popup, TileLayer, Tooltip, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { AlertTriangle, Locate, Search, X, MapPin, Navigation } from "lucide-react";
@@ -19,6 +19,22 @@ const hotelIcon = new L.Icon({
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   className: "hotel-marker",
+});
+
+const escapeHtml = (value) =>
+  String(value || "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]);
+
+const createHotelImageIcon = (image) => new L.DivIcon({
+  html: `<div style="width:54px;height:54px;border:3px solid white;border-radius:50%;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.45);background:#e5e7eb"><img src="${escapeHtml(image)}" alt="" style="width:100%;height:100%;object-fit:cover"></div>`,
+  iconSize: [54, 54],
+  iconAnchor: [27, 27],
+  className: "hotel-image-marker",
 });
 
 const userIcon = new L.DivIcon({
@@ -44,6 +60,23 @@ function FlyTo({ center, zoom = 14 }) {
     if (!center) return;
     map.flyTo([center.lat, center.lng], zoom, { duration: 0.9 });
   }, [center, zoom, map]);
+  return null;
+}
+
+function FitHotelMarkers({ hotels }) {
+  const map = useMap();
+  useEffect(() => {
+    if (hotels.length === 0) return;
+
+    const bounds = L.latLngBounds(hotels.map((hotel) => [hotel.lat, hotel.lng]));
+    const padding = [48, 48];
+    const fitZoom = hotels.length === 1
+      ? 15
+      : Math.min(map.getBoundsZoom(bounds, false, padding), 15);
+
+    map.setMinZoom(fitZoom);
+    map.fitBounds(bounds, { padding, maxZoom: fitZoom });
+  }, [hotels, map]);
   return null;
 }
 
@@ -74,6 +107,15 @@ export default function NeighborhoodMap({
   searchScope = "",
   isDarkMode = false,
   className = "",
+  maxBounds,
+  minZoom,
+  hotelLocationsOnly = false,
+  showHotelAddressLabels = false,
+  showFallbackMarker = true,
+  fitHotelMarkers = false,
+  showHotelImageMarkers = false,
+  onHotelClick,
+  mapHeight = 480,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -246,7 +288,7 @@ export default function NeighborhoodMap({
   return (
     <div className={`flex flex-col gap-3 ${className}`}>
       {/* ── Controls bar ─────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row gap-2">
+      {!hotelLocationsOnly && <div className="flex flex-col sm:flex-row gap-2">
         {/* Search input */}
         <div className="relative flex-1">
           <Search
@@ -327,15 +369,15 @@ export default function NeighborhoodMap({
           <Locate size={15} className={locating ? "animate-spin" : ""} />
           {locating ? "Locating…" : "My Location"}
         </button>
-      </div>
+      </div>}
 
       {/* Location error */}
-      {locError && (
+      {!hotelLocationsOnly && locError && (
         <p className="text-xs font-semibold text-red-500 px-1">{locError}</p>
       )}
 
       {/* Nearest hotel banner */}
-      {nearestHotel && (
+      {!hotelLocationsOnly && nearestHotel && (
         <div
           className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-sm ${
             th
@@ -365,10 +407,13 @@ export default function NeighborhoodMap({
       )}
 
       {/* ── Map ──────────────────────────────────────────────────────────── */}
-      <div className={`w-full rounded-2xl overflow-hidden border shadow-xl ${th ? "border-white/10" : "border-gray-200"}`} style={{ height: 480 }}>
+      <div className={`w-full rounded-2xl overflow-hidden border shadow-xl ${th ? "border-white/10" : "border-gray-200"}`} style={{ height: mapHeight }}>
         <MapContainer
           center={[mapCenter.lat, mapCenter.lng]}
           zoom={13}
+          minZoom={minZoom}
+          maxBounds={maxBounds}
+          maxBoundsViscosity={maxBounds ? 1 : undefined}
           className="h-full w-full"
           style={{ zIndex: 0 }}
         >
@@ -377,6 +422,7 @@ export default function NeighborhoodMap({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
+          {fitHotelMarkers && <FitHotelMarkers hotels={hotels} />}
           {flyTarget && <FlyTo center={flyTarget} zoom={flyZoom} />}
 
           {/* Hotel markers */}
@@ -384,7 +430,8 @@ export default function NeighborhoodMap({
             <Marker
               key={h.id}
               position={[h.lat, h.lng]}
-              icon={hotelIcon}
+              icon={showHotelImageMarkers && h.image ? createHotelImageIcon(h.image) : hotelIcon}
+              eventHandlers={onHotelClick ? { click: () => onHotelClick(h) } : undefined}
               ref={(marker) => {
                 if (marker) {
                   markerRefs.current[String(h.id)] = marker;
@@ -393,22 +440,30 @@ export default function NeighborhoodMap({
                 }
               }}
             >
-              <Popup>
-                <b className="text-sm">{h.name}</b>
-                {h.address && <div className="text-xs text-gray-500 mt-1">{h.address}</div>}
-              </Popup>
+              {!onHotelClick && (
+                <Popup>
+                  <b className="text-sm">{h.name}</b>
+                  {h.address && <div className="text-xs text-gray-500 mt-1">{h.address}</div>}
+                </Popup>
+              )}
+              {showHotelAddressLabels && h.address && (
+                <Tooltip direction="top" offset={[0, -24]} opacity={0.95}>
+                  <span className="block max-w-64 font-semibold">{h.name}</span>
+                  <span className="block max-w-64 text-xs">{h.address}</span>
+                </Tooltip>
+              )}
             </Marker>
           ))}
 
           {/* Fallback center marker when no hotels array provided */}
-          {hotels.length === 0 && (
+          {showFallbackMarker && hotels.length === 0 && (
             <Marker position={[hotelCenter.lat, hotelCenter.lng]} icon={hotelIcon}>
               <Popup><b>Hotel Location</b></Popup>
             </Marker>
           )}
 
           {/* Landmark markers */}
-          {landmarks.map((lm) => (
+          {!hotelLocationsOnly && landmarks.map((lm) => (
             <Marker key={lm.id} position={[lm.lat, lm.lng]}>
               <Popup>
                 <b className="text-sm">{lm.name}</b>
@@ -418,7 +473,7 @@ export default function NeighborhoodMap({
           ))}
 
           {/* User location marker */}
-          {userLocation && (
+          {!hotelLocationsOnly && userLocation && (
             <Marker position={[userLocation.lat, userLocation.lng]} icon={userIcon}>
               <Popup><b>You are here</b></Popup>
             </Marker>
@@ -426,9 +481,9 @@ export default function NeighborhoodMap({
         </MapContainer>
       </div>
 
-      <p className={`text-[10px] font-bold uppercase tracking-widest text-center ${th ? "text-gray-600" : "text-gray-400"}`}>
+      {!hotelLocationsOnly && <p className={`text-[10px] font-bold uppercase tracking-widest text-center ${th ? "text-gray-600" : "text-gray-400"}`}>
         Powered by OpenStreetMap · Nominatim Search
-      </p>
+      </p>}
     </div>
   );
 }

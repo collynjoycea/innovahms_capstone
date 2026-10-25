@@ -19,6 +19,7 @@ const Inventory = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [inventoryData, setInventoryData] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [overview, setOverview] = useState({ totalSkus: 0, lowStock: 0, consumRate: 0, pending: 0 });
   const [dashboard, setDashboard] = useState({ stats: {} });
 
@@ -29,7 +30,7 @@ const Inventory = () => {
     item_name: "",
     sku_id: "",
     category: "",
-    supplier: "",
+    supplier_id: "",
     stock_level: "",
     max_stock: "",
     reorder_point: "10",
@@ -45,21 +46,24 @@ const Inventory = () => {
     setLoading(true);
     setError("");
     try {
-      const [overviewRes, dashboardRes] = await Promise.all([
+      const [overviewRes, dashboardRes, suppliersRes] = await Promise.all([
         fetch(`/api/inventory?owner_id=${ownerId}`),
         fetch(`/api/inventory/dashboard?hotel_id=${hotelId}`),
+        fetch(`/api/inventory/suppliers?hotel_id=${hotelId}`),
       ]);
 
       const overviewData = await overviewRes.json().catch(() => ({}));
       const dashboardData = await dashboardRes.json().catch(() => ({}));
+      const suppliersData = await suppliersRes.json().catch(() => ({}));
 
-      if (!overviewRes.ok || !dashboardRes.ok) {
-        throw new Error(overviewData.error || dashboardData.error || "Failed to load inventory data.");
+      if (!overviewRes.ok || !dashboardRes.ok || !suppliersRes.ok) {
+        throw new Error(overviewData.error || dashboardData.error || suppliersData.error || "Failed to load inventory data.");
       }
 
       setInventoryData(Array.isArray(overviewData.items) ? overviewData.items : []);
       setOverview(overviewData.summary || { totalSkus: 0, lowStock: 0, consumRate: 0, pending: 0 });
       setDashboard(dashboardData || { stats: {} });
+      setSuppliers(suppliersData.suppliers || []);
     } catch (requestError) {
       setInventoryData([]);
       setError(requestError.message || "Unable to load inventory data.");
@@ -81,16 +85,18 @@ const Inventory = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/inventory/add", {
+      const response = await fetch("/api/inventory/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
-          owner_id: ownerId,
-          hotel_id: hotelId,
-          stock_level: Number(formData.stock_level || 0),
-          max_stock: Number(formData.max_stock || 0),
-          reorder_point: Number(formData.reorder_point || 0),
+          hotelId,
+          name: formData.item_name,
+          skuId: formData.sku_id,
+          category: formData.category || "General",
+          supplierId: formData.supplier_id ? Number(formData.supplier_id) : null,
+          stockLevel: Number(formData.stock_level || 0),
+          maxStock: Number(formData.max_stock || 0),
+          reorderPoint: Number(formData.reorder_point || 0),
         }),
       });
 
@@ -105,7 +111,7 @@ const Inventory = () => {
         item_name: "",
         sku_id: "",
         category: "",
-        supplier: "",
+        supplier_id: "",
         stock_level: "",
         max_stock: "",
         reorder_point: "10",
@@ -123,7 +129,7 @@ const Inventory = () => {
     if (!window.confirm("Sigurado ka bang gusto mong tanggalin ang item na ito?")) return;
 
     try {
-      const response = await fetch(`/api/inventory/${itemId}?owner_id=${ownerId}`, {
+      const response = await fetch(`/api/inventory/items/${itemId}?hotel_id=${encodeURIComponent(hotelId)}`, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -340,14 +346,17 @@ const Inventory = () => {
 
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Supplier</label>
-                <input
-                  type="text"
-                  name="supplier"
-                  value={formData.supplier}
+                <select
+                  name="supplier_id"
+                  value={formData.supplier_id}
                   onChange={handleInputChange}
-                  placeholder="e.g. Hotel Linens Corp"
                   className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100 outline-none"
-                />
+                >
+                  <option value="">No supplier linked</option>
+                  {suppliers.filter((supplier) => supplier.is_active).map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

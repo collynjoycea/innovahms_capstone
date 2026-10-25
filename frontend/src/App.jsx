@@ -119,6 +119,8 @@ import CustomerReviews from "./customer/CustomerReviews";
 import InnovaSuites from "./customer/InnovaSuites";
 import Rewards from "./pages/customer/Rewards";
 import VisionSuites from "./pages/customer/VisionSuites";
+import TermsOfService from "./pages/TermsOfService";
+import SupplierPurchaseOrders from "./pages/SupplierPurchaseOrders";
 
 // --- PROTECTED ROUTE COMPONENTS ---
 const ProtectedAdmin = ({ children }) => {
@@ -164,7 +166,8 @@ function App() {
           <Route path="/about-us" element={<Navigate to="/about" replace />} />
           <Route path="/features" element={<Features />} />
           <Route path="/privileges" element={<Privileges />} />
-          <Route path="/terms-of-service" element={<Navigate to="/features" replace />} />
+          <Route path="/terms-of-service" element={<TermsOfService />} />
+          <Route path="/privacy-policy" element={<TermsOfService />} />
           <Route path="/facilities" element={<Facilities />} />
           <Route path="/hoteldetail/:id" element={<HotelDetail />} />
           <Route path="/roomdetail/:id" element={<RoomDetail />} />
@@ -243,6 +246,7 @@ function App() {
           <Route path="customers" element={<OwnerCustomers />} />
           <Route path="housekeeping" element={<OwnerHousekeeping />} />
           <Route path="inventory" element={<OwnerInventory />} />
+          <Route path="suppliers" element={<SupplierPurchaseOrders audience="owner" />} />
           <Route path="staff" element={<OwnerStaff />} />
           <Route path="reports" element={<OwnerReports />} />
           <Route path="reviews" element={<OwnerReviews />} />
@@ -315,6 +319,7 @@ function App() {
           <Route path="simulation" element={<InventorySimulation />} />
           <Route path="history" element={<HistoryLogs />} />
           <Route path="settings" element={<InventorySettings />} />
+          <Route path="suppliers" element={<SupplierPurchaseOrders audience="staff" />} />
         </Route>
 
         {/* GROUP 6: SUPER ADMIN DASHBOARD */}

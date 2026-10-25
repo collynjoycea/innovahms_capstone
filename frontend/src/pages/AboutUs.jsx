@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Sparkles, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Sparkles, ArrowRight } from 'lucide-react';
 import NeighborhoodMap from '../components/NeighborhoodMap';
+import { CALOOCAN_HOTELS } from '../data/caloocanHotels';
+import resolveImg from '../utils/resolveImg';
 
 /* =========================================================
    ABOUT US CONTENT
@@ -87,6 +90,11 @@ const ABOUT_LOCATION = {
   lng: 121.031389,
 };
 
+const CALOOCAN_MAP_BOUNDS = [
+  [14.62, 120.94],
+  [14.79, 121.09],
+];
+
 
 /* =========================================================
    STATISTICS
@@ -129,9 +137,8 @@ const compact = (value) => {
 
 export default function AboutUs() {
 
-  const [hotelPins, setHotelPins] = useState([
-    ABOUT_LOCATION,
-  ]);
+  const navigate = useNavigate();
+  const [hotelPins, setHotelPins] = useState(CALOOCAN_HOTELS);
 
 
   /* =========================================================
@@ -210,15 +217,23 @@ export default function AboutUs() {
 
       try {
 
-        const res = await fetch('/api/about');
+        const [res, homeHotelsRes] = await Promise.all([
+          fetch('/api/about'),
+          fetch('/api/home/hotels'),
+        ]);
 
         if (!res.ok) {
-          return;
+          throw new Error(`Unable to load hotel locations (${res.status}).`);
         }
-
 
         const payload =
           await res.json().catch(() => ({}));
+        const homeHotelsPayload = homeHotelsRes.ok
+          ? await homeHotelsRes.json().catch(() => ({}))
+          : {};
+        const homeHotels = Array.isArray(homeHotelsPayload.hotels)
+          ? homeHotelsPayload.hotels
+          : [];
 
 
         const pins =
@@ -227,13 +242,22 @@ export default function AboutUs() {
           )
             ? payload.featuredHotels
                 .filter(
-                  (hotel) =>
-                    Number.isFinite(
-                      Number(hotel.lat)
-                    ) &&
-                    Number.isFinite(
-                      Number(hotel.lng)
-                    )
+                  (hotel) => {
+                    const lat = Number(hotel.lat);
+                    const lng = Number(hotel.lng);
+                    const address = String(hotel.address || '').trim();
+
+                    return (
+                      address.length > 0 &&
+                      address.toLowerCase().includes('caloocan') &&
+                      Number.isFinite(lat) &&
+                      Number.isFinite(lng) &&
+                      lat >= CALOOCAN_MAP_BOUNDS[0][0] &&
+                      lat <= CALOOCAN_MAP_BOUNDS[1][0] &&
+                      lng >= CALOOCAN_MAP_BOUNDS[0][1] &&
+                      lng <= CALOOCAN_MAP_BOUNDS[1][1]
+                    );
+                  }
                 )
                 .map((hotel) => ({
                   ...hotel,
@@ -243,11 +267,31 @@ export default function AboutUs() {
             : [];
 
 
-        setHotelPins(
-          pins.length
-            ? pins
-            : [ABOUT_LOCATION]
-        );
+        const pinsByName = new Map(pins.map((hotel) => [
+          hotel.name.trim().toLowerCase(),
+          {
+            ...hotel,
+            image: resolveImg(homeHotels.find((item) =>
+              item.name?.trim().toLowerCase() === hotel.name.trim().toLowerCase()
+            )?.image || '/images/signup-img.png'),
+          },
+        ]));
+        CALOOCAN_HOTELS.forEach((hotel) => {
+          const name = hotel.name.toLowerCase();
+          const apiHotel = homeHotels.find(
+            (item) => item.name?.trim().toLowerCase() === name
+          );
+          const aboutHotel = pinsByName.get(name);
+          pinsByName.set(name, {
+            ...apiHotel,
+            ...aboutHotel,
+            ...hotel,
+            id: apiHotel?.id ?? aboutHotel?.id ?? hotel.id,
+            image: resolveImg(apiHotel?.image || aboutHotel?.image || hotel.image),
+          });
+        });
+
+        setHotelPins(Array.from(pinsByName.values()));
 
 
       } catch (error) {
@@ -257,9 +301,7 @@ export default function AboutUs() {
           error
         );
 
-        setHotelPins([
-          ABOUT_LOCATION,
-        ]);
+        setHotelPins(CALOOCAN_HOTELS);
 
       }
 
@@ -695,7 +737,7 @@ export default function AboutUs() {
 
             <div
               className="
-                h-[420px]
+                h-[480px]
                 rounded-2xl
                 overflow-hidden
                 border
@@ -717,74 +759,18 @@ export default function AboutUs() {
                     hotelPins[0]?.lng ||
                     ABOUT_LOCATION.lng,
                 }}
-                focusedHotelId={
-                  hotelPins[0]?.id ||
-                  ABOUT_LOCATION.id
-                }
-                searchScope="Caloocan, Philippines"
+                focusedHotelId={null}
+                maxBounds={CALOOCAN_MAP_BOUNDS}
+                minZoom={10}
+                hotelLocationsOnly
+                showHotelAddressLabels
+                showFallbackMarker={false}
+                fitHotelMarkers
+                showHotelImageMarkers
+                onHotelClick={(hotel) => navigate(`/hoteldetail/${hotel.id}`)}
+                mapHeight={480}
                 isDarkMode={isDark}
               />
-
-
-              {/* LOCATION BADGE */}
-
-              <div
-                className="
-                  absolute
-                  top-5
-                  left-5
-                  bg-[#080d0b]/90
-                  backdrop-blur-md
-                  p-4
-                  rounded-xl
-                  border
-                  border-[#243B33]
-                  max-w-xs
-                  shadow-lg
-                "
-              >
-
-                <div
-                  className="
-                    flex
-                    items-center
-                    gap-2
-                    mb-1
-                  "
-                >
-
-                  <MapPin
-                    size={16}
-                    className="
-                      text-[#6FCF97]
-                    "
-                  />
-
-                  <h4
-                    className="
-                      font-medium
-                      text-sm
-                      text-white
-                    "
-                  >
-                    {ABOUT_LOCATION.name}
-                  </h4>
-
-                </div>
-
-
-                <p
-                  className="
-                    text-xs
-                    text-gray-300
-                    leading-normal
-                    pl-6
-                  "
-                >
-                  {ABOUT_LOCATION.address}
-                </p>
-
-              </div>
 
             </div>
 

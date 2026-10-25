@@ -30,7 +30,7 @@ const InventoryLayout = () => {
 
   return (
     // 4. Dynamic background layout - transition duration adjusted para swabe ang pagpalit
-    <div className={`flex h-screen overflow-hidden transition-colors duration-300 
+    <div className={`inventory-portal flex h-screen overflow-hidden transition-colors duration-300
       ${isDarkMode ? 'bg-[#050505]' : 'bg-[#f8f9fa]'}`}>
       
       {/* 5. Sidebar */}

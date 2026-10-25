@@ -78,30 +78,13 @@ const Rooms = () => {
     return matchNumber && matchType && matchStatus && matchPrice;
   });
 
-  const generateNextRoomNumber = (existingRooms) => {
-    if (!existingRooms || existingRooms.length === 0) return "101";
-    const numericNumbers = existingRooms
-      .map(r => parseInt(r.roomNumber, 10))
-      .filter(n => !isNaN(n));
-
-    if (numericNumbers.length > 0) {
-      const maxNum = Math.max(...numericNumbers);
-      return String(maxNum + 1);
-    }
-    return String(existingRooms.length + 1);
-  };
-
   const openAddModal = () => {
     setIsEditing(false);
     setFieldErrors({});
     setTouchedFields({});
     setErrorMessage('');
     
-    const nextRoomNum = generateNextRoomNumber(rooms);
-    setRoomData({
-      ...initialRoomData,
-      roomNumber: nextRoomNum
-    });
+    setRoomData(initialRoomData);
     setShowModal(true);
   };
 
@@ -452,7 +435,7 @@ const Rooms = () => {
                     {isEditing ? 'Update Room Information' : 'New Room Registration'}
                   </h2>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {isEditing ? `Modifying settings for Room ${roomData.roomNumber}` : 'Room Number is auto-incremented based on existing inventory.'}
+                    {isEditing ? `Modifying settings for Room ${roomData.roomNumber}` : 'Enter a unique room number for this room.'}
                   </p>
                 </div>
                 <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white"><X size={20} /></button>
@@ -470,34 +453,19 @@ const Rooms = () => {
               
               {/* Left Column: Basic Details */}
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                    <div>
-                        <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Room # <span className="text-red-500">*</span></label>
-                        <input 
-                          type="text" 
-                          value={roomData.roomNumber} 
-                          readOnly={!isEditing} 
-                          title={!isEditing ? "Auto-generated sequence number" : ""}
-                          className={`w-full rounded border p-2.5 outline-none font-mono ${
-                            !isEditing 
-                              ? "bg-slate-100 text-slate-500 border-slate-300 cursor-not-allowed dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400" 
-                              : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
-                          }`}
-                          onChange={e => updateField('roomNumber', e.target.value)} 
-                          onBlur={() => handleBlur('roomNumber')}
-                        />
-                        {!isEditing && <span className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-0.5 block">Auto-counted</span>}
-                    </div>
-                    <div>
-                        <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Room Name</label>
-                        <input 
-                          type="text" 
-                          value={roomData.roomName} 
-                          placeholder="e.g. Premium Room without window" 
-                          className="w-full rounded border border-slate-300 p-2.5 outline-none dark:border-slate-700 dark:bg-slate-800 dark:placeholder:text-slate-500" 
-                          onChange={e => updateField('roomName', e.target.value)} 
-                        />
-                    </div>
+                <div>
+                    <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Room # <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={roomData.roomNumber}
+                      placeholder="e.g. 101"
+                      className="w-full rounded border border-slate-300 p-2.5 font-mono outline-none dark:border-slate-700 dark:bg-slate-800"
+                      onChange={e => updateField('roomNumber', e.target.value)}
+                      onBlur={() => handleBlur('roomNumber')}
+                    />
+                    <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-slate-400">
+                      Enter floor number + room number (e.g. 101 = Floor 1, Room 01).
+                    </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

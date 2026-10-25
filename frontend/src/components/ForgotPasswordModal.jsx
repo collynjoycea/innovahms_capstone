@@ -52,7 +52,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
       else if (!isValidEmail(value)) err = "Enter a valid email address.";
     } else if (key === "hotelCode") {
       if (!value.trim()) err = "Hotel code is required.";
-      else if (!isValidHotelCode(value)) err = "Must strictly follow format: INNOVAHMS-123.";
+      else if (!isValidHotelCode(value)) err = "Use a valid hotel code, such as INNOVAHMS-123 or DEMO-OWNER-01.";
     } else if (key === "otp") {
       if (!value.trim()) err = "OTP code is required.";
       else if (!/^\d{6}$/.test(value)) err = "OTP must be exactly 6 digits.";
@@ -291,7 +291,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, userType, title, initialEmail = 
                       ? "border-red-500 bg-red-50/20 text-red-900 dark:text-red-200"
                       : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
                   }`}
-                  placeholder="INNOVAHMS-1"
+                  placeholder="INNOVAHMS-1 or DEMO-OWNER-01"
                 />
                 {touchedFields.hotelCode && fieldErrors.hotelCode && (
                   <span className="text-[11px] text-red-600 dark:text-red-400 mt-1 block font-medium">{fieldErrors.hotelCode}</span>

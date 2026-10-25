@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
   Briefcase,
-  Building2,
   ChevronDown,
   Gift,
   LayoutDashboard,
@@ -12,10 +11,8 @@ import {
   Moon,
   Search,
   Settings,
-  ShieldCheck,
   Sun,
   User,
-  Users,
   X,
 } from "lucide-react";
 

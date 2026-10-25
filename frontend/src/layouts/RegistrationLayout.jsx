@@ -26,7 +26,6 @@ export default function RegistrationLayout() {
 
   const toggleMenu = (menu) => setOpenMenu((current) => current === menu ? null : menu);
   const closeMenu = () => setOpenMenu(null);
-
   useEffect(() => {
     const handleOutsideClick = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) closeMenu();
@@ -67,21 +66,23 @@ export default function RegistrationLayout() {
       <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3 lg:px-8">
           <div className="flex items-center gap-4">
-            <Link to="/hotelier" className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
-              INNOVA-<span className="text-emerald-700 dark:text-emerald-500">HMS</span>
+            <Link to="/" className="min-w-0 flex-shrink-0">
+              <img src="/images/logo.png" alt="Innova HMS" className="h-12 w-auto sm:h-14" />
             </Link>
-            <Link
-              to="/hotelier"
-              className="border-l border-slate-300 pl-4 text-xs font-semibold uppercase text-slate-500 transition-colors hover:text-emerald-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-emerald-400"
-            >
-              Home
-            </Link>
-            <Link
-              to="/hotelier#plans"
-              className="border-l border-slate-300 pl-4 text-xs font-semibold uppercase text-slate-500 transition-colors hover:text-emerald-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-emerald-400"
-            >
-              Subscription
-            </Link>
+            <nav aria-label="Hotelier navigation" className="flex items-center gap-4">
+              <Link
+                to="/"
+                className="border-l border-slate-300 pl-4 text-xs font-semibold uppercase text-slate-500 transition-colors hover:text-emerald-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-emerald-400"
+              >
+                Home
+              </Link>
+              <Link
+                to="/hotelier#plans"
+                className="border-l border-slate-300 pl-4 text-xs font-semibold uppercase text-slate-500 transition-colors hover:text-emerald-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-emerald-400"
+              >
+                Subscription
+              </Link>
+            </nav>
           </div>
           <nav ref={menuRef} aria-label="Registration account links" className="flex shrink-0 items-center gap-2">
             {[

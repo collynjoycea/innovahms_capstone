@@ -69,6 +69,15 @@ export default function CustomerBookings() {
   const [bookings, setBookings] = useState([]);
   const [roomLookup, setRoomLookup] = useState({});
   const [payingBookingId, setPayingBookingId] = useState(null);
+  const [editingBookingId, setEditingBookingId] = useState(null);
+  const [editDates, setEditDates] = useState({
+    checkInDate: "",
+    checkOutDate: "",
+    roomId: "",
+    adults: "1",
+    children: "0",
+  });
+  const [savingDates, setSavingDates] = useState(false);
   const [bookingMessage, setBookingMessage] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const [reviews, setReviews] = useState([]);
@@ -215,6 +224,45 @@ export default function CustomerBookings() {
     }
   };
 
+  const handleModifyDates = async (booking) => {
+    if (!booking.canModify || !user?.id) return;
+    if (!editDates.checkInDate || !editDates.checkOutDate || editDates.checkOutDate <= editDates.checkInDate || !editDates.roomId || Number(editDates.adults) < 1 || Number(editDates.children) < 0) {
+      setBookingMessage((prev) => ({ ...prev, [booking.bookingId]: "Choose valid dates, a room, and a valid guest count." }));
+      return;
+    }
+    const selectedRoom = roomLookup[String(editDates.roomId)];
+    const confirmation = `Confirm this booking change?\nDates: ${editDates.checkInDate} through ${editDates.checkOutDate}\nRoom: ${selectedRoom?.roomName || selectedRoom?.roomType || "Selected room"}\nGuests: ${editDates.adults} adult(s), ${editDates.children} child(ren)\nThe total and remaining balance will be recalculated.`;
+    if (!window.confirm(confirmation)) return;
+
+    setSavingDates(true);
+    try {
+      const response = await fetch(`/api/bookings/${booking.bookingId}/modify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: user.id,
+          checkInDate: editDates.checkInDate,
+          checkOutDate: editDates.checkOutDate,
+          roomId: Number(editDates.roomId),
+          adults: Number(editDates.adults),
+          children: Number(editDates.children),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || "Failed to update booking dates.");
+      setBookingMessage((prev) => ({
+        ...prev,
+        [booking.bookingId]: `${payload.message || "Booking updated."} New total: ${formatCurrency(payload.totalAmount)}; remaining balance: ${formatCurrency(payload.remainingBalance)}.`,
+      }));
+      setEditingBookingId(null);
+      await fetchBookings(true);
+    } catch (error) {
+      setBookingMessage((prev) => ({ ...prev, [booking.bookingId]: error.message || "Failed to update booking dates." }));
+    } finally {
+      setSavingDates(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-emerald-950/5 px-6 py-20 font-sans">
@@ -312,6 +360,11 @@ export default function CustomerBookings() {
                           <h2 className="mt-1 text-lg font-bold text-zinc-900">
                             {booking.roomType}
                           </h2>
+                          {booking.roomNumber ? (
+                            <p className="mt-1 text-xs font-semibold text-emerald-700">
+                              Assigned room: {booking.roomNumber}
+                            </p>
+                          ) : null}
                           <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-500">
                             <MapPin size={14} className="text-emerald-600" />
                             <span>{room.location_description || "Hotel destination available on confirmation"}</span>
@@ -385,6 +438,67 @@ export default function CustomerBookings() {
                       </div>
 
                       <div className="mt-6 space-y-2">
+                        {booking.canModify ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingBookingId(editingBookingId === booking.bookingId ? null : booking.bookingId);
+                              setEditDates({
+                                checkInDate: booking.checkInDate || "",
+                                checkOutDate: booking.checkOutDate || "",
+                                roomId: String(booking.roomId || ""),
+                                adults: String(booking.adults || 1),
+                                children: String(booking.children || 0),
+                              });
+                            }}
+                            className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-100"
+                          >
+                            {editingBookingId === booking.bookingId ? "Close date editor" : "Modify stay dates"}
+                          </button>
+                        ) : null}
+                        {editingBookingId === booking.bookingId ? (
+                          <div className="space-y-2 rounded-xl border border-emerald-200 bg-white p-3">
+                            <label className="block text-[10px] font-semibold text-zinc-600">
+                              Room
+                              <select
+                                value={editDates.roomId}
+                                onChange={(event) => setEditDates((prev) => ({ ...prev, roomId: event.target.value }))}
+                                className="mt-1 w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-xs"
+                              >
+                                {Object.values(roomLookup)
+                                  .filter((room) => Number(room.hotelId || room.hotel_id) === Number(booking.hotelId))
+                                  .filter((room) => Number(room.maxAdults || 0) >= Number(editDates.adults) && Number(room.maxChildren || 0) >= Number(editDates.children))
+                                  .filter((room) => !["maintenance", "out of order", "inactive"].includes(String(room.status || "").toLowerCase()))
+                                  .map((room) => (
+                                    <option key={room.id} value={room.id}>
+                                      {room.roomName || room.roomType} · {formatCurrency(room.price)} / night
+                                    </option>
+                                  ))}
+                              </select>
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <label className="block text-[10px] font-semibold text-zinc-600">
+                                Adults
+                                <input type="number" min="1" value={editDates.adults} onChange={(event) => setEditDates((prev) => ({ ...prev, adults: event.target.value }))} className="mt-1 w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-xs" />
+                              </label>
+                              <label className="block text-[10px] font-semibold text-zinc-600">
+                                Children
+                                <input type="number" min="0" value={editDates.children} onChange={(event) => setEditDates((prev) => ({ ...prev, children: event.target.value }))} className="mt-1 w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-xs" />
+                              </label>
+                            </div>
+                            <label className="block text-[10px] font-semibold text-zinc-600">
+                              Check-in
+                              <input type="date" value={editDates.checkInDate} onChange={(event) => setEditDates((prev) => ({ ...prev, checkInDate: event.target.value }))} className="mt-1 w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-xs" />
+                            </label>
+                            <label className="block text-[10px] font-semibold text-zinc-600">
+                              Check-out
+                              <input type="date" value={editDates.checkOutDate} onChange={(event) => setEditDates((prev) => ({ ...prev, checkOutDate: event.target.value }))} className="mt-1 w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-xs" />
+                            </label>
+                            <button type="button" disabled={savingDates} onClick={() => handleModifyDates(booking)} className="w-full rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                              {savingDates ? "Saving..." : "Confirm booking change"}
+                            </button>
+                          </div>
+                        ) : null}
                         {isPendingOnlinePayment ? (
                           <button
                             type="button"

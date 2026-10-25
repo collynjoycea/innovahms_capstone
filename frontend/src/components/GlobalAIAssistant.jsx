@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Bot, MessageCircle, Send, Trash2, X } from "lucide-react";
 
 const HISTORY_LIMIT = 120;
@@ -33,8 +33,8 @@ const getDefaultWelcome = (firstName) => [
     id: "welcome",
     from: "bot",
     text: firstName
-      ? `Hi ${firstName}. I am your AI Assisted History companion. I can help with bookings, rooms, promotions, and account concerns.`
-      : "Hi. I am your AI Assisted History companion. I can help with bookings, rooms, promotions, and account concerns.",
+      ? `Hi ${firstName}. I'm Nova. I can help you find rooms, guide you through reservations, check your booking status, and answer hotel questions.`
+      : "Hi. I'm Nova. I can help you find rooms, guide you through reservations, check your booking status, and answer hotel questions.",
     timestamp: Date.now(),
   },
 ];
@@ -54,6 +54,7 @@ export default function GlobalAIAssistant() {
   const shouldHide = hiddenPrefixes.some((prefix) => location.pathname.startsWith(prefix));
   const userId = sessionUser?.id || sessionUser?.customer_id || sessionUser?.user_id || "guest";
   const historyKey = useMemo(() => `innova_ai_history_${userId}`, [userId]);
+  const guestHotelId = location.pathname.match(/^\/(?:hoteldetail|roomdetail)\/(\d+)/)?.[1];
 
   useEffect(() => {
     const handleSessionRefresh = () => {
@@ -129,6 +130,38 @@ export default function GlobalAIAssistant() {
     setInput("");
     setNotice("");
 
+    const lowerMessage = message.toLowerCase();
+    const signedInCustomerId = sessionUser?.id || sessionUser?.customer_id || sessionUser?.user_id;
+    const mentionsBooking = lowerMessage.includes("booking") || lowerMessage.includes("reservation");
+    const asksBookingStatus = [
+      "booking status", "reservation status", "check my booking", "check my reservation",
+      "where is my booking", "where is my reservation", "where's my booking", "where's my reservation",
+      "track my booking", "track my reservation", "status of my booking", "status of my reservation",
+    ].some((phrase) => lowerMessage.includes(phrase));
+    if (asksBookingStatus && !signedInCustomerId) {
+      setMessages((prev) => [...prev, {
+        id: `b-${Date.now()}`,
+        from: "bot",
+        text: "Please sign in to your guest account to check your reservation status. Open /login.",
+        timestamp: Date.now(),
+      }]);
+      return;
+    }
+    const asksToChangeBooking = mentionsBooking
+      && ["change", "modify", "update", "reschedule", "switch room", "change room", "guest count", "number of guests"].some((phrase) => lowerMessage.includes(phrase));
+    if (asksToChangeBooking) {
+      const responseText = signedInCustomerId
+        ? "You can change the dates, room, and guest count of an upcoming booking from My Bookings. Choose “Modify stay dates” and confirm the change. The room must be available and fit your guest count; the total and remaining balance are recalculated. Open /customer/bookings."
+        : "Please sign in to your guest account first. After signing in, ask me again and I can guide you through an upcoming booking change. Open /login.";
+      setMessages((prev) => [...prev, {
+        id: `b-${Date.now()}`,
+        from: "bot",
+        text: responseText,
+        timestamp: Date.now(),
+      }]);
+      return;
+    }
+
     try {
       setIsTyping(true);
       const response = await fetch("/api/chatbot/rasa", {
@@ -136,9 +169,10 @@ export default function GlobalAIAssistant() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sender: `global-${userId}`,
-          customer_id: userId === "guest" ? null : userId,
+          customer_id: signedInCustomerId || null,
           message,
           context_path: location.pathname,
+          hotel_id: guestHotelId ? Number(guestHotelId) : undefined,
         }),
       });
 
@@ -197,7 +231,7 @@ export default function GlobalAIAssistant() {
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         className="fixed bottom-6 right-6 z-[1200] h-14 w-14 rounded-full bg-[#1F6F5F] text-white shadow-2xl shadow-[#1F6F5F]/30 flex items-center justify-center hover:bg-[#288B77] transition-all"
-        title="AI Assisted History"
+        title="Nova"
       >
         {isOpen ? <X size={22} /> : <MessageCircle size={22} />}
       </button>
@@ -208,7 +242,7 @@ export default function GlobalAIAssistant() {
             <div className="flex items-center gap-2">
               <Bot size={16} className="text-[#1F6F5F]" />
               <p className="text-[11px] font-black uppercase tracking-widest text-[#1F6F5F] dark:text-[#9ad8c2]">
-                AI Assisted History
+                Nova
               </p>
             </div>
             <button
@@ -232,6 +266,16 @@ export default function GlobalAIAssistant() {
                   }`}
                 >
                   {message.text}
+                  {message.from === "bot" && message.text.includes("/customer/bookings") ? (
+                    <Link to="/customer/bookings" className="mt-2 block font-bold text-emerald-700 underline dark:text-emerald-300">
+                      Open My Bookings
+                    </Link>
+                  ) : null}
+                  {message.from === "bot" && message.text.includes("/login") ? (
+                    <Link to="/login" className="mt-2 block font-bold text-emerald-700 underline dark:text-emerald-300">
+                      Sign in
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             ))}
