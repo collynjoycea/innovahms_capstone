@@ -205,6 +205,45 @@ def ensure_housekeeping_tables(cur):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_hk_history_hotel_id ON hk_history(hotel_id)")
 
 
+def ensure_guest_requests_table(cur):
+    """Restore the guest request table when it is missing from an older database."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS guest_requests (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+            reservation_id INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+            guest_name VARCHAR(200) NOT NULL,
+            room_number VARCHAR(50) NOT NULL,
+            inventory_id INTEGER,
+            item_name VARCHAR(200) NOT NULL,
+            quantity INTEGER NOT NULL CHECK (quantity > 0),
+            priority VARCHAR(20) NOT NULL DEFAULT 'NORMAL',
+            notes TEXT,
+            status VARCHAR(20) NOT NULL DEFAULT 'RECEIVED',
+            requested_by INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+            relayed_by INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+            hk_staff_id INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+            hk_note TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            relayed_at TIMESTAMP,
+            started_at TIMESTAMP,
+            delivered_at TIMESTAMP,
+            unavailable_at TIMESTAMP,
+            cancelled_at TIMESTAMP,
+            CONSTRAINT guest_requests_status_check
+                CHECK (status IN ('RECEIVED', 'RELAYED', 'IN_PROGRESS', 'DELIVERED', 'UNAVAILABLE', 'CANCELLED'))
+        )
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_guest_requests_hotel_status "
+        "ON guest_requests(hotel_id, status, created_at DESC)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_guest_requests_reservation "
+        "ON guest_requests(reservation_id)"
+    )
+
+
 def ensure_password_reset_tables(cur):
     cur.execute(
         """

@@ -78,8 +78,8 @@ export default function Footer() {
                 </a>
               </li>
               <li>
-                <a href="mailto:fernandezcollynjoyce@gmail.com" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
-                  fernandezcollynjoyce@gmail.com
+                <a href="mailto:support.innova.hms@gmail.com" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
+                  support.innova.hms@gmail.com
                 </a>
               </li>
               <li className="pt-1 text-slate-500 dark:text-slate-400 font-semibold">
@@ -110,11 +110,7 @@ export default function Footer() {
                   Terms of Service
                 </Link>
               </li>
-              <li>
-                <Link to="/privacy-policy" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
-                  Privacy Policy
-                </Link>
-              </li>
+             
             </ul>
           </div>
         </div>

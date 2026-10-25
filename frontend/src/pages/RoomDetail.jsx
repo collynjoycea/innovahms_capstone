@@ -7,15 +7,11 @@ import {
   X,
   ScanEye,
   ThumbsUp,
-  Maximize2,
-  Navigation,
-  ChevronDown,
-  ChevronUp,
-  MapPin,
+  FileText,
+  MessageSquare,
 } from "lucide-react";
 import Marzipano from "marzipano";
 import resolveImg from "../utils/resolveImg";
-import NeighborhoodMap from "../components/NeighborhoodMap";
 
 const FALLBACKS = [
   "/images/deluxe-room.jpg",
@@ -47,8 +43,10 @@ export default function RoomDetail() {
   const [reviews, setReviews] = useState([]);
   const [activeFilter, setActiveFilter] = useState("All");
   const [helpfulCounts, setHelpfulCounts] = useState({});
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [reviewsExpanded, setReviewsExpanded] = useState(false);
+
+  // Modal States para sa See More
+  const [descModalOpen, setDescModalOpen] = useState(false);
+  const [reviewsModalOpen, setReviewsModalOpen] = useState(false);
 
   // 360 tour state
   const [tourOpen, setTourOpen] = useState(false);
@@ -58,13 +56,6 @@ export default function RoomDetail() {
   const [tourNotice, setTourNotice] = useState("");
   const panoRef = useRef(null);
   const viewerRef = useRef(null);
-
-  // Map modal and routing states
-  const [mapModalOpen, setMapModalOpen] = useState(false);
-  const [routeMode, setRouteMode] = useState(false);
-  const [userCoords, setUserCoords] = useState(null);
-  const [routeLoading, setRouteLoading] = useState(false);
-  const [routeError, setRouteError] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -148,11 +139,10 @@ export default function RoomDetail() {
     return roomReviews;
   }, [roomReviews, activeFilter]);
 
-  // Limit reviews to 2 unless expanded
+  // Limit sa 3 reviews sa main view
   const displayedReviews = useMemo(() => {
-    if (reviewsExpanded) return filteredReviews;
-    return filteredReviews.slice(0, 2);
-  }, [filteredReviews, reviewsExpanded]);
+    return filteredReviews.slice(0, 3);
+  }, [filteredReviews]);
 
   const toggleHelpful = (revId) => {
     setHelpfulCounts((prev) => ({
@@ -192,37 +182,6 @@ export default function RoomDetail() {
       try { viewerRef.current.destroy(); } catch {}
       viewerRef.current = null;
     }
-  };
-
-  const handleGetDirections = () => {
-    setRouteLoading(true);
-    setRouteError("");
-    if (!navigator.geolocation) {
-      setRouteError("Geolocation is not supported by your browser.");
-      setRouteLoading(false);
-      setMapModalOpen(true);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const coords = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-        setUserCoords(coords);
-        setRouteLoading(false);
-        setRouteMode(true);
-        setMapModalOpen(true);
-      },
-      (err) => {
-        console.warn("Geolocation warning:", err.message);
-        setRouteError("Unable to retrieve your location. Please check permissions.");
-        setRouteLoading(false);
-        setMapModalOpen(true);
-      },
-      { timeout: 10000, enableHighAccuracy: true }
-    );
   };
 
   useEffect(() => {
@@ -292,7 +251,7 @@ export default function RoomDetail() {
     <main className="min-h-screen bg-slate-50 dark:bg-[#0d1412] text-slate-900 dark:text-zinc-100 transition-colors duration-300">
       <div className="max-w-6xl mx-auto px-4 py-6">
         
-        {/* COMPACT BREADCRUMB */}
+        {/* BREADCRUMB */}
         <nav className="mb-4 flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400">
           <button
             onClick={() => navigate(-1)}
@@ -330,7 +289,7 @@ export default function RoomDetail() {
             </div>
           </div>
 
-          {/* ROOM SPECIFICATIONS CARD (Location removed) */}
+          {/* ROOM SPECIFICATIONS CARD */}
           <div className="lg:col-span-5 bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-sm flex flex-col justify-between">
             <div>
               <div className="mb-2">
@@ -389,68 +348,29 @@ export default function RoomDetail() {
         {/* MIDDLE-BOTTOM SECTION: DESCRIPTION & REVIEWS SIDE-BY-SIDE */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           
-          {/* DESCRIPTION SECTION (~6 Cols) */}
+          {/* DESCRIPTION SECTION */}
           <div className="lg:col-span-6 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0f1a17] p-5 shadow-sm flex flex-col justify-between">
             <div>
               <h2 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Room Description</h2>
-              <p className="whitespace-pre-line text-xs sm:text-sm leading-6 text-slate-600 dark:text-zinc-300">
+              <p className="whitespace-pre-line text-xs sm:text-sm leading-6 text-slate-600 dark:text-zinc-300 line-clamp-5">
                 {room.description || "No room description has been added by the owner yet."}
               </p>
 
-              {/* SEE MORE / SEE LESS TOGGLE TEXT */}
-              <div className="mt-3">
+              {/* SEE MORE MODAL TRIGGER BUTTON */}
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5">
                 <button
                   type="button"
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
+                  onClick={() => setDescModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
                 >
-                  <span>{isExpanded ? "See Less" : "See More"}</span>
-                  {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  <FileText size={14} />
+                  <span>See More</span>
                 </button>
               </div>
-
-              {/* EXPANDED CONTENT UNDER SEE MORE */}
-              {isExpanded && (
-                <div className="mt-4 space-y-3 border-t border-slate-100 dark:border-white/5 pt-3">
-                  {detailSections.map((section) => (
-                    <div key={section.title} className="rounded-lg border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] p-3">
-                      <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[#1F6F5F] dark:text-[#2FA084]">
-                        {section.title}
-                      </h3>
-                      {section.items && section.items.length > 0 ? (
-                        <ul className="space-y-1 text-xs text-slate-600 dark:text-zinc-300">
-                          {section.items.map((item, index) => (
-                            <li key={`${section.title}-${index}`} className="flex items-start gap-1.5">
-                              <span className="text-[#1F6F5F] dark:text-[#2FA084] font-bold">•</span>
-                              <span className="whitespace-pre-line">{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-[11px] text-slate-400">No {section.title.toLowerCase()} listed.</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* LOCATION QUICK ACCESS IN DESCRIPTION BOX */}
-            <div className="mt-5 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400">
-              <div className="flex items-center gap-1.5 truncate pr-2">
-                <MapPin size={13} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
-                <span className="truncate">{room.location_description || "Innova Smart Hotel Main Property"}</span>
-              </div>
-              <button
-                onClick={() => { setRouteMode(false); setMapModalOpen(true); }}
-                className="text-[11px] font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline shrink-0"
-              >
-                View Map
-              </button>
             </div>
           </div>
 
-          {/* REVIEWS & RATINGS SECTION (~6 Cols) with See More / See Less (up to 2 reviews initially) */}
+          {/* REVIEWS & RATINGS SECTION */}
           <div className="lg:col-span-6 bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-white/5">
@@ -475,7 +395,7 @@ export default function RoomDetail() {
                 </div>
               </div>
 
-              {/* COMPACT FILTER CHIPS */}
+              {/* FILTER CHIPS */}
               <div className="flex flex-wrap gap-1 mb-3">
                 {["All", "5 Star", "4 Star", "3 Star", "2 Star", "1 Star"].map((filter) => {
                   let label = filter;
@@ -489,7 +409,7 @@ export default function RoomDetail() {
                   return (
                     <button
                       key={filter}
-                      onClick={() => { setActiveFilter(filter); setReviewsExpanded(false); }}
+                      onClick={() => setActiveFilter(filter)}
                       className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${
                         isSelected
                           ? "border-[#1F6F5F] text-[#1F6F5F] bg-emerald-50/40 dark:bg-[#1F6F5F]/20 dark:text-[#2FA084] dark:border-[#2FA084]"
@@ -502,7 +422,7 @@ export default function RoomDetail() {
                 })}
               </div>
 
-              {/* REVIEWS LIST (Limited to 2 initially) */}
+              {/* REVIEWS LIST */}
               <div className="space-y-3 divide-y divide-slate-100 dark:divide-white/5">
                 {displayedReviews.length > 0 ? (
                   displayedReviews.map((rev) => {
@@ -564,16 +484,16 @@ export default function RoomDetail() {
               </div>
             </div>
 
-            {/* SEE MORE / SEE LESS FOR REVIEWS */}
-            {filteredReviews.length > 2 && (
+            {/* SEE MORE REVIEWS MODAL TRIGGER */}
+            {filteredReviews.length > 3 && (
               <div className="mt-4 pt-2 border-t border-slate-100 dark:border-white/5">
                 <button
                   type="button"
-                  onClick={() => setReviewsExpanded(!reviewsExpanded)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
+                  onClick={() => setReviewsModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
                 >
-                  <span>{reviewsExpanded ? "See Less" : `See More (${filteredReviews.length - 2} more)`}</span>
-                  {reviewsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  <MessageSquare size={14} />
+                  <span>See More Reviews ({filteredReviews.length - 3} more)</span>
                 </button>
               </div>
             )}
@@ -584,10 +504,153 @@ export default function RoomDetail() {
 
       </div>
 
+      {/* 1. ROOM DESCRIPTION & FACILITIES MODAL (Inilagay sa medyo mababang posisyon) */}
+      {descModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 pt-16 sm:pt-20">
+          <div className="w-full max-w-2xl bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[78vh] my-auto">
+            <div className="px-5 py-3.5 bg-slate-50 dark:bg-[#13221e] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText size={18} className="text-[#1F6F5F] dark:text-[#2FA084]" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Full Room Details & Facilities</h3>
+              </div>
+              <button
+                onClick={() => setDescModalOpen(false)}
+                className="h-8 w-8 rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-white hover:bg-slate-200 flex items-center justify-center transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-5 text-slate-700 dark:text-zinc-200 text-xs sm:text-sm">
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#1F6F5F] dark:text-[#2FA084] mb-2">Description</h4>
+                <p className="whitespace-pre-line leading-relaxed text-slate-600 dark:text-zinc-300">
+                  {room.description || "No detailed description provided."}
+                </p>
+              </div>
+
+              <div className="space-y-4 border-t border-slate-100 dark:border-white/5 pt-4">
+                {detailSections.map((section) => (
+                  <div key={section.title} className="rounded-lg border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] p-4">
+                    <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-[#1F6F5F] dark:text-[#2FA084]">
+                      {section.title}
+                    </h4>
+                    {section.items && section.items.length > 0 ? (
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-zinc-300">
+                        {section.items.map((item, index) => (
+                          <li key={`${section.title}-${index}`} className="flex items-start gap-1.5">
+                            <span className="text-[#1F6F5F] dark:text-[#2FA084] font-bold">•</span>
+                            <span className="whitespace-pre-line">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-slate-400">No {section.title.toLowerCase()} listed.</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="px-5 py-3 bg-slate-50 dark:bg-[#13221e] border-t border-slate-200 dark:border-white/10 flex justify-end">
+              <button
+                onClick={() => setDescModalOpen(false)}
+                className="px-5 py-2 rounded-lg bg-[#1F6F5F] dark:bg-[#2FA084] text-white text-xs font-bold hover:brightness-110 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. FULL REVIEWS MODAL (Inilagay sa medyo mababang posisyon) */}
+      {reviewsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 pt-16 sm:pt-20">
+          <div className="w-full max-w-2xl bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[78vh] my-auto">
+            <div className="px-5 py-3.5 bg-slate-50 dark:bg-[#13221e] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare size={18} className="text-[#1F6F5F] dark:text-[#2FA084]" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">All Reviews ({filteredReviews.length})</h3>
+              </div>
+              <button
+                onClick={() => setReviewsModalOpen(false)}
+                className="h-8 w-8 rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-white hover:bg-slate-200 flex items-center justify-center transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4">
+              {filteredReviews.map((rev) => {
+                const nameInitial = rev.guestName ? rev.guestName[0].toUpperCase() : "G";
+                const displayUsername = maskUsername(rev.guestName);
+                const reviewDate = rev.createdAt
+                  ? new Date(rev.createdAt).toISOString().replace("T", " ").substring(0, 10)
+                  : "2026-04-12";
+                const currentHelpful = helpfulCounts[rev.id] || { count: 0, active: false };
+
+                return (
+                  <div key={rev.id} className="p-3.5 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-white/10 flex items-center justify-center shrink-0 text-slate-600 dark:text-zinc-300 text-xs font-semibold">
+                        {nameInitial}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200">{displayUsername}</span>
+                          <span className="text-[10px] text-slate-400">{reviewDate}</span>
+                        </div>
+
+                        <div className="flex gap-0.5 my-1">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              size={11}
+                              fill={s <= (rev.rating || 5) ? "#1F6F5F" : "transparent"}
+                              className={s <= (rev.rating || 5) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
+                            />
+                          ))}
+                        </div>
+
+                        <p className="text-xs text-slate-600 dark:text-zinc-300 leading-normal mb-2">
+                          {rev.comment || "Clean facilities, excellent accommodation experience."}
+                        </p>
+
+                        <button
+                          onClick={() => toggleHelpful(rev.id)}
+                          className={`inline-flex items-center gap-1 text-[11px] transition-colors ${
+                            currentHelpful.active
+                              ? "text-[#1F6F5F] dark:text-[#2FA084] font-semibold"
+                              : "text-slate-400 hover:text-slate-600"
+                          }`}
+                        >
+                          <ThumbsUp size={11} />
+                          <span>Helpful {currentHelpful.count > 0 && `(${currentHelpful.count})`}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="px-5 py-3 bg-slate-50 dark:bg-[#13221e] border-t border-slate-200 dark:border-white/10 flex justify-end">
+              <button
+                onClick={() => setReviewsModalOpen(false)}
+                className="px-5 py-2 rounded-lg bg-[#1F6F5F] dark:bg-[#2FA084] text-white text-xs font-bold hover:brightness-110 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 360 TOUR MODAL */}
       {tourOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-4xl bg-zinc-900 border border-white/10 rounded-xl overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 pt-16 sm:pt-20">
+          <div className="w-full max-w-4xl bg-zinc-900 border border-white/10 rounded-xl overflow-hidden shadow-2xl my-auto">
             <div className="px-4 py-3 bg-zinc-950 border-b border-white/10 flex items-center justify-between">
               <div>
                 <p className="text-[#2FA084] text-[10px] font-bold uppercase tracking-wider">Virtual Inspection</p>
@@ -601,7 +664,7 @@ export default function RoomDetail() {
               </button>
             </div>
 
-            <div className="relative w-full h-[500px] bg-black">
+            <div className="relative w-full h-[460px] bg-black">
               <div ref={panoRef} className="absolute inset-0" />
 
               {tourLoading && (
@@ -644,76 +707,6 @@ export default function RoomDetail() {
                 className="px-4 py-1.5 rounded bg-[#1F6F5F] text-white text-xs font-medium hover:bg-[#2FA084] transition-colors"
               >
                 Book This Room
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* EXPANDED INTERACTIVE MAP & ROUTING MODAL */}
-      {mapModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-5xl h-[85vh] bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden shadow-2xl flex flex-col">
-            <div className="px-5 py-3.5 bg-slate-50 dark:bg-[#13221e] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#1F6F5F] dark:text-[#2FA084]">
-                  {routeMode ? "Route from Your Location" : "Geographic Overview"}
-                </span>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  {routeMode ? `Directions to ${room.roomName || room.name}` : (room.location_description || "Property Neighborhood")}
-                </h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setRouteMode(!routeMode)}
-                  className={`px-3 py-1 rounded text-xs font-medium border transition-colors flex items-center gap-1.5 ${
-                    routeMode 
-                      ? "bg-[#1F6F5F] text-white border-[#1F6F5F]" 
-                      : "border-slate-300 dark:border-white/20 text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-white/5"
-                  }`}
-                >
-                  <Navigation size={12} /> {routeMode ? "Showing Route" : "Show Route from My Location"}
-                </button>
-                <button
-                  onClick={() => setMapModalOpen(false)}
-                  className="h-8 w-8 rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-white hover:bg-slate-200 flex items-center justify-center transition-colors"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-
-            {routeError && (
-              <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900/40 px-4 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
-                <span>{routeError}</span>
-                <button onClick={() => setRouteError("")} className="font-bold">&times;</button>
-              </div>
-            )}
-
-            <div className="flex-1 relative w-full h-full">
-              <NeighborhoodMap
-                hotels={[{
-                  id: room.id || 1,
-                  name: room.roomName || room.name || "Innova Suite",
-                  lat: room.lat || 14.5995,
-                  lng: room.lng || 120.9842,
-                  address: room.location_description || "Hotel Location",
-                }]}
-                landmarks={[]}
-                hotelCenter={{ lat: room.lat || 14.5995, lng: room.lng || 120.9842 }}
-                focusedHotelId={room.id}
-                userLocation={routeMode ? userCoords : null}
-                isDarkMode={false}
-              />
-            </div>
-
-            <div className="px-5 py-3 bg-slate-50 dark:bg-[#13221e] border-t border-slate-200 dark:border-white/10 flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400">
-              <span>{routeMode && userCoords ? "Displaying route from your GPS coordinates to hotel." : "Click 'Show Route from My Location' to trace path."}</span>
-              <button
-                onClick={() => setMapModalOpen(false)}
-                className="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-zinc-200 font-medium hover:bg-slate-300 transition-colors"
-              >
-                Close Map
               </button>
             </div>
           </div>

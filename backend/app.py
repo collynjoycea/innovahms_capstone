@@ -17,6 +17,7 @@ import uuid
 import random
 import sys
 import smtplib
+import secrets
 from email.message import EmailMessage
 from html import escape
 from datetime import date, datetime, timedelta, timezone
@@ -103,7 +104,7 @@ def get_db_connection():
         host=os.getenv("DB_HOST", "localhost"),
         database=os.getenv("DB_NAME", "innovahmsdb"),
         user=os.getenv("DB_USER", "postgres"),
-        password=os.getenv("DB_PASSWORD", "password1"),
+        password=os.getenv("DB_PASSWORD", "lily1245"),
         port=os.getenv("DB_PORT", "5432"),
     )
 
@@ -410,6 +411,9 @@ def _ensure_room_status_options(cur):
 def _ensure_housekeeping_tables(cur):
     return db_bootstrap.ensure_housekeeping_tables(cur)
 
+def _ensure_guest_requests_table(cur):
+    return db_bootstrap.ensure_guest_requests_table(cur)
+
 def _ensure_admin_feature_tables(cur):
     return db_bootstrap.ensure_admin_feature_tables(cur)
 
@@ -506,13 +510,14 @@ def _generate_otp_code():
     return "".join(random.choices("0123456789", k=6))
 
 
-def _send_signup_otp(email, user_type):
+def _send_signup_otp(email, user_type, expires_minutes=1):
     otp_code = _generate_otp_code()
     recipient = _normalize_email(email)
+    expiry_label = f"{expires_minutes} minute" + ("" if expires_minutes == 1 else "s")
     subject = "Your Innova HMS email verification OTP"
     plain_text = (
         f"Your Innova HMS {user_type} signup verification code is {otp_code}. "
-        "This code expires in 1 minute."
+        f"This code expires in {expiry_label}."
     )
     html_content = (
         "<div style=\"margin:0;background:#f0fdf4;padding:32px 16px;font-family:Arial,sans-serif;color:#16352d;\">"
@@ -521,7 +526,7 @@ def _send_signup_otp(email, user_type):
         "<div style=\"font-size:22px;font-weight:bold;margin-top:10px;\">Email Verification</div></div>"
         "<div style=\"padding:28px;line-height:1.6;\"><p style=\"margin-top:0;\">Use this code to confirm your signup:</p>"
         f"<div style=\"margin:24px 0;padding:18px;text-align:center;border:1px dashed #22c55e;border-radius:12px;background:#f0fdf4;color:#166534;font-size:30px;font-weight:bold;letter-spacing:8px;\">{otp_code}</div>"
-        "<p style=\"font-size:13px;color:#64748b;\">This code expires in 1 minute. If you did not request this, you can safely ignore this email.</p>"
+        f"<p style=\"font-size:13px;color:#64748b;\">This code expires in {expiry_label}. If you did not request this, you can safely ignore this email.</p>"
         "<p style=\"margin-bottom:0;font-size:13px;color:#64748b;\">Thank you,<br><strong style=\"color:#166534;\">Innova HMS Team</strong></p></div></div></div>"
     )
     delivered = bool(recipient and _send_sendgrid_email(recipient, subject, html_content, plain_text))
@@ -7514,7 +7519,11 @@ def _build_owner_staff_payload(cur, owner_id, hotel):
     active_count = 0
     role_counter = Counter()
     for row in rows:
-        name = row.get("full_name") or f"{row.get('first_name') or ''} {row.get('last_name') or ''}".strip() or "Staff"
+        name = (
+            row.get("full_name")
+            or f"{row.get('first_name') or ''} {row.get('last_name') or ''}".strip()
+            or (row.get("email") or "Staff").split("@")[0]
+        )
         status_raw = str(row.get("status") or "").strip().lower()
         on_shift = _is_truthy(row.get("is_on_duty")) or status_raw in {"active", "on_shift", "on duty", "on_duty"}
         if on_shift:
@@ -7907,50 +7916,367 @@ def owner_staff(owner_id):
         _safe_close(conn, cur)
 
 
-@app.route('/api/owner/staff/<int:owner_id>', methods=['POST'])
-def owner_add_staff(owner_id):
+# --- OWNER: ADD STAFF (Manager / Front Desk / Housekeeper) ---------------------
+# Flow:  send-otp  ->  verify-otp  ->  create (+ login details emailed)  ->  resend-credentials
+# Names / contact number / password are OPTIONAL: the staff completes their own
+# details later from their profile module.
+
+OWNER_ADDABLE_STAFF_ROLES = (
+    'Hotel Manager',
+    'Front Desk Operations',
+    'Housekeeping & Maintenance',
+)
+STAFF_OTP_EXPIRY_MINUTES = 5             # owner has to relay the code, 1 minute is too short
+STAFF_EMAIL_VERIFICATION_MINUTES = 30    # how long a verified email may be used to create the account
+
+
+def _ensure_staff_onboarding_tables(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS staff_email_verifications (
+            id SERIAL PRIMARY KEY,
+            hotel_id INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            verified_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            expires_at TIMESTAMP NOT NULL,
+            consumed_at TIMESTAMP
+        )
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_staff_email_verifications_lookup "
+        "ON staff_email_verifications (hotel_id, email)"
+    )
+
+
+def _generate_temp_password(length=10):
+    """Random password that always satisfies _password_strength_errors()."""
+    upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    lower = "abcdefghijkmnpqrstuvwxyz"
+    digits = "23456789"
+    special = "@#$%&*!"
+    chars = [
+        secrets.choice(upper),
+        secrets.choice(lower),
+        secrets.choice(digits),
+        secrets.choice(special),
+    ]
+    pool = upper + lower + digits + special
+    chars += [secrets.choice(pool) for _ in range(max(length, 8) - 4)]
+    secrets.SystemRandom().shuffle(chars)
+    return "".join(chars)
+
+
+def _hotel_code_for_staff(hotel):
+    return str(hotel.get('hotel_code') or f"INNOVAHMS-{hotel.get('id')}").strip().upper()
+
+
+def _owner_staff_context(cur, owner_id):
+    """Subscription/plan guard + the owner's hotel. Returns (error_response, hotel)."""
+    guard, _subscription = _owner_feature_guard(cur, owner_id, 'staff', mutation=True)
+    if guard:
+        return guard, None
+    hotel = _resolve_owner_hotel(cur, owner_id)
+    if not hotel:
+        return (jsonify({"error": "No hotel found for this owner."}), 404), None
+    return None, hotel
+
+
+def _send_staff_credentials_email(staff_email, staff_name, role, hotel_name, hotel_code, password):
+    """Email the hotel code + login account to the new staff (sent through the Gmail SMTP)."""
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+    login_url = f"{frontend_url}/staff/login"
+    display_name = (staff_name or '').strip() or 'Team Member'
+    hotel_label = hotel_name or 'your hotel'
+    subject = f"Your Innova HMS staff login - {hotel_label}"
+
+    def row(label, value, mono=False):
+        font = "font-family:Consolas,monospace;font-size:15px;letter-spacing:1px;" if mono else "font-size:14px;"
+        return (
+            f'<tr><td style="padding:8px 0;color:#64748b;font-size:12px;width:130px;">{escape(label)}</td>'
+            f'<td style="padding:8px 0;color:#16352d;font-weight:bold;{font}">{escape(str(value))}</td></tr>'
+        )
+
+    html_content = (
+        '<div style="margin:0;background:#f0fdf4;padding:32px 16px;font-family:Arial,sans-serif;color:#16352d;">'
+        '<div style="max-width:520px;margin:auto;background:#ffffff;border:1px solid #bbf7d0;border-radius:18px;overflow:hidden;">'
+        '<div style="background:#166534;padding:24px 28px;color:#ffffff;">'
+        '<div style="font-size:11px;letter-spacing:3px;font-weight:bold;">INNOVA HMS</div>'
+        '<div style="font-size:22px;font-weight:bold;margin-top:10px;">Your staff account is ready</div></div>'
+        '<div style="padding:28px;line-height:1.6;">'
+        f'<p style="margin-top:0;">Hello {escape(display_name)}, you have been added as <strong>{escape(role)}</strong> at <strong>{escape(hotel_label)}</strong>. '
+        'Use the details below to log in to the hotel staff portal.</p>'
+        '<table style="width:100%;border-collapse:collapse;margin:16px 0;border-top:1px solid #dcfce7;border-bottom:1px solid #dcfce7;">'
+        + row('Hotel code', hotel_code, mono=True)
+        + row('Email (account)', staff_email)
+        + row('Password', password, mono=True)
+        + '</table>'
+        f'<p><a href="{escape(login_url)}" style="display:inline-block;background:#166534;color:#ffffff;text-decoration:none;font-weight:bold;font-size:13px;padding:10px 18px;border-radius:8px;">Open staff login</a></p>'
+        '<p style="font-size:13px;color:#64748b;">Please change your password after your first login and complete your profile details in your staff module. '
+        'Do not share this email with anyone.</p>'
+        '<p style="margin-bottom:0;font-size:13px;color:#64748b;">Thank you,<br><strong style="color:#166534;">Innova HMS Team</strong></p>'
+        '</div></div></div>'
+    )
+    plain_text = (
+        f"Hello {display_name},\n\n"
+        f"You have been added as {role} at {hotel_label}.\n\n"
+        f"Hotel code: {hotel_code}\n"
+        f"Email (account): {staff_email}\n"
+        f"Password: {password}\n\n"
+        f"Staff login: {login_url}\n\n"
+        "Please change your password after your first login and complete your profile in your staff module.\n"
+        "Do not share this email with anyone.\n\n"
+        "Innova HMS Team"
+    )
+    try:
+        return bool(_send_sendgrid_email(staff_email, subject, html_content, plain_text))
+    except Exception as exc:
+        print(f"Staff credentials email error: {exc}")
+        return False
+
+
+@app.route('/api/owner/staff/<int:owner_id>/send-otp', methods=['POST'])
+def owner_staff_send_otp(owner_id):
+    """Step 1: email a 6-digit OTP to the STAFF's address."""
     conn = None
     cur = None
     try:
-        data = request.json or {}
+        data = request.get_json(silent=True) or {}
+        email = _normalize_email(data.get('email'))
+        if not _is_valid_email(email):
+            return jsonify({"error": "Enter a valid email address."}), 400
+
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        guard, _subscription = _owner_feature_guard(cur, owner_id, 'staff', mutation=True)
-        if guard:
-            return guard
-        hotel = _resolve_owner_hotel(cur, owner_id)
-        if not hotel:
-            return jsonify({"error": "No hotel found for this owner."}), 404
+        error_response, _hotel = _owner_staff_context(cur, owner_id)
+        if error_response:
+            return error_response
 
-        full_name = (data.get("name") or "").strip()
-        email = (data.get("email") or "").strip().lower()
-        role = (data.get("role") or "Housekeeping").strip()
-        salary = _to_float(data.get("salary"), 0)
-        if not full_name or not email:
-            return jsonify({"error": "Name and email are required."}), 400
+        cur.execute("SELECT 1 FROM staff WHERE LOWER(email) = %s LIMIT 1", (email,))
+        if cur.fetchone():
+            return jsonify({"error": "This staff email is already registered."}), 409
 
-        name_parts = full_name.split()
-        first_name = name_parts[0]
-        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else "-"
+        _ensure_password_reset_tables(cur)
+        db_bootstrap.ensure_signup_otp_table(cur)
+        cur.execute(
+            "UPDATE signup_otps SET consumed_at = NOW() WHERE user_type = 'staff' AND LOWER(email) = %s AND consumed_at IS NULL",
+            (email,),
+        )
+        delivered, otp_code = _send_signup_otp(email, 'staff', STAFF_OTP_EXPIRY_MINUTES)
+        if not delivered:
+            conn.rollback()
+            return jsonify({"error": "Unable to send the OTP. Check the Gmail SMTP username and app password."}), 503
+        cur.execute(
+            "INSERT INTO signup_otps (user_type, email, otp_hash, expires_at) VALUES (%s, %s, %s, %s)",
+            ('staff', email, generate_password_hash(otp_code), datetime.utcnow() + timedelta(minutes=STAFF_OTP_EXPIRY_MINUTES)),
+        )
+        conn.commit()
+        return jsonify({
+            "message": f"OTP sent to {_mask_email(email)}.",
+            "expiresInMinutes": STAFF_OTP_EXPIRY_MINUTES,
+        }), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
 
-        password_hash = generate_password_hash("staff1234")
-        columns = ["hotel_id", "first_name", "last_name", "email", "contact_number", "password_hash", "role", "status"]
-        values = [hotel.get("id"), first_name, last_name, email, data.get("contactNumber") or "", password_hash, role, "Active"]
-        if _table_has_column(cur, "staff", "hotel_code"):
-            columns.append("hotel_code")
-            values.append(data.get("hotelCode") or f"OWNER-{hotel.get('id')}")
+
+@app.route('/api/owner/staff/<int:owner_id>/verify-otp', methods=['POST'])
+def owner_staff_verify_otp(owner_id):
+    """Step 2: confirm the OTP. The email is then marked verified for this hotel for 30 minutes."""
+    conn = None
+    cur = None
+    try:
+        data = request.get_json(silent=True) or {}
+        email = _normalize_email(data.get('email'))
+        otp_code = str(data.get('otpCode') or '').strip()
+        if not _is_valid_email(email):
+            return jsonify({"error": "Enter a valid email address."}), 400
+        if not re.fullmatch(r"\d{6}", otp_code):
+            return jsonify({"error": "Enter the 6-digit verification code."}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        error_response, hotel = _owner_staff_context(cur, owner_id)
+        if error_response:
+            return error_response
+
+        db_bootstrap.ensure_signup_otp_table(cur)
+        _ensure_staff_onboarding_tables(cur)
+        conn.commit()
+
+        otp_error = _consume_signup_otp(cur, 'staff', email, otp_code)
+        if otp_error:
+            return jsonify({"error": otp_error}), 400
+
+        cur.execute(
+            "DELETE FROM staff_email_verifications WHERE hotel_id = %s AND LOWER(email) = %s",
+            (hotel.get('id'), email),
+        )
+        cur.execute(
+            "INSERT INTO staff_email_verifications (hotel_id, email, expires_at) VALUES (%s, %s, %s)",
+            (hotel.get('id'), email, datetime.utcnow() + timedelta(minutes=STAFF_EMAIL_VERIFICATION_MINUTES)),
+        )
+        conn.commit()
+        return jsonify({"message": "Email verified.", "verified": True}), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/owner/staff/<int:owner_id>', methods=['POST'])
+def owner_add_staff(owner_id):
+    """Step 3: create the staff account (email must be verified) and email the login details."""
+    conn = None
+    cur = None
+    try:
+        data = request.get_json(silent=True) or {}
+        email = _normalize_email(data.get('email'))
+        role = str(data.get('role') or '').strip()
+        first_name = str(data.get('firstName') or '').strip()
+        last_name = str(data.get('lastName') or '').strip()
+        full_name = str(data.get('name') or '').strip()  # old single-field payload still works
+        if full_name and not first_name:
+            parts = full_name.split()
+            first_name = parts[0]
+            last_name = " ".join(parts[1:])
+        contact_number = str(data.get('contactNumber') or '').strip()
+        password = str(data.get('password') or '')
+
+        if not _is_valid_email(email):
+            return jsonify({"error": "Enter a valid staff email address."}), 400
+        if role not in OWNER_ADDABLE_STAFF_ROLES:
+            return jsonify({"error": "Select Manager, Front Desk, or Housekeeper as the role."}), 400
+        if first_name and not _is_valid_name(first_name):
+            return jsonify({"error": "First name contains invalid characters."}), 400
+        if last_name and not _is_valid_name(last_name):
+            return jsonify({"error": "Last name contains invalid characters."}), 400
+        if contact_number and not _is_valid_phone(contact_number):
+            return jsonify({"error": "Enter a valid contact number."}), 400
+        if password:
+            password_error = _password_strength_message(password)
+            if password_error:
+                return jsonify({"error": password_error}), 400
+        else:
+            password = _generate_temp_password()
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        error_response, hotel = _owner_staff_context(cur, owner_id)
+        if error_response:
+            return error_response
+
+        hotel_id = hotel.get('id')
+        hotel_code = _hotel_code_for_staff(hotel)
+
+        _ensure_staff_onboarding_tables(cur)
+        cur.execute(
+            """
+            SELECT id
+            FROM staff_email_verifications
+            WHERE hotel_id = %s
+              AND LOWER(email) = %s
+              AND consumed_at IS NULL
+              AND expires_at > %s
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (hotel_id, email, datetime.utcnow()),
+        )
+        verification = cur.fetchone()
+        if not verification:
+            conn.rollback()
+            return jsonify({"error": "This email is not verified yet or the verification expired. Verify the staff email again."}), 403
+
+        cur.execute("SELECT 1 FROM staff WHERE LOWER(email) = %s LIMIT 1", (email,))
+        if cur.fetchone():
+            return jsonify({"error": "This staff email is already registered."}), 409
+
+        columns = ["hotel_id", "first_name", "last_name", "email", "contact_number", "password_hash", "role", "status", "hotel_code"]
+        values = [hotel_id, first_name, last_name, email, contact_number, generate_password_hash(password), role, "Active", hotel_code]
         if _table_has_column(cur, "staff", "employee_id"):
             columns.append("employee_id")
-            values.append(f"EMP-{hotel.get('id')}-{int(datetime.utcnow().timestamp())}"[-20:])
+            values.append(f"EMP-{hotel_id}-{int(datetime.utcnow().timestamp())}"[-20:])
 
         placeholders = ", ".join(["%s"] * len(values))
         cur.execute(
             f"INSERT INTO staff ({', '.join(columns)}) VALUES ({placeholders}) RETURNING id",
             tuple(values),
         )
-        row = cur.fetchone()
+        staff_id = (cur.fetchone() or {}).get("id")
+        cur.execute(
+            "UPDATE staff_email_verifications SET consumed_at = NOW() WHERE id = %s",
+            (verification.get('id'),),
+        )
         conn.commit()
-        return jsonify({"message": "Staff added successfully.", "staffId": row.get("id"), "salary": salary}), 201
+
+        # Account exists at this point - email problems must not undo it.
+        email_sent = _send_staff_credentials_email(
+            email,
+            f"{first_name} {last_name}".strip(),
+            role,
+            hotel.get('hotel_name'),
+            hotel_code,
+            password,
+        )
+        return jsonify({
+            "message": "Staff added successfully." if email_sent else "Staff added, but the login email could not be sent.",
+            "staffId": staff_id,
+            "hotelCode": hotel_code,
+            "emailSent": email_sent,
+        }), 201
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/owner/staff/<int:owner_id>/<int:staff_id>/resend-credentials', methods=['POST'])
+def owner_resend_staff_credentials(owner_id, staff_id):
+    """Generate a NEW temporary password and email it (the old password is only stored hashed)."""
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        error_response, hotel = _owner_staff_context(cur, owner_id)
+        if error_response:
+            return error_response
+
+        cur.execute(
+            "SELECT id, first_name, last_name, email, role FROM staff WHERE id = %s AND hotel_id = %s LIMIT 1",
+            (staff_id, hotel.get('id')),
+        )
+        staff = cur.fetchone()
+        if not staff:
+            return jsonify({"error": "Staff member not found in your hotel."}), 404
+
+        new_password = _generate_temp_password()
+        email_sent = _send_staff_credentials_email(
+            staff.get('email'),
+            f"{staff.get('first_name') or ''} {staff.get('last_name') or ''}".strip(),
+            staff.get('role') or 'Staff',
+            hotel.get('hotel_name'),
+            _hotel_code_for_staff(hotel),
+            new_password,
+        )
+        if not email_sent:
+            # Do not change the password if the staff never receives the new one.
+            return jsonify({"error": "Unable to send the email. Check the Gmail SMTP username and app password."}), 503
+
+        cur.execute(
+            "UPDATE staff SET password_hash = %s WHERE id = %s",
+            (generate_password_hash(new_password), staff_id),
+        )
+        conn.commit()
+        return jsonify({"message": "Login details emailed to the staff.", "emailSent": True}), 200
     except Exception as e:
         if conn:
             conn.rollback()
@@ -11295,6 +11621,8 @@ def get_customer_dashboard(customer_id):
             except Exception:
                 rewards = []
 
+        _ensure_guest_requests_table(cur)
+        conn.commit()
         guest_requests = []
         if _table_exists(cur, "guest_requests"):
             try:
@@ -15090,6 +15418,8 @@ def staff_guest_requests():
         if not hotel_id:
             return jsonify({'error': 'hotel_id is required.'}), 400
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_guest_requests_table(cur)
+        conn.commit()
         if request.method == 'GET':
             query, params = _guest_request_select(hotel_id)
             cur.execute(query, params)
@@ -15164,6 +15494,8 @@ def staff_guest_request_action(request_id, action):
         hotel_id = request.args.get('hotel_id', type=int)
         housekeeper_id = request.args.get('staff_id', type=int) if action == 'relay' else None
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_guest_requests_table(cur)
+        conn.commit()
         target_status = 'RELAYED' if action == 'relay' else 'CANCELLED'
         timestamp_field = 'relayed_at' if action == 'relay' else 'cancelled_at'
         if action == 'relay':
@@ -15209,6 +15541,8 @@ def hk_guest_requests():
     try:
         hotel_id = request.args.get('hotel_id', type=int)
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_guest_requests_table(cur)
+        conn.commit()
         query, params = _guest_request_select(hotel_id, ('RELAYED', 'IN_PROGRESS', 'DELIVERED'))
         cur.execute(query, params)
         return jsonify({'requests': [_guest_request_payload(r) for r in cur.fetchall() or []]}), 200
@@ -15229,6 +15563,8 @@ def hk_guest_request_status(request_id):
         if status not in ('IN_PROGRESS', 'DELIVERED', 'UNAVAILABLE'):
             return jsonify({'error': 'Invalid request status.'}), 400
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_guest_requests_table(cur)
+        conn.commit()
         cur.execute("SELECT * FROM guest_requests WHERE id = %s AND (%s IS NULL OR hotel_id = %s) FOR UPDATE", (request_id, hotel_id, hotel_id))
         row = cur.fetchone()
         if not row:

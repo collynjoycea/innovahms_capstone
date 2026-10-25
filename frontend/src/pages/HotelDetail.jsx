@@ -126,7 +126,12 @@ export default function HotelDetail() {
     return ["available", "vacant", "ready", "open", ""].includes(status);
   };
 
-  const availableRoomCount = rooms.filter(isRoomAvailable).length;
+  // Sineguro natin na tanging available rooms lamang ang ipapakita sa listahan
+  const availableRooms = useMemo(() => {
+    return rooms.filter(isRoomAvailable);
+  }, [rooms]);
+
+  const availableRoomCount = availableRooms.length;
 
   const amenities = useMemo(() => {
     const items = toList(hotel?.amenities || hotel?.features || []).map((item) => String(item).trim());
@@ -135,7 +140,7 @@ export default function HotelDetail() {
 
   const hotelHighlights = toList(hotel?.highlights);
 
-  const roomPrices = rooms
+  const roomPrices = availableRooms
     .map((room) => Number(room.price ?? room.base_price_php ?? room.price_per_night ?? room.basePricePhp ?? 0))
     .filter((value) => Number.isFinite(value) && value > 0);
 
@@ -247,7 +252,6 @@ export default function HotelDetail() {
                 <span className="text-[11px] font-semibold tracking-wider text-[#1F6F5F] dark:text-[#2FA084] uppercase">
                   {hotel.tag || "Connected Hotel"}
                 </span>
-                
               </div>
 
               <h1 className="text-xl font-bold tracking-tight mb-2 text-slate-900 dark:text-white">
@@ -269,7 +273,7 @@ export default function HotelDetail() {
                 <div className="flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
                   <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-medium">
                     <BedDouble size={13} className="text-rose-600 dark:text-rose-400 shrink-0" />
-                    {hotel.availableToday || availableRoomCount} rooms still available today
+                    {availableRoomCount} rooms still available today
                   </span>
                   <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
                     <CalendarCheck size={13} className="text-[#1F6F5F] dark:text-[#2FA084]" />
@@ -407,7 +411,7 @@ export default function HotelDetail() {
           </div>
         </div>
 
-        {rooms.length > 0 && (
+        {availableRooms.length > 0 && (
           <section className="mt-8">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">Rooms at {hotel.name}</h2>
@@ -415,7 +419,7 @@ export default function HotelDetail() {
             </div>
 
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {rooms.map((room) => {
+              {availableRooms.map((room) => {
                 const roomImage = Array.isArray(room.images) && room.images.length > 0 ? room.images[0] : FALLBACKS[0];
                 const roomPrice = Number(room.price || room.base_price_php || room.price_per_night || 0);
                 const roomName = room.roomName || room.name || room.roomType || "Suite";
