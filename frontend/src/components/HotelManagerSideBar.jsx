@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  LayoutDashboard, BarChart3, TrendingUp, Cpu, 
-  DollarSign, Percent, BadgePercent, Users2, 
+  LayoutDashboard,
+  DollarSign, Percent, BadgePercent, Users2, Truck, BedDouble,
+  CalendarDays, Contact, Package, UserRound,
   Star, ClipboardCheck, FileText, Settings, LogOut,
   ShieldCheck, Activity, Clock
 } from 'lucide-react';
+import { clearManagerSession } from '../pages/Maneger/managerSession';
 
 const HotelManagerSidebar = ({ isDarkMode }) => {
   const location = useLocation();
@@ -32,15 +34,7 @@ const HotelManagerSidebar = ({ isDarkMode }) => {
     {
       title: "EXECUTIVE OVERVIEW",
       items: [
-        { name: "Executive Dashboard", path: "/manager/dashboard", icon: <LayoutDashboard /> },
-        { name: "Real-time Analytics", path: "/manager/analytics", icon: <BarChart3 />, badge: "LIVE" }
-      ]
-    },
-    {
-      title: "STRATEGIC AI",
-      items: [
-        { name: "Prophet Forecasting", path: "/manager/forecasting", icon: <TrendingUp /> },
-        { name: "Simulation Engine", path: "/manager/simulation", icon: <Cpu /> }
+        { name: "Executive Dashboard", path: "/manager/dashboard", icon: <LayoutDashboard /> }
       ]
     },
     {
@@ -55,14 +49,20 @@ const HotelManagerSidebar = ({ isDarkMode }) => {
       title: "OPERATIONAL OVERSIGHT",
       items: [
         { name: "Staff Performance", path: "/manager/staff", icon: <Users2 /> },
+        { name: "Rooms", path: "/manager/rooms", icon: <BedDouble /> },
+        { name: "Reservations", path: "/manager/reservations", icon: <CalendarDays /> },
+        { name: "Customers", path: "/manager/customers", icon: <Contact /> },
         { name: "Guest Sentiment", path: "/manager/reviews", icon: <Star />, badge: "4.8" },
-        { name: "Housekeeping Log", path: "/manager/housekeeping", icon: <ClipboardCheck /> }
+        { name: "Housekeeping Log", path: "/manager/housekeeping", icon: <ClipboardCheck /> },
+        { name: "Inventory", path: "/manager/inventory", icon: <Package /> },
+        { name: "Supplier", path: "/manager/suppliers", icon: <Truck /> }
       ]
     },
     {
       title: "ADMINISTRATION",
       items: [
-        { name: "Executive Reports", path: "/manager/reports", icon: <FileText /> }
+        { name: "Executive Reports", path: "/manager/reports", icon: <FileText /> },
+        { name: "Profile", path: "/manager/profile", icon: <UserRound /> }
       ]
     }
   ];
@@ -163,7 +163,10 @@ const HotelManagerSidebar = ({ isDarkMode }) => {
           </Link>
 
           <button 
-            onClick={() => navigate('/manager/login')}
+            onClick={() => {
+              clearManagerSession();
+              navigate('/manager/login');
+            }}
             className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-all font-black text-[10px] uppercase tracking-[0.1em] border ${
               isDarkMode ? 'bg-transparent text-gray-500 border-white/5 hover:text-red-500 hover:bg-red-500/10' : 'bg-transparent text-gray-500 border-gray-200 hover:text-red-600 hover:bg-red-50'
             }`}

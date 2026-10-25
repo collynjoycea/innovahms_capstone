@@ -52,7 +52,19 @@ import HKHistory from "./pages/Staff/housekeepingmainte/HKHistory";
 import HKSettings from "./pages/Staff/housekeepingmainte/HKSettings";
 import HKGuestRequests from "./pages/Staff/housekeepingmainte/HKGuestRequests";
 
-import HotelManagerDashboard from "./pages/Staff/hotelmanager/StaffDashboard";
+import HotelManagerDashboard from "./pages/Maneger/manegerDashboard";
+import ManagerLogin from "./pages/Maneger/ManagerLogin";
+import ManagerSignUp from "./pages/Maneger/ManagerSignUp";
+import ManagerStaff from "./pages/Maneger/Staff";
+import ManagerReviews from "./pages/Maneger/Reviews";
+import ManagerHousekeeping from "./pages/Maneger/Housekeeping";
+import ManagerReports from "./pages/Maneger/Reports";
+import ManagerSectionPlaceholder from "./pages/Maneger/ManagerSectionPlaceholder";
+import ManagerRooms from "./pages/Maneger/Rooms";
+import ManagerReservations from "./pages/Maneger/Reservations";
+import ManagerCustomers from "./pages/Maneger/Customers";
+import ManagerInventory from "./pages/Maneger/Inventory";
+import ManagerProfile from "./pages/Maneger/Profile";
 
 
 // --- INVENTORY MODULES ---
@@ -142,6 +154,18 @@ const ProtectedRole = ({ children }) => {
   return isAuth ? children : <Navigate to="/staff/login" replace />;
 };
 
+const ProtectedManager = ({ children }) => {
+  let session = null;
+  try {
+    session = JSON.parse(localStorage.getItem("managerSession") || "null");
+  } catch {
+    session = null;
+  }
+  return session?.id && session?.ownerId
+    ? children
+    : <Navigate to="/manager/login" replace />;
+};
+
 const ProtectedCustomer = ({ children }) => {
   const hasCustomerSession = Boolean(localStorage.getItem("user") || localStorage.getItem("customerSession"));
   if (!hasCustomerSession) {
@@ -229,6 +253,8 @@ function App() {
         <Route element={<RegistrationLayout />}>
           <Route path="/hotelier" element={<HotelierHome />} />
           <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/manager/login" element={<ManagerLogin />} />
+          <Route path="/manager/signup" element={<ManagerSignUp />} />
           <Route path="/staff/login" element={<StaffLogin />} />
           <Route path="/owner/login" element={<OwnerLogin />} />
           <Route path="/staff/signup" element={<StaffSignUp />} />
@@ -308,8 +334,22 @@ function App() {
             <Route path="guest-requests" element={<HKGuestRequests />} />
           </Route>
 
-        <Route path="/manager" element={<ProtectedRole><ManagerLayout /></ProtectedRole>}>
+        <Route path="/manager" element={<ProtectedManager><ManagerLayout /></ProtectedManager>}>
+          <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<HotelManagerDashboard />} />
+          <Route path="rooms" element={<ManagerRooms />} />
+          <Route path="reservations" element={<ManagerReservations />} />
+          <Route path="customers" element={<ManagerCustomers />} />
+          <Route path="inventory" element={<ManagerInventory />} />
+          <Route path="profile" element={<ManagerProfile />} />
+          <Route path="revenue" element={<ManagerSectionPlaceholder title="Revenue Monitor" />} />
+          <Route path="pricing" element={<ManagerSectionPlaceholder title="Dynamic Pricing" />} />
+          <Route path="promotions" element={<ManagerSectionPlaceholder title="Promotions & Offers" />} />
+          <Route path="staff" element={<ManagerStaff />} />
+          <Route path="reviews" element={<ManagerReviews />} />
+          <Route path="housekeeping" element={<ManagerHousekeeping />} />
+          <Route path="suppliers" element={<SupplierPurchaseOrders audience="manager" />} />
+          <Route path="reports" element={<ManagerReports />} />
         </Route>
 
         {/* GROUP 7: INVENTORY MODULE */}

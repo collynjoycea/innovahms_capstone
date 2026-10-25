@@ -5086,6 +5086,7 @@ def admin_delete_review(review_id):
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/reviews', methods=['GET'])
 @app.route('/api/owner/reviews', methods=['GET'])
 def owner_get_reviews():
     conn = None
@@ -7564,6 +7565,7 @@ def _build_owner_staff_payload(cur, owner_id, hotel):
     return {"ownerId": owner_id, "hotelId": hotel_id, "staff": staff, "analytics": analytics}
 
 
+@app.route('/api/manager/dashboard/<int:owner_id>', methods=['GET'])
 @app.route('/api/owner/dashboard/<int:owner_id>', methods=['GET'])
 def owner_dashboard(owner_id):
     conn = None
@@ -7784,6 +7786,7 @@ def owner_forecast(owner_id):
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/analytics/<int:owner_id>', methods=['GET'])
 @app.route('/api/owner/analytics/<int:owner_id>', methods=['GET'])
 def owner_analytics(owner_id):
     conn = None
@@ -7863,6 +7866,7 @@ def owner_update_notification_preferences(owner_id):
         return jsonify({'error': 'Failed to update preferences'}), 500
 
 
+@app.route('/api/manager/customers/<int:owner_id>', methods=['GET'])
 @app.route('/api/owner/customers/<int:owner_id>', methods=['GET'])
 def owner_customers(owner_id):
     conn = None
@@ -7896,6 +7900,7 @@ def owner_customers(owner_id):
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/staff/<int:owner_id>', methods=['GET'])
 @app.route('/api/owner/staff/<int:owner_id>', methods=['GET'])
 def owner_staff(owner_id):
     conn = None
@@ -8238,6 +8243,82 @@ def owner_add_staff(owner_id):
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/staff/<int:owner_id>', methods=['POST'])
+def manager_add_staff(owner_id):
+    conn = None
+    cur = None
+    try:
+        data = request.get_json(silent=True) or {}
+        full_name = str(data.get('name') or '').strip()
+        email = _normalize_email(data.get('email'))
+        role_map = {
+            'Housekeeping': 'Housekeeping & Maintenance',
+            'Maintenance': 'Housekeeping & Maintenance',
+            'Front Desk': 'Front Desk Operations',
+            'Manager': 'Hotel Manager',
+        }
+        role = role_map.get(str(data.get('role') or '').strip())
+        salary = _to_float(data.get('salary'), 0)
+        if not full_name or not _is_valid_email(email) or not role:
+            return jsonify({"error": "Enter a name, valid email address, and supported staff role."}), 400
+
+        name_parts = full_name.split()
+        first_name = name_parts[0]
+        last_name = " ".join(name_parts[1:]) or "-"
+        password = _generate_temp_password()
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        error_response, hotel = _owner_staff_context(cur, owner_id)
+        if error_response:
+            return error_response
+
+        cur.execute("SELECT 1 FROM staff WHERE LOWER(email) = %s LIMIT 1", (email,))
+        if cur.fetchone():
+            return jsonify({"error": "This staff email is already registered."}), 409
+
+        columns = [
+            "hotel_id", "first_name", "last_name", "email", "contact_number",
+            "password_hash", "role", "status", "hotel_code",
+        ]
+        values = [
+            hotel.get('id'), first_name, last_name, email, "",
+            generate_password_hash(password), role, "Active", _hotel_code_for_staff(hotel),
+        ]
+        if _table_has_column(cur, "staff", "employee_id"):
+            columns.append("employee_id")
+            values.append(f"EMP-{hotel.get('id')}-{int(datetime.utcnow().timestamp())}"[-20:])
+
+        placeholders = ", ".join(["%s"] * len(values))
+        cur.execute(
+            f"INSERT INTO staff ({', '.join(columns)}) VALUES ({placeholders}) RETURNING id",
+            tuple(values),
+        )
+        staff_id = (cur.fetchone() or {}).get('id')
+        conn.commit()
+
+        email_sent = _send_staff_credentials_email(
+            email,
+            full_name,
+            role,
+            hotel.get('hotel_name'),
+            _hotel_code_for_staff(hotel),
+            password,
+        )
+        return jsonify({
+            "message": "Staff added successfully." if email_sent else "Staff added, but the login email could not be sent.",
+            "staffId": staff_id,
+            "salary": salary,
+            "emailSent": email_sent,
+        }), 201
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
 @app.route('/api/owner/staff/<int:owner_id>/<int:staff_id>/resend-credentials', methods=['POST'])
 def owner_resend_staff_credentials(owner_id, staff_id):
     """Generate a NEW temporary password and email it (the old password is only stored hashed)."""
@@ -8527,6 +8608,7 @@ def staff_login():
 
 # --- STAFF REGISTRATION ---
 
+@app.route('/api/manager/register', methods=['POST'])
 @app.route('/api/staff/register', methods=['POST'])
 def register_staff():
     data = request.json or {}
@@ -8662,6 +8744,7 @@ def staff_update_notification_preferences(staff_id):
 
 # --- ROOM MANAGEMENT ---
 
+@app.route('/api/manager/rooms/<int:hotel_id>', methods=['GET'])
 @app.route('/api/owner/rooms/<int:hotel_id>', methods=['GET'])
 def get_rooms(hotel_id):
     conn = None
@@ -8736,6 +8819,7 @@ def _to_pg_array(items):
     return '{' + ','.join(f'"{e}"' for e in escaped) + '}'
 
 
+@app.route('/api/manager/rooms/add', methods=['POST'])
 @app.route('/api/owner/rooms/add', methods=['POST'])
 def add_room():
     conn = None
@@ -8801,6 +8885,7 @@ def add_room():
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/rooms/update/<int:room_id>', methods=['PUT'])
 @app.route('/api/owner/rooms/update/<int:room_id>', methods=['PUT'])
 def update_room(room_id):
     conn = None
@@ -8863,6 +8948,7 @@ def update_room(room_id):
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/rooms/delete/<int:room_id>', methods=['DELETE'])
 @app.route('/api/owner/rooms/delete/<int:room_id>', methods=['DELETE'])
 def delete_room(room_id):
     conn = None
@@ -9323,6 +9409,7 @@ def paymongo_webhook():
 
 # --- OWNER RESERVATION MANAGEMENT ---
 
+@app.route('/api/manager/reservations', methods=['GET'])
 @app.route('/api/owner/reservations', methods=['GET'])
 def owner_get_reservations():
     conn = None
@@ -9412,6 +9499,7 @@ def owner_get_reservations():
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/reservations/<int:reservation_id>/cancel', methods=['PATCH'])
 @app.route('/api/owner/reservations/<int:reservation_id>/cancel', methods=['PATCH'])
 def owner_cancel_reservation(reservation_id):
     conn = None
@@ -9437,6 +9525,7 @@ def owner_cancel_reservation(reservation_id):
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/reservations/<int:reservation_id>', methods=['DELETE'])
 @app.route('/api/owner/reservations/<int:reservation_id>', methods=['DELETE'])
 def owner_delete_reservation(reservation_id):
     conn = None
@@ -9459,6 +9548,7 @@ def owner_delete_reservation(reservation_id):
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/reservations-stats', methods=['GET'])
 @app.route('/api/owner/reservations-stats', methods=['GET'])
 def owner_reservations_stats():
     """Alias that returns stats only — for backward compat."""
@@ -9740,6 +9830,7 @@ def room_availability(room_id):
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/profile/<int:staff_id>', methods=['GET'])
 @app.route('/api/staff/profile/<int:staff_id>', methods=['GET'])
 def staff_get_profile(staff_id):
     conn = None
@@ -9781,6 +9872,7 @@ def staff_get_profile(staff_id):
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/profile/<int:staff_id>', methods=['PATCH'])
 @app.route('/api/staff/profile/<int:staff_id>', methods=['PATCH'])
 def staff_update_profile(staff_id):
     data = request.get_json(silent=True) or {}
@@ -10974,6 +11066,7 @@ def get_recommendations():
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/reports/full-stats', methods=['GET'])
 @app.route('/api/reports/full-stats', methods=['GET'])
 def reports_full_stats():
     conn = None
@@ -11162,6 +11255,7 @@ def reports_full_stats():
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/reports/transactions', methods=['GET'])
 @app.route('/api/reports/transactions', methods=['GET'])
 def reports_transactions():
     conn = None
@@ -11224,6 +11318,7 @@ def reports_transactions():
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/reports/simulate', methods=['POST'])
 @app.route('/api/reports/simulate', methods=['POST'])
 def reports_simulate():
     conn = None
@@ -11283,6 +11378,7 @@ def reports_simulate():
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/inventory', methods=['GET'])
 @app.route('/api/inventory', methods=['GET'])
 def inventory_overview():
     conn = None
@@ -14649,6 +14745,7 @@ def _ensure_supplier_purchase_tables(cur):
     """)
 
 
+@app.route('/api/manager/inventory/suppliers', methods=['GET'])
 @app.route('/api/inventory/suppliers', methods=['GET'])
 def inv_get_suppliers():
     conn = None
@@ -14675,6 +14772,7 @@ def inv_get_suppliers():
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/inventory/suppliers', methods=['POST'])
 @app.route('/api/inventory/suppliers', methods=['POST'])
 def inv_create_supplier():
     conn = None
@@ -14818,6 +14916,7 @@ def inv_items():
     finally: _safe_close(conn, cur)
 
 
+@app.route('/api/manager/inventory/items', methods=['POST'])
 @app.route('/api/inventory/items', methods=['POST'])
 def inv_add_item():
     conn = None; cur = None
@@ -14851,6 +14950,7 @@ def inv_add_item():
     finally: _safe_close(conn, cur)
 
 
+@app.route('/api/manager/inventory/items/<int:item_id>', methods=['PUT'])
 @app.route('/api/inventory/items/<int:item_id>', methods=['PUT'])
 def inv_update_item(item_id):
     conn = None; cur = None
@@ -14883,6 +14983,7 @@ def inv_update_item(item_id):
     finally: _safe_close(conn, cur)
 
 
+@app.route('/api/manager/inventory/items/<int:item_id>', methods=['DELETE'])
 @app.route('/api/inventory/items/<int:item_id>', methods=['DELETE'])
 def inv_delete_item(item_id):
     conn = None; cur = None
@@ -15285,6 +15386,7 @@ def inv_save_settings():
     finally: _safe_close(conn, cur)
 
 
+@app.route('/api/manager/inventory/dashboard', methods=['GET'])
 @app.route('/api/inventory/dashboard', methods=['GET'])
 def inv_dashboard():
     """Inventory dashboard stats + recent movements + low stock."""
@@ -15600,6 +15702,7 @@ def hk_guest_request_status(request_id):
 # HOUSEKEEPING & MAINTENANCE ROUTES
 # ================================================================
 
+@app.route('/api/manager/housekeeping/dashboard-stats', methods=['GET'])
 @app.route('/api/housekeeping/dashboard-stats', methods=['GET'])
 def hk_dashboard_stats():
     hotel_id = request.args.get('hotel_id', type=int)
@@ -15670,6 +15773,7 @@ def hk_dashboard_stats():
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/housekeeping/tasks', methods=['GET'])
 @app.route('/api/housekeeping/tasks', methods=['GET'])
 def hk_get_tasks():
     hotel_id = request.args.get('hotel_id', type=int)
@@ -15691,6 +15795,7 @@ def hk_get_tasks():
         _safe_close(conn, cur)
 
 
+@app.route('/api/manager/housekeeping/tasks', methods=['POST'])
 @app.route('/api/housekeeping/tasks', methods=['POST'])
 def hk_create_task():
     d = request.json or {}
@@ -16152,6 +16257,99 @@ def hk_save_settings():
         return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)
+
+
+# ============================================================================
+# MANAGER MODULE
+# Managers are staff members with the "Hotel Manager" role. They see the same
+# hotel data as the owner (dashboard, rooms, reservations, reports, ...), served
+# through the /api/manager/* aliases registered above each owner/shared route.
+# The session returned here carries both the manager's staff id ("id") and the
+# hotel owner's id ("ownerId"), because the shared owner endpoints are keyed by
+# owner_id / hotel_id.
+# ============================================================================
+MANAGER_ROLE = 'Hotel Manager'
+
+
+def _manager_session_payload(cur, staff_row):
+    owner_id = staff_row.get('owner_id')
+    return {
+        "id": staff_row.get('id'),
+        "ownerId": owner_id,
+        "firstName": staff_row.get('first_name') or '',
+        "lastName": staff_row.get('last_name') or '',
+        "email": staff_row.get('email') or '',
+        "contactNumber": staff_row.get('contact_number') or '',
+        "role": staff_row.get('role') or MANAGER_ROLE,
+        "hotelId": staff_row.get('hotel_id'),
+        "hotelName": staff_row.get('hotel_name') or '',
+        "hotelCode": staff_row.get('hotel_code') or '',
+        "address": staff_row.get('hotel_address') or '',
+        "profileImage": staff_row.get('profile_image') or '',
+        "hasActiveSubscription": bool(owner_id) and _owner_has_active_subscription(cur, owner_id),
+    }
+
+
+@app.route('/api/manager/login', methods=['POST'])
+def manager_login():
+    data = request.json or {}
+    email = _normalize_email(data.get('email'))
+    password = data.get('password') or ''
+    hotel_code = str(data.get('hotelCode') or '').strip().upper()
+
+    if not _is_valid_email(email):
+        return jsonify({"error": "Enter a valid manager email."}), 400
+    if not password:
+        return jsonify({"error": "Password is required."}), 400
+    if not _is_valid_hotel_code(hotel_code):
+        return jsonify({"error": "Enter a valid hotel code."}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT s.*, h.hotel_name, h.hotel_address, h.owner_id
+            FROM staff s
+            JOIN hotels h ON s.hotel_id = h.id
+            WHERE s.email = %s AND UPPER(s.hotel_code) = %s
+            LIMIT 1
+        """, (email, hotel_code))
+        staff = cur.fetchone()
+
+        if not staff or not check_password_hash(staff['password_hash'], password):
+            conn.rollback()
+            return jsonify({"error": "Invalid email, password, or hotel code"}), 401
+
+        if (staff.get('role') or '') != MANAGER_ROLE:
+            conn.rollback()
+            return jsonify({
+                "error": "This account is not a Hotel Manager. Use the staff portal instead.",
+                "code": "MANAGER_ROLE_REQUIRED",
+            }), 403
+
+        owner_id = staff.get('owner_id')
+        approval_status = _owner_approval_status(cur, owner_id)
+        if approval_status != "APPROVED":
+            conn.rollback()
+            return jsonify({
+                "error": "This hotel is still waiting for admin approval. Manager access is restricted until it is approved.",
+                "code": "OWNER_APPROVAL_REQUIRED",
+                "approvalStatus": approval_status,
+            }), 403
+
+        payload = _manager_session_payload(cur, staff)
+        conn.commit()
+        return jsonify({"message": "Manager login successful!", "manager": payload}), 200
+    except Exception as e:
+        if conn:
+            try: conn.rollback()
+            except Exception: pass
+        return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
 
 
 if __name__ == "__main__":

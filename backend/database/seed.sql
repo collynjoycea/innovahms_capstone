@@ -291,6 +291,23 @@ ON CONFLICT (email) DO UPDATE SET
     hotel_code = EXCLUDED.hotel_code,
     status = EXCLUDED.status;
 
+-- Demo manager login: manager.demo@innovahms.test / Manager@2026 / hotel code DEMO-OWNER-01.
+INSERT INTO staff (hotel_id, first_name, last_name, email, contact_number, password_hash, role, hotel_code, status)
+SELECT h.id, 'Demo', 'Manager', 'manager.demo@innovahms.test', '+639171234569',
+       'scrypt:32768:8:1$q6QotZYl0B0l3SCm$8d4919a4461d74c44c309e5eefdfe328974f7c9e5ddac6222afd2d755930ee8a2f1f540c0ab23517fe2c70f1651c6f02740409724efca2d5d1f1e93e6f081c28',
+       'Hotel Manager', h.hotel_code, 'Active'
+FROM hotels h
+WHERE h.hotel_code = 'DEMO-OWNER-01'
+ON CONFLICT (email) DO UPDATE SET
+    hotel_id = EXCLUDED.hotel_id,
+    first_name = EXCLUDED.first_name,
+    last_name = EXCLUDED.last_name,
+    contact_number = EXCLUDED.contact_number,
+    password_hash = EXCLUDED.password_hash,
+    role = EXCLUDED.role,
+    hotel_code = EXCLUDED.hotel_code,
+    status = EXCLUDED.status;
+
 -- Rooms: allow housekeeping statuses. After front desk check-out a room is set to 'Dirty'
 -- and must go Dirty -> InProgress -> Clean -> Available before it can be booked again.
 DO $$

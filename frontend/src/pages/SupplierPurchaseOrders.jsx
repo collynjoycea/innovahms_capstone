@@ -5,6 +5,13 @@ import useStaffSession from "../hooks/useStaffSession";
 
 const EMPTY_SUPPLIER = { name: "", contactPerson: "", email: "", phone: "", address: "", notes: "" };
 
+const sanitizeSupplierField = (field, value) => {
+  if (field === "name") return value.replace(/[^a-zA-Z ]/g, "");
+  if (field === "contactPerson") return value.replace(/[0-9]/g, "");
+  if (field === "phone") return value.replace(/[a-zA-Z]/g, "");
+  return value;
+};
+
 export default function SupplierPurchaseOrders({ audience = "staff" }) {
   const outlet = useOutletContext() || {};
   const isDarkMode = Boolean(outlet.isDarkMode);
@@ -16,9 +23,22 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
       return {};
     }
   }, []);
-  const hotelId = audience === "owner"
-    ? ownerSession.hotelId || ownerSession.hotel_id
-    : staffSession.hotelId;
+  const managerSession = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("managerSession") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+  const session = audience === "owner" ? ownerSession : audience === "manager" ? managerSession : staffSession;
+  const hotelId = session.hotelId || session.hotel_id;
+  const displayName = `${session.firstName || ""} ${session.lastName || ""}`.trim();
+  const createdBy = audience === "owner"
+    ? displayName || "Hotel Owner"
+    : audience === "manager"
+      ? displayName || "Hotel Manager"
+      : session.firstName || "Inventory Staff";
+  const staffId = audience === "owner" ? null : session.staffId || session.id || null;
   const [suppliers, setSuppliers] = useState([]);
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -85,6 +105,18 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
 
   const saveSupplier = async (event) => {
     event.preventDefault();
+    if (!/^[a-zA-Z ]+$/.test(supplierForm.name.trim())) {
+      setError("Supplier name can contain letters and spaces only.");
+      return;
+    }
+    if (/[0-9]/.test(supplierForm.contactPerson)) {
+      setError("Contact person cannot contain numbers.");
+      return;
+    }
+    if (/[a-zA-Z]/.test(supplierForm.phone)) {
+      setError("Phone number cannot contain letters.");
+      return;
+    }
     setSaving(true);
     setError("");
     setMessage("");
@@ -145,10 +177,8 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
           supplierId: Number(orderForm.supplierId),
           expectedDate: orderForm.expectedDate || null,
           notes: orderForm.notes,
-          createdBy: audience === "owner"
-            ? `${ownerSession.firstName || ""} ${ownerSession.lastName || ""}`.trim() || "Hotel Owner"
-            : staffSession.firstName || "Inventory Staff",
-          staffId: audience === "owner" ? null : staffSession.staffId,
+          createdBy,
+          staffId,
           items: orderForm.lines.map((line) => ({
             itemId: Number(line.itemId),
             quantity: Number(line.quantity),
@@ -182,9 +212,7 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          receivedBy: audience === "owner"
-            ? `${ownerSession.firstName || ""} ${ownerSession.lastName || ""}`.trim() || "Hotel Owner"
-            : staffSession.firstName || "Inventory Staff",
+          receivedBy: createdBy,
         }),
       });
       const data = await response.json();
@@ -228,8 +256,13 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
                 {label}
                 <input
                   required={required}
+                  type={field === "phone" ? "tel" : "text"}
+                  inputMode={field === "phone" ? "tel" : undefined}
                   value={supplierForm[field]}
-                  onChange={(event) => setSupplierForm((current) => ({ ...current, [field]: event.target.value }))}
+                  onChange={(event) => setSupplierForm((current) => ({
+                    ...current,
+                    [field]: sanitizeSupplierField(field, event.target.value),
+                  }))}
                   className={`mt-1 block w-full rounded-lg border px-3 py-2 text-sm ${theme.input}`}
                 />
               </label>
