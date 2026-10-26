@@ -17,6 +17,7 @@ import StaffLogin from "./pages/Staff/StaffLogIn";
 import StaffSignUp from "./pages/Staff/StaffSignUp";
 import HotelierHome from "./components/HotelierHome";
 import StaffDashboard from "./pages/Staff/frontdesktop/StaffDashboard";
+import StaffDutySchedule from "./pages/Staff/StaffDutySchedule";
 import StaffProfile from "./pages/Staff/frontdesktop/StaffProfile";
 import AllReservation from "./pages/Staff/frontdesktop/AllReservation";
 import CheckIn from "./pages/Staff/frontdesktop/CheckIn";
@@ -286,6 +287,7 @@ function App() {
           element={<ProtectedStaff><StaffLayout /></ProtectedStaff>}
         >
           <Route path="dashboard" element={<StaffDashboard />} />
+          <Route path="schedule" element={<StaffDutySchedule />} />
           <Route path="profile" element={<StaffProfile />} />
           <Route path="reservations" element={<AllReservation />} />
           <Route path="check-in" element={<CheckIn />} />

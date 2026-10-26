@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { AlertTriangle, Boxes, Plus, RefreshCcw, Trash2, TrendingUp, Truck, X } from "lucide-react";
 
+const INVENTORY_CATEGORIES = ["Cleaning", "Consumables", "F&B", "General", "Guest Supplies", "Linen", "Linens", "Maintenance", "Paper", "Safety", "Toiletries"];
+
 const getManagerSession = () => {
   try {
     return JSON.parse(localStorage.getItem("managerSession") || "{}");
@@ -22,6 +24,10 @@ const Inventory = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [overview, setOverview] = useState({ totalSkus: 0, lowStock: 0, consumRate: 0, pending: 0 });
   const [dashboard, setDashboard] = useState({ stats: {} });
+  const inventoryCategories = useMemo(() => [...new Set([
+    ...INVENTORY_CATEGORIES,
+    ...inventoryData.map((item) => String(item.category || "").trim()).filter(Boolean),
+  ])].sort((a, b) => a.localeCompare(b)), [inventoryData]);
 
   // Modal State para sa Add Item
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -29,7 +35,7 @@ const Inventory = () => {
   const [formData, setFormData] = useState({
     item_name: "",
     sku_id: "",
-    category: "",
+    category: "General",
     supplier_id: "",
     stock_level: "",
     max_stock: "",
@@ -110,7 +116,7 @@ const Inventory = () => {
       setFormData({
         item_name: "",
         sku_id: "",
-        category: "",
+        category: "General",
         supplier_id: "",
         stock_level: "",
         max_stock: "",
@@ -333,14 +339,15 @@ const Inventory = () => {
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Category</label>
-                  <input
-                    type="text"
+                  <select
                     name="category"
+                    required
                     value={formData.category}
                     onChange={handleInputChange}
-                    placeholder="e.g. Linens"
                     className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100 outline-none"
-                  />
+                  >
+                    {inventoryCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
                 </div>
               </div>
 

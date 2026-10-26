@@ -1,28 +1,47 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, Timer, Star, Plus, Search, 
-  Filter, Download, AlertCircle, CheckCircle2, X, Upload, Briefcase, Mail, User
+  Filter, Download, AlertCircle, CheckCircle2, X, Upload, Briefcase, Mail, User, Trash2, Calendar, Pencil
 } from 'lucide-react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
+const MANAGER_SESSION_KEY = 'managerSession';
+const getLocalDateString = (value = new Date()) => {
+  const localDate = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+};
+const isSchedulableStaff = (staff) => {
+  const role = String(staff.role || '').toLowerCase().replace(/[^a-z]/g, '');
+  return role.includes('frontdesk') || role.includes('housekeeping');
+};
+const newDutySchedule = () => ({
+  scheduleId: null,
+  staffId: '',
+  shiftDate: getLocalDateString(),
+  shiftPreset: 'morning',
+  shiftStart: '06:00',
+  shiftEnd: '14:00',
+  taskDescription: ''
+});
+
 const Staff = () => {
+  const navigate = useNavigate();
   const [staffData, setStaffData] = useState([]);
+  const [dutySchedules, setDutySchedules] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [analytics, setAnalytics] = useState({
     activeCount: 0,
     totalCount: 0,
-    avgCleaningSpeed: '0m',
-    avgRating: 0,
-    payrollProjection: 0,
-    baseSalary: 0,
-    bonuses: 0,
-    tardinessCount: 0,
-    overtimeHours: 0,
-    cleaningProgress: [] 
+    morningShiftCount: 0,
+    afternoonShiftCount: 0,
+    nightShiftCount: 0
   });
   const [loading, setLoading] = useState(true);
+  const [staffLoadError, setStaffLoadError] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
 
   // Form State for Adding Staff
   const [newStaff, setNewStaff] = useState({
@@ -32,33 +51,55 @@ const Staff = () => {
     salary: ''
   });
 
-  const resolvedOwnerId = JSON.parse(localStorage.getItem('managerSession') || '{}')?.ownerId;
+  // Form State for Assigning Duty
+  const [assignDuty, setAssignDuty] = useState(newDutySchedule);
+
+  // Session Validation
+  const getManagerSession = () => {
+    const raw = localStorage.getItem(MANAGER_SESSION_KEY);
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw) || {};
+    } catch {
+      return {};
+    }
+  };
+
+  const managerSession = getManagerSession();
+  const resolvedOwnerId = managerSession.ownerId ?? null;
+  const resolvedManagerId = managerSession.id ?? null;
 
   const fetchData = async () => {
+    if (!resolvedManagerId) {
+      navigate('/staff/login', { replace: true });
+      return;
+    }
     try {
       setLoading(true);
-      const res = await axios.get(`/api/manager/staff/${resolvedOwnerId}`);
+      const res = await axios.get(`/api/manager/staff/${resolvedManagerId}/directory`);
       setStaffData(res.data.staff || []);
+      setDutySchedules(res.data.schedules || []);
+      setStaffLoadError('');
       setAnalytics(res.data.analytics || {
         activeCount: 0,
         totalCount: 0,
-        avgCleaningSpeed: '0m',
-        avgRating: 0,
-        payrollProjection: 0,
-        baseSalary: 0,
-        bonuses: 0,
-        tardinessCount: 0,
-        overtimeHours: 0,
-        cleaningProgress: []
+        morningShiftCount: 0,
+        afternoonShiftCount: 0,
+        nightShiftCount: 0
       });
-      setLoading(false);
     } catch (err) {
       console.error("Error fetching staff data:", err);
+      setStaffLoadError(err.response?.data?.error || 'Unable to load staff for this hotel.');
+    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    if (!resolvedManagerId) {
+      navigate('/staff/login', { replace: true });
+      return;
+    }
     fetchData();
     const interval = setInterval(fetchData, 15000);
     const onFocus = () => fetchData();
@@ -67,7 +108,7 @@ const Staff = () => {
       clearInterval(interval);
       window.removeEventListener('focus', onFocus);
     };
-  }, []);
+  }, [resolvedManagerId, navigate]);
 
   const handleAddStaffSubmit = async (e) => {
     e.preventDefault();
@@ -87,7 +128,7 @@ const Staff = () => {
       });
       setIsAddModalOpen(false);
       setNewStaff({ name: '', email: '', role: 'Housekeeping', salary: '' });
-      fetchData(); // Refresh list
+      fetchData();
     } catch (err) {
       console.error(err);
       Swal.fire({
@@ -100,15 +141,65 @@ const Staff = () => {
     }
   };
 
-  const handleGeneratePayslips = async () => {
+  const handleAssignDutySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        staffId: assignDuty.staffId,
+        shiftDate: assignDuty.shiftDate,
+        shiftStart: assignDuty.shiftStart,
+        shiftEnd: assignDuty.shiftEnd,
+        taskDescription: assignDuty.taskDescription
+      };
+      const response = assignDuty.scheduleId
+        ? await axios.put(`/api/manager/staff/${resolvedManagerId}/duty-schedules/${assignDuty.scheduleId}`, payload)
+        : await axios.post(`/api/manager/staff/${resolvedManagerId}/duty-schedules`, payload);
+      Swal.fire({
+        title: assignDuty.scheduleId ? 'Schedule Updated' : 'Schedule Assigned',
+        text: response.data.notificationSent
+          ? 'The staff member has been notified.'
+          : 'The schedule was saved, but the notification could not be created.',
+        icon: response.data.notificationSent ? 'success' : 'warning',
+        confirmButtonColor: '#047857',
+        customClass: { popup: 'rounded-lg' }
+      });
+      setIsAssignModalOpen(false);
+      setAssignDuty(newDutySchedule());
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        title: 'Failed',
+        text: err.response?.data?.error || 'Unable to save duty schedule. Please try again.',
+        icon: 'error',
+        confirmButtonColor: '#047857',
+        customClass: { popup: 'rounded-lg' }
+      });
+    }
+  };
+
+  const openDutySchedule = (schedule = null) => {
+    setAssignDuty(schedule ? {
+      scheduleId: schedule.id,
+      staffId: String(schedule.staffId),
+      shiftDate: schedule.shiftDate,
+      shiftPreset: 'custom',
+      shiftStart: schedule.shiftStart,
+      shiftEnd: schedule.shiftEnd,
+      taskDescription: schedule.taskDescription
+    } : newDutySchedule());
+    setIsAssignModalOpen(true);
+  };
+
+  const handleDeleteStaff = async (staffId, staffName) => {
     Swal.fire({
-      title: 'Generate Payslips?',
-      text: "This will process digital payslips for the current cycle and notify staff.",
-      icon: 'question',
+      title: `Delete ${staffName}?`,
+      text: "This action cannot be undone. The staff member will be removed from the directory.",
+      icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#047857',
+      confirmButtonColor: '#dc2626',
       cancelButtonColor: '#64748b',
-      confirmButtonText: 'Yes, Generate',
+      confirmButtonText: 'Yes, Delete',
       cancelButtonText: 'Cancel',
       customClass: {
         popup: 'rounded-lg border border-slate-200 dark:border-slate-800 dark:bg-slate-900',
@@ -116,23 +207,28 @@ const Staff = () => {
         confirmButton: 'rounded px-4 py-2 font-bold text-xs',
         cancelButton: 'rounded px-4 py-2 font-bold text-xs'
       }
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        Swal.fire({
-          title: 'Processing...',
-          html: 'Generating payroll data and sending emails.',
-          timer: 2000,
-          timerProgressBar: true,
-          didOpen: () => { Swal.showLoading() }
-        }).then(() => {
+        try {
+          await axios.delete(`/api/manager/staff/${resolvedOwnerId}/${staffId}`);
           Swal.fire({
-            title: 'Success!',
-            text: 'Payslips have been generated and sent to staff emails.',
+            title: 'Deleted!',
+            text: 'Staff member has been removed.',
             icon: 'success',
             confirmButtonColor: '#047857',
             customClass: { popup: 'rounded-lg' }
           });
-        });
+          fetchData();
+        } catch (err) {
+          console.error(err);
+          Swal.fire({
+            title: 'Failed',
+            text: 'Unable to delete staff member.',
+            icon: 'error',
+            confirmButtonColor: '#047857',
+            customClass: { popup: 'rounded-lg' }
+          });
+        }
       }
     });
   };
@@ -152,27 +248,32 @@ const Staff = () => {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans p-6">
       
-      {/* Header */}
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-4 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Staff Management</h1>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Monitor performance, attendance, and payroll operations.</p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Monitor performance, attendance, and shift assignments.</p>
           </div>
-          <button 
-            onClick={() => setIsAddModalOpen(true)}
-            className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-2 transition-colors"
-          >
-            <Plus size={15} /> Add New Staff
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openDutySchedule()}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-2 transition-colors cursor-pointer"
+            >
+              <Calendar size={15} /> Assign Duty
+            </button>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-2 transition-colors cursor-pointer"
+            >
+              <Plus size={15} /> Add New Staff
+            </button>
+          </div>
         </div>
 
-        {/* Analytics Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard label="Active Staff Today" val={`${analytics.activeCount} / ${analytics.totalCount}`} sub="Attendance" badgeColor="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" />
-          <StatCard label="Avg Cleaning Speed" val={analytics.avgCleaningSpeed || '0m'} sub="Efficiency" badgeColor="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" />
-          <StatCard label="Guest Rating Avg" val={`${analytics.avgRating?.toFixed(1) || '0.0'} / 5.0`} sub="Performance" badgeColor="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" />
-          <StatCard label="Payroll Projection" val={`PHP ${analytics.payrollProjection?.toLocaleString() || '0'}`} sub="Current Cycle" badgeColor="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300" borderLeft />
+        {/* Analytics Card - Active Staff Only */}
+        <div className="grid grid-cols-1 sm:grid-cols-1 gap-4 mb-6">
+          <StatCard label="Active Staff Today" val={`${analytics.activeCount} / ${analytics.totalCount}`} sub="Attendance Overview" badgeColor="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" borderLeft />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -194,6 +295,12 @@ const Staff = () => {
               </div>
             </div>
 
+            {staffLoadError && (
+              <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                {staffLoadError}
+              </p>
+            )}
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -201,8 +308,9 @@ const Staff = () => {
                     <th className="pb-3 font-semibold">Employee ID</th>
                     <th className="pb-3 font-semibold">Full Name</th>
                     <th className="pb-3 font-semibold">Role</th>
-                    <th className="pb-3 font-semibold">Performance</th>
+                    <th className="pb-3 font-semibold">Assigned Duty / Task</th>
                     <th className="pb-3 font-semibold">Status</th>
+                    <th className="pb-3 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
@@ -211,7 +319,7 @@ const Staff = () => {
                       <td className="py-3 font-mono text-slate-500">#EMP-{staff.id}</td>
                       <td className="py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-xs">
+                          <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-xs shrink-0">
                             {staff.image ? <img src={staff.image} alt="" className="w-full h-full rounded-full object-cover" /> : staff.name.charAt(0)}
                           </div>
                           <div>
@@ -221,13 +329,22 @@ const Staff = () => {
                         </div>
                       </td>
                       <td className="py-3 text-slate-600 dark:text-slate-300">{staff.role}</td>
-                      <td className="py-3 font-semibold text-emerald-800 dark:text-emerald-400">
-                        <div className="flex items-center gap-1">{staff.rating || '0.0'} <Star size={12} fill="currentColor" /></div>
+                      <td className="py-3 text-slate-600 dark:text-slate-300 font-medium">
+                        {staff.assignedDuty || <span className="text-slate-400 italic">No duty assigned</span>}
                       </td>
                       <td className="py-3"><StatusBadge status={staff.status} /></td>
+                      <td className="py-3 text-right">
+                        <button
+                          onClick={() => handleDeleteStaff(staff.id, staff.name)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                          title="Remove Staff"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan="5" className="py-8 text-center text-xs italic text-slate-500">No staff records found.</td></tr>
+                    <tr><td colSpan="6" className="py-8 text-center text-xs italic text-slate-500">No staff records found.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -245,38 +362,36 @@ const Staff = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Cleaning Progress */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
-            <div className="flex justify-between items-center mb-5 border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white">Cleaning Operations Progress</h3>
-              <span className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Live Tracking</span>
-            </div>
-            <div className="space-y-4">
-              {analytics.cleaningProgress?.length > 0 ? analytics.cleaningProgress.map((wing, idx) => (
-                <ProgressBar key={idx} label={wing.name} progress={wing.percentage} />
-              )) : (
-                <div className="py-8 text-center text-xs italic text-slate-500 border border-dashed border-slate-200 dark:border-slate-800 rounded">Waiting for real-time task data...</div>
-              )}
-            </div>
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm mb-6">
+          <div className="flex items-center justify-between mb-4 border-b border-slate-200 dark:border-slate-800 pb-3">
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white">Upcoming Duty Schedules</h3>
+            <span className="text-[10px] font-semibold text-slate-500">{dutySchedules.length} scheduled</span>
           </div>
-
-          {/* Financial & Payroll Summary */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
-            <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-5 border-b border-slate-200 dark:border-slate-800 pb-3">Financial & Payroll Summary</h3>
-            <div className="space-y-3 mb-5">
-              <AlertItem icon={<AlertCircle className="text-red-600" size={15}/>} label={`${analytics.tardinessCount || 0} Tardiness Recorded`} action="Review" color="bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300" />
-              <AlertItem icon={<Timer className="text-amber-600" size={15}/>} label={`${analytics.overtimeHours || 0}h Overtime Logged`} action="Details" color="bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300" />
-            </div>
-            <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-4 mb-5">
-              <div className="flex justify-between text-xs"><span className="text-slate-500">Base Salary:</span><span className="font-bold text-slate-700 dark:text-slate-300">PHP {analytics.baseSalary?.toLocaleString() || '0.00'}</span></div>
-              <div className="flex items-center justify-between pt-1"><span className="text-sm font-bold text-slate-900 dark:text-white">Estimated Total:</span><span className="text-lg font-bold text-emerald-800 dark:text-emerald-400">PHP {analytics.payrollProjection?.toLocaleString() || '0.00'}</span></div>
-            </div>
-            <button onClick={handleGeneratePayslips} className="w-full bg-emerald-800 hover:bg-emerald-900 text-white py-2.5 rounded font-bold text-xs shadow-sm transition-colors">
-              Generate Current Cycle Payslips
-            </button>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+            {dutySchedules.length ? dutySchedules.map((schedule) => (
+              <div key={schedule.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">
+                    {schedule.staffName} <span className="font-normal text-slate-500">· {schedule.staffRole}</span>
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
+                    {new Date(`${schedule.shiftDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                    {' · '}{schedule.shiftStart}–{schedule.shiftEnd}{' · '}{schedule.taskDescription}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openDutySchedule(schedule)}
+                  className="inline-flex items-center justify-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <Pencil size={13} /> Edit
+                </button>
+              </div>
+            )) : (
+              <p className="py-5 text-center text-xs text-slate-500">No upcoming duty schedules. Assign one to notify your staff.</p>
+            )}
           </div>
-        </div>
+        </section>
 
         {/* --- ADD STAFF MODAL --- */}
         {isAddModalOpen && (
@@ -289,14 +404,13 @@ const Staff = () => {
                 </div>
                 <button 
                   onClick={() => setIsAddModalOpen(false)}
-                  className="text-slate-400 hover:text-red-500 transition-colors"
+                  className="text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
                 >
                   <X size={18} />
                 </button>
               </div>
 
               <form onSubmit={handleAddStaffSubmit} className="p-5 space-y-4">
-                {/* Name Input */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Full Name <span className="text-red-500">*</span></label>
                   <div className="relative">
@@ -312,7 +426,6 @@ const Staff = () => {
                   </div>
                 </div>
 
-                {/* Email Input */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Email Address <span className="text-red-500">*</span></label>
                   <div className="relative">
@@ -329,7 +442,6 @@ const Staff = () => {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Role Selection */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Role <span className="text-red-500">*</span></label>
                     <div className="relative">
@@ -347,7 +459,6 @@ const Staff = () => {
                     </div>
                   </div>
 
-                  {/* Salary Input */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Monthly Salary <span className="text-red-500">*</span></label>
                     <div className="relative">
@@ -364,10 +475,9 @@ const Staff = () => {
                   </div>
                 </div>
 
-                {/* Submit Button */}
                 <button 
                   type="submit"
-                  className="w-full bg-emerald-800 hover:bg-emerald-900 text-white py-2.5 rounded font-bold text-xs shadow-sm transition-colors mt-2"
+                  className="w-full bg-emerald-800 hover:bg-emerald-900 text-white py-2.5 rounded font-bold text-xs shadow-sm transition-colors mt-2 cursor-pointer"
                 >
                   Confirm Registration
                 </button>
@@ -375,6 +485,131 @@ const Staff = () => {
             </div>
           </div>
         )}
+
+        {/* --- ASSIGN DUTY MODAL --- */}
+        {isAssignModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl overflow-hidden">
+              <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                    {assignDuty.scheduleId ? 'Update Duty Schedule' : 'Assign Duty Schedule'}
+                  </h2>
+                  <p className="text-[11px] text-slate-500">Choose the staff member, date, and working hours.</p>
+                </div>
+                <button
+                  onClick={() => { setIsAssignModalOpen(false); setAssignDuty(newDutySchedule()); }}
+                  className="text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleAssignDutySubmit} className="p-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Select Staff Member <span className="text-red-500">*</span></label>
+                  <select
+                    required
+                    value={assignDuty.staffId}
+                    onChange={(e) => setAssignDuty({...assignDuty, staffId: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none cursor-pointer"
+                  >
+                    <option value="">-- Choose Staff --</option>
+                    {staffData.filter(isSchedulableStaff).map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+                    ))}
+                  </select>
+                  {!staffLoadError && staffData.filter(isSchedulableStaff).length === 0 && (
+                    <p className="mt-1 text-[11px] text-amber-600">
+                      {staffData.length > 0
+                        ? 'No Front Desk or Housekeeping staff found for this hotel.'
+                        : 'No staff accounts were returned for this hotel. Check the hotel staff directory.'}
+                    </p>
+                  )}
+                  {staffLoadError && (
+                    <p role="alert" className="mt-1 text-[11px] text-red-600">
+                      Staff could not be loaded. Refresh the page or check the manager’s hotel assignment.
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Duty Date <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    type="date"
+                    min={getLocalDateString()}
+                    value={assignDuty.shiftDate}
+                    onChange={(e) => setAssignDuty({...assignDuty, shiftDate: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Shift Template</label>
+                  <select
+                    value={assignDuty.shiftPreset}
+                    onChange={(e) => {
+                      const presets = {
+                        morning: ['06:00', '14:00'],
+                        afternoon: ['14:00', '22:00'],
+                        night: ['22:00', '06:00']
+                      };
+                      const times = presets[e.target.value];
+                      setAssignDuty({
+                        ...assignDuty,
+                        shiftPreset: e.target.value,
+                        ...(times ? { shiftStart: times[0], shiftEnd: times[1] } : {})
+                      });
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none cursor-pointer"
+                  >
+                    <option value="morning">Morning (06:00–14:00)</option>
+                    <option value="afternoon">Afternoon (14:00–22:00)</option>
+                    <option value="night">Night (22:00–06:00)</option>
+                    <option value="custom">Custom hours</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Start Time <span className="text-red-500">*</span></label>
+                    <input required type="time" value={assignDuty.shiftStart}
+                      onChange={(e) => setAssignDuty({...assignDuty, shiftPreset: 'custom', shiftStart: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">End Time <span className="text-red-500">*</span></label>
+                    <input required type="time" value={assignDuty.shiftEnd}
+                      onChange={(e) => setAssignDuty({...assignDuty, shiftPreset: 'custom', shiftEnd: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Duty / Assignment <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    type="text"
+                    maxLength={500}
+                    placeholder="e.g. Front desk coverage / Room 205 housekeeping"
+                    value={assignDuty.taskDescription}
+                    onChange={(e) => setAssignDuty({...assignDuty, taskDescription: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white py-2.5 rounded font-bold text-xs shadow-sm transition-colors mt-2 cursor-pointer"
+                >
+                  {assignDuty.scheduleId ? 'Save Schedule Changes' : 'Assign Schedule & Notify Staff'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
@@ -404,24 +639,6 @@ const ShiftBlock = ({ label, time, count, active }) => (
       {label} ({time}) {active && "| NOW"}
     </p>
     <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{count} Staff Members</p>
-  </div>
-);
-
-const ProgressBar = ({ label, progress }) => (
-  <div>
-    <div className="flex justify-between text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">
-      <span>{label}</span><span>{progress}%</span>
-    </div>
-    <div className="h-1.5 w-full overflow-hidden rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-      <div className="h-full bg-emerald-800 transition-all duration-1000" style={{ width: `${progress}%` }} />
-    </div>
-  </div>
-);
-
-const AlertItem = ({ icon, label, action, color }) => (
-  <div className={`flex justify-between items-center p-3 rounded text-xs ${color}`}>
-    <div className="flex items-center gap-2">{icon}<span className="font-semibold">{label}</span></div>
-    <button className="text-[10px] font-bold underline uppercase hover:opacity-80">{action}</button>
   </div>
 );
 

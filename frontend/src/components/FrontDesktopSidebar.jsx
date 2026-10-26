@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios'; // Siguraduhing naka-install ito
 import useStaffSession from '../hooks/useStaffSession';
 import { 
-  LayoutDashboard, ClipboardList, PlusCircle, 
+  LayoutDashboard, ClipboardList, PlusCircle, CalendarDays,
   LogIn, LogOut, Map, 
   Wallet, Users, Layers, Clock, UserCircle
 } from 'lucide-react';
@@ -83,6 +83,10 @@ const FrontDesktopSidebar = ({ isDarkMode }) => {
     {
       title: "OVERVIEW",
       items: [{ name: "Dashboard", path: "/staff/dashboard", icon: <LayoutDashboard /> }]
+    },
+    {
+      title: "MY WORK",
+      items: [{ name: "Duty Schedule", path: "/staff/schedule", icon: <CalendarDays /> }]
     },
     {
       title: "RESERVATIONS",

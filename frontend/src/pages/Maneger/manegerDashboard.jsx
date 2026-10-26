@@ -77,7 +77,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans">
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         
-        {/* HEADER SECTION */}
+        {/* Header and period filters */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200 dark:border-slate-800 pb-4 gap-4 bg-white dark:bg-slate-900 p-6 rounded-lg shadow-sm border">
           <div>
             <div className="flex items-center gap-2">
@@ -89,19 +89,27 @@ export default function Dashboard() {
               Overview for <span className="font-semibold text-slate-800 dark:text-slate-200">{data?.hotelName || "your property"}</span>
             </p>
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded border border-slate-200 dark:border-slate-700">
-            {["daily", "monthly"].map((value) => (
+
+          {/* Period filter buttons */}
+          <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded border border-slate-200 dark:border-slate-700">
+            {[
+              { key: "daily", label: "Daily" },
+              { key: "monthly", label: "Monthly" },
+              { key: "quarterly", label: "Quarterly" },
+              { key: "yearly", label: "Yearly" }
+            ].map((item) => (
               <button 
-                key={value} 
+                key={item.key}
                 type="button" 
-                onClick={() => setPeriod(value)} 
-                className={`rounded px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
-                  period === value 
+                aria-pressed={period === item.key}
+                onClick={() => setPeriod(item.key)}
+                className={`rounded px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
+                  period === item.key
                     ? "bg-emerald-800 text-white shadow-xs" 
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
-                {value}
+                {item.label}
               </button>
             ))}
           </div>
@@ -117,10 +125,10 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* TOP KPI CARDS */}
+        {/* KPI cards reflect the selected period. */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard title="Total Reservations" value={(kpis.totalReservations ?? 0).toLocaleString()} />
-          <StatCard title="Occupancy Rate" value={`${Math.round(kpis.occupancyRate ?? 0)}%`} />
+          <StatCard title="Occupancy Rate" value={`${Math.round(kpis.occupancyRate ?? 0)}%`} subtitle="Selected period" />
           <StatCard title="Total Revenue" value={formatPhp(kpis.totalRevenuePhp)} />
           <StatCard title="Available Rooms" value={(kpis.availableRooms ?? 0).toLocaleString()} subtitle={kpis.inventoryNote || "Ready"} />
         </div>

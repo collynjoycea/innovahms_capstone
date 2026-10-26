@@ -82,7 +82,7 @@ const BarTrend = ({ labels = [], series = [], tone = "emerald", formatter = (val
             </div>
             <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500">{shortLabel(displayLabels[index])}</span>
           </div>
-        )) : <div className="flex h-full w-full items-center justify-center rounded border border-dashed border-slate-200 text-xs text-slate-400 dark:border-slate-800 dark:text-slate-500">Walang nakitang data ng trend.</div>}
+        )) : <div className="flex h-full w-full items-center justify-center rounded border border-dashed border-slate-200 text-xs text-slate-400 dark:border-slate-800 dark:text-slate-500">No trend data available.</div>}
       </div>
       <div className="mt-3 flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
         <span>{formatter(displayValues[0] || 0)}</span>
@@ -102,10 +102,10 @@ const RecCard = ({ item }) => (
         <span className="rounded bg-emerald-950/80 border border-emerald-500/30 px-2.5 py-0.5 text-[9px] font-mono uppercase tracking-widest text-emerald-300 backdrop-blur-md">{item?.metricLabel || "Signal"}: {item?.metricValue || "--"}</span>
       </div>
       <div>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold">Rekomendasyon mula sa AI Insight</p>
-        <h3 className="mt-1.5 text-base font-bold leading-snug">{item?.title || "Rekomendasyon"}</h3>
-        <p className="mt-1.5 text-xs leading-relaxed text-slate-300">{item?.summary || "Wala pang impormasyon."}</p>
-        <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">{item?.action || "Naghihintay ng karagdagang data"}</p>
+        <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold">AI Insight Recommendation</p>
+        <h3 className="mt-1.5 text-base font-bold leading-snug">{item?.title || "Recommendation"}</h3>
+        <p className="mt-1.5 text-xs leading-relaxed text-slate-300">{item?.summary || "No information available."}</p>
+        <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">{item?.action || "Waiting for more data"}</p>
       </div>
     </div>
   </div>
@@ -143,7 +143,7 @@ export default function Dashboard() {
       if (!silent) setLoading(true);
       setError("");
       try {
-        // Buuin ang query parameters para sa period at date range filter
+        // Build query parameters for the selected period and date range.
         let queryParams = `period=${period}`;
         if (period === "custom" && fromDate && toDate) {
           queryParams += `&from=${fromDate}&to=${toDate}`;
@@ -156,7 +156,7 @@ export default function Dashboard() {
         const dash = await dashRes.json().catch(() => ({}));
         const analytics = await analyticsRes.json().catch(() => ({}));
         if (!dashRes.ok) {
-          setError(dash?.error || `Nabigong i-load ang dashboard (HTTP ${dashRes.status}).`);
+          setError(dash?.error || `Failed to load dashboard (HTTP ${dashRes.status}).`);
           setData(null);
           setForecastData(null);
           setAnalyticsData(null);
@@ -168,7 +168,7 @@ export default function Dashboard() {
         setLastSynced(new Date());
       } catch (e) {
         if (e?.name === "AbortError") return;
-        setError("Hindi maabot ang server. Subukan muli.");
+        setError("Unable to reach the server. Please try again.");
         setData(null);
         setForecastData(null);
         setAnalyticsData(null);
@@ -210,10 +210,10 @@ export default function Dashboard() {
               </div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Property Dashboard</h1>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                Buod para sa <span className="font-semibold text-slate-800 dark:text-slate-200">{data?.hotelName || "iyong ari-arian"}</span>
+                Overview for <span className="font-semibold text-slate-800 dark:text-slate-200">{data?.hotelName || "your property"}</span>
               </p>
               <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-2">
-                {lastSynced ? `Huling na-sync noong ${lastSynced.toLocaleTimeString()}` : "Handa na ang live sync"}
+                {lastSynced ? `Last synced at ${lastSynced.toLocaleTimeString()}` : "Live sync ready"}
               </p>
             </div>
 
@@ -242,12 +242,12 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* CUSTOM DATE RANGE PICKER (Lilitaw lang kapag "custom" ang pinili) */}
+          {/* Custom date range picker */}
           {period === "custom" && (
             <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Calendar size={14} className="text-slate-400" />
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Mula:</span>
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">From:</span>
                 <input 
                   type="date" 
                   value={fromDate} 
@@ -256,7 +256,7 @@ export default function Dashboard() {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Hanggang:</span>
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">To:</span>
                 <input 
                   type="date" 
                   value={toDate} 
@@ -280,10 +280,10 @@ export default function Dashboard() {
 
         {/* TOP KPI CARDS */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard title="Kabuuan ng mga Reserbasyon" value={(kpis.totalReservations ?? 0).toLocaleString()} subtitle="Real-time count" />
-          <StatCard title="Antas ng Occupancy" value={`${Math.round(kpis.occupancyRate ?? 0)}%`} subtitle="Live room status" />
-          <StatCard title="Kabuuang Kita (Revenue)" value={formatPhp(kpis.totalRevenuePhp)} subtitle="Trend sync" />
-          <StatCard title="Mga Bakanteng Kuwarto" value={(kpis.availableRooms ?? 0).toLocaleString()} subtitle={kpis.inventoryNote || "Handa"} />
+          <StatCard title="Total Reservations" value={(kpis.totalReservations ?? 0).toLocaleString()} subtitle="Selected period" />
+          <StatCard title="Occupancy Rate" value={`${Math.round(kpis.occupancyRate ?? 0)}%`} subtitle="Selected period" />
+          <StatCard title="Total Revenue" value={formatPhp(kpis.totalRevenuePhp)} subtitle="Selected period" />
+          <StatCard title="Available Rooms" value={(kpis.availableRooms ?? 0).toLocaleString()} subtitle={kpis.inventoryNote || "Ready"} />
         </div>
 
         {/* ANALYTICS & FORECASTING CENTER */}
@@ -295,7 +295,7 @@ export default function Dashboard() {
                 <h2 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">Owner Intelligence Center</h2>
               </div>
               <div className="border border-emerald-600/30 bg-emerald-50/50 dark:border-emerald-500/30 dark:bg-emerald-950/30 px-3 py-1.5 rounded text-right">
-                <p className="text-[9px] font-mono uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Inaasahang Kita (Forecast)</p>
+                <p className="text-[9px] font-mono uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Forecast Revenue</p>
                 <p className="text-sm font-bold text-slate-900 dark:text-white">{formatPhp(summary.forecastedRevenuePhp)}</p>
               </div>
             </div>
@@ -304,8 +304,8 @@ export default function Dashboard() {
               <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Trend ng Occupancy</p>
-                    <p className="text-[11px] text-slate-500">Paggamit ng kuwarto</p>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Occupancy Trend</p>
+                    <p className="text-[11px] text-slate-500">Room usage</p>
                   </div>
                   <span className="text-xs font-bold text-slate-900 dark:text-white">{Math.round(summary.currentOccupancyRate || 0)}%</span>
                 </div>
@@ -315,8 +315,8 @@ export default function Dashboard() {
               <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Trend ng Kita</p>
-                    <p className="text-[11px] text-slate-500">Kasaysayan ng kita</p>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Revenue Trend</p>
+                    <p className="text-[11px] text-slate-500">Revenue history</p>
                   </div>
                   <span className="text-xs font-bold text-slate-900 dark:text-white">{formatPhp(summary.currentRevenuePhp)}</span>
                 </div>
@@ -343,9 +343,9 @@ export default function Dashboard() {
               </div>
               <div className="mt-5 space-y-4">
                 <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-4">
-                  <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Inaasahang Occupancy</p>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Forecast Occupancy</p>
                   <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{Math.round(summary.forecastedOccupancyRate || 0)}%</p>
-                  <p className="mt-1 text-[11px] text-slate-500">Prediksyon para sa susunod na {summary.forecastHorizon || 0} {period === "today" ? "araw" : period === "quarterly" ? "quarter" : period === "yearly" ? "taon" : "buwan"}.</p>
+                  <p className="mt-1 text-[11px] text-slate-500">Forecast for the next {summary.forecastHorizon || 0} {period === "today" ? "days" : period === "quarterly" ? "quarters" : period === "yearly" ? "years" : "months"}.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-3">
@@ -353,7 +353,7 @@ export default function Dashboard() {
                     <p className="mt-1 text-base font-bold text-slate-900 dark:text-white">{compact((trends.bookings || []).reduce((sum, value) => sum + Number(value || 0), 0))}</p>
                   </div>
                   <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-3">
-                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Prediksyon Engine</p>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Forecast Engine</p>
                     <p className="mt-1 text-base font-bold capitalize text-slate-900 dark:text-white truncate">{analytics?.forecast?.engine?.mode?.replace("-", " ") || "Prophet AI"}</p>
                   </div>
                 </div>
@@ -361,7 +361,7 @@ export default function Dashboard() {
             </div>
             <div className="mt-4 border border-emerald-600/30 bg-emerald-50/50 dark:border-emerald-500/30 dark:bg-emerald-950/30 p-3.5 rounded">
               <p className="text-[10px] font-mono uppercase tracking-wider text-emerald-800 dark:text-emerald-300 font-bold">Tala mula sa AI Planning</p>
-              <p className="mt-1 text-[11px] font-medium leading-relaxed text-slate-700 dark:text-slate-300">Gamitin ang inaasahang kita na {formatPhp(summary.forecastedRevenuePhp)} para sa pag-optimize ng presyo at iskedyul ng tauhan.</p>
+              <p className="mt-1 text-[11px] font-medium leading-relaxed text-slate-700 dark:text-slate-300">Use the forecast revenue of {formatPhp(summary.forecastedRevenuePhp)} to optimize pricing and staff schedules.</p>
             </div>
           </div>
         </div>
@@ -372,15 +372,15 @@ export default function Dashboard() {
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
                 <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500">Guest Behavioral Analytics</p>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">Pag-uugali ng Bisita at Risk Watch</h3>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">Guest Behavior and Risk Watch</h3>
               </div>
-              <button type="button" onClick={() => navigate("/owner/customers")} className="border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3.5 py-1.5 text-xs font-semibold rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Buksan ang CRM</button>
+              <button type="button" onClick={() => navigate("/owner/customers")} className="border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3.5 py-1.5 text-xs font-semibold rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Open CRM</button>
             </div>
             
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Mga Sikat na Bisita</p>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Top Guests</p>
                   <span className="text-[10px] font-mono uppercase text-slate-400">{behavior?.topGuests?.length || 0}</span>
                 </div>
                 <div className="space-y-3">
@@ -394,14 +394,14 @@ export default function Dashboard() {
                       <div className="text-right"><p className="text-xs font-bold text-slate-900 dark:text-white">{formatPhp(guest.totalSpend)}</p></div>
                     </div>
                   ))}
-                  {(!behavior?.topGuests || behavior.topGuests.length === 0) && !loading ? <p className="text-xs text-slate-500">Wala pang datos.</p> : null}
+                  {(!behavior?.topGuests || behavior.topGuests.length === 0) && !loading ? <p className="text-xs text-slate-500">No guest data yet.</p> : null}
                 </div>
               </div>
 
               <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-4">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Risk Watch</p>
-                  <span className="text-[10px] font-mono uppercase text-rose-600 dark:text-rose-400 font-bold">{behavior?.atRiskGuests?.length || 0} na-flag</span>
+                  <span className="text-[10px] font-mono uppercase text-rose-600 dark:text-rose-400 font-bold">{behavior?.atRiskGuests?.length || 0} flagged</span>
                 </div>
                 <div className="space-y-2.5">
                   {(behavior?.atRiskGuests || []).slice(0, 4).map((guest) => (
@@ -415,7 +415,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ))}
-                  {(!behavior?.atRiskGuests || behavior.atRiskGuests.length === 0) && !loading ? <p className="text-xs text-slate-500">Walang naka-flag na high-risk.</p> : null}
+                  {(!behavior?.atRiskGuests || behavior.atRiskGuests.length === 0) && !loading ? <p className="text-xs text-slate-500">No high-risk guests flagged.</p> : null}
                 </div>
               </div>
             </div>
@@ -425,7 +425,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
                 <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500">Room Mix</p>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">Distribusyon ng Kita</h3>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">Revenue Distribution</h3>
               </div>
               <span className="rounded border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">DB Sync</span>
             </div>
@@ -436,13 +436,13 @@ export default function Dashboard() {
                     <img src={room.imageUrl || "/images/deluxe-room.jpg"} alt={room.label} className="h-10 w-10 rounded object-cover shadow-xs" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-bold text-slate-900 dark:text-white">{room.label}</p>
-                      <p className="text-[10px] text-slate-500">{room.bookingCount || 0} reserbasyon | {Math.round(room.share || 0)}% share</p>
+                      <p className="text-[10px] text-slate-500">{room.bookingCount || 0} reservations | {Math.round(room.share || 0)}% share</p>
                     </div>
                     <p className="text-xs font-bold text-slate-900 dark:text-white">{formatPhp(room.revenue)}</p>
                   </div>
                 </div>
               ))}
-              {!roomMix.length && !loading ? <p className="text-xs text-slate-500">Wala pang analytics sa room mix.</p> : null}
+              {!roomMix.length && !loading ? <p className="text-xs text-slate-500">No room mix analytics yet.</p> : null}
             </div>
           </div>
         </div>
@@ -461,8 +461,8 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Matrix ng Estado ng Kuwarto</p>
-              <span className="text-[10px] font-mono uppercase text-slate-400">Kabuuan {data?.roomStatus?.totalRooms ?? 0}</span>
+              <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Room Status Matrix</p>
+              <span className="text-[10px] font-mono uppercase text-slate-400">Total {data?.roomStatus?.totalRooms ?? 0}</span>
             </div>
             <div className="mt-4 grid grid-cols-6 gap-2">
               {(data?.roomStatus?.rooms || []).slice(0, 30).map((room) => { 
@@ -472,9 +472,9 @@ export default function Dashboard() {
               })}
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2 text-[10px] font-mono uppercase tracking-wider text-slate-500">
-              <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-xs bg-emerald-700" />May tao ({data?.roomStatus?.counts?.occupied ?? 0})</div>
-              <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-xs bg-slate-200 dark:bg-slate-800" />Bakante ({data?.roomStatus?.counts?.vacant ?? 0})</div>
-              <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-xs bg-rose-500" />Marumi ({data?.roomStatus?.counts?.dirty ?? 0})</div>
+              <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-xs bg-emerald-700" />Occupied ({data?.roomStatus?.counts?.occupied ?? 0})</div>
+              <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-xs bg-slate-200 dark:bg-slate-800" />Vacant ({data?.roomStatus?.counts?.vacant ?? 0})</div>
+              <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-xs bg-rose-500" />Dirty ({data?.roomStatus?.counts?.dirty ?? 0})</div>
               <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-xs bg-slate-700" />Maintenance ({data?.roomStatus?.counts?.maintenance ?? 0})</div>
             </div>
           </div>
@@ -482,15 +482,15 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-                <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Mga Kamakailang Reserbasyon</p>
-                <span className="text-[10px] font-mono uppercase text-slate-400">Aktibidad</span>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Recent Reservations</p>
+                <span className="text-[10px] font-mono uppercase text-slate-400">Activity</span>
               </div>
               <div className="mt-4 space-y-3">
                 {(data?.recentBookings || []).slice(0, 4).map((booking) => (
                   <div key={booking.id} className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-2.5 last:border-0">
                     <div>
                       <p className="text-xs font-bold text-slate-900 dark:text-white">{booking.customerName || "Customer"}</p>
-                      <p className="text-[10px] text-slate-500">Kuwarto {booking.roomNumber || "--"}</p>
+                      <p className="text-[10px] text-slate-500">Room {booking.roomNumber || "--"}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs font-bold text-slate-900 dark:text-white">{formatPhp(booking.totalAmountPhp)}</p>
@@ -498,14 +498,14 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
-                {(!data?.recentBookings || data.recentBookings.length === 0) && !loading ? <p className="text-xs text-slate-500">Walang mga reserbasyon pa.</p> : null}
+                {(!data?.recentBookings || data.recentBookings.length === 0) && !loading ? <p className="text-xs text-slate-500">No reservations yet.</p> : null}
               </div>
             </div>
-            <button type="button" onClick={() => navigate("/owner/reservations")} className="mt-4 w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Tingnan ang Lahat ng Transaksyon</button>
+            <button type="button" onClick={() => navigate("/owner/reservations")} className="mt-4 w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">View All Transactions</button>
           </div>
         </div>
 
-        {loading ? <div className="text-xs font-medium text-slate-500 text-center py-2 font-mono">Nag-a-update ng dashboard...</div> : null}
+        {loading ? <div className="text-xs font-medium text-slate-500 text-center py-2 font-mono">Updating dashboard...</div> : null}
       </main>
     </div>
   );

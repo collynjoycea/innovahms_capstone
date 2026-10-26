@@ -147,6 +147,24 @@ CREATE TABLE IF NOT EXISTS hk_schedules (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS staff_duty_schedules (
+    id SERIAL PRIMARY KEY,
+    hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+    staff_id INTEGER NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+    shift_date DATE NOT NULL,
+    shift_start TIME NOT NULL,
+    shift_end TIME NOT NULL,
+    task_description VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (shift_start <> shift_end)
+);
+
+CREATE INDEX IF NOT EXISTS idx_staff_duty_schedules_staff_date
+    ON staff_duty_schedules (staff_id, shift_date, shift_start);
+CREATE INDEX IF NOT EXISTS idx_staff_duty_schedules_hotel_date
+    ON staff_duty_schedules (hotel_id, shift_date, shift_start);
+
 CREATE TABLE IF NOT EXISTS hk_settings (
     hotel_id INTEGER PRIMARY KEY REFERENCES hotels(id) ON DELETE CASCADE,
     average_clean_time INTEGER NOT NULL DEFAULT 42,
@@ -232,6 +250,35 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
     notes TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS suppliers (
+    id SERIAL PRIMARY KEY,
+    hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    contact_person VARCHAR(200) DEFAULT '',
+    email VARCHAR(200) DEFAULT '',
+    phone VARCHAR(50) DEFAULT '',
+    address TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (hotel_id, name)
+);
+
+ALTER TABLE purchase_orders
+    ADD COLUMN IF NOT EXISTS supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL;
+ALTER TABLE inventory_items
+    ADD COLUMN IF NOT EXISTS supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS purchase_order_items (
+    id SERIAL PRIMARY KEY,
+    po_id INTEGER NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+    item_id INTEGER NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    unit_cost NUMERIC(10,2) NOT NULL DEFAULT 0,
+    UNIQUE (po_id, item_id)
 );
 
 -- Indexes

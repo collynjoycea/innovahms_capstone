@@ -43,6 +43,9 @@ The active SQL setup is kept in `backend/database/` and reduced to these five fi
 Extra database-safe bootstrap helpers now live in `backend/database/bootstrap.py`.
 That keeps `backend/app.py` focused on routes, request handling, and database access instead of schema definitions.
 
+For existing databases, apply `backend/database/inventory_supplier_purchase_orders.sql` once before deploying inventory API changes. Inventory endpoints do not run schema DDL during requests.
+For existing databases, also apply `backend/database/staff_duty_schedules.sql` once before deploying manager duty scheduling. Managers assign and update dated staff shifts; staff can view their own schedule in the Front Desk or Housekeeping portal and receive an in-app notification when it changes.
+
 ## Folder Rules
 
 To keep debugging simple:

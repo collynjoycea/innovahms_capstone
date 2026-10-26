@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { AlertTriangle, Boxes, Plus, RefreshCcw, Trash2, TrendingUp, Truck, X } from "lucide-react";
 
+const INVENTORY_CATEGORIES = ["Cleaning", "Consumables", "F&B", "General", "Guest Supplies", "Linen", "Linens", "Maintenance", "Paper", "Safety", "Toiletries"];
+
 const getOwnerSession = () => {
   try {
     return JSON.parse(localStorage.getItem("ownerSession") || "{}");
@@ -22,14 +24,18 @@ const Inventory = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [overview, setOverview] = useState({ totalSkus: 0, lowStock: 0, consumRate: 0, pending: 0 });
   const [dashboard, setDashboard] = useState({ stats: {} });
+  const inventoryCategories = useMemo(() => [...new Set([
+    ...INVENTORY_CATEGORIES,
+    ...inventoryData.map((item) => String(item.category || "").trim()).filter(Boolean),
+  ])].sort((a, b) => a.localeCompare(b)), [inventoryData]);
 
-  // Modal State para sa Add Item
+  // Modal State for Adding Item
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     item_name: "",
     sku_id: "",
-    category: "",
+    category: "General",
     supplier_id: "",
     stock_level: "",
     max_stock: "",
@@ -110,7 +116,7 @@ const Inventory = () => {
       setFormData({
         item_name: "",
         sku_id: "",
-        category: "",
+        category: "General",
         supplier_id: "",
         stock_level: "",
         max_stock: "",
@@ -126,7 +132,7 @@ const Inventory = () => {
   };
 
   const handleDeleteItem = async (itemId) => {
-    if (!window.confirm("Sigurado ka bang gusto mong tanggalin ang item na ito?")) return;
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
 
     try {
       const response = await fetch(`/api/inventory/items/${itemId}?hotel_id=${encodeURIComponent(hotelId)}`, {
@@ -159,21 +165,21 @@ const Inventory = () => {
               <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">Inventory Control</span>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Live Stock Ledger</h1>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                Mag-add, mag-monitor, at mag-manage ng stock levels ng iyong hotel inventory.
+                Add, monitor, and manage the stock levels of your hotel inventory.
               </p>
             </div>
             <div className="flex items-center gap-2 self-start lg:self-auto">
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(true)}
-                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1.5 transition-colors"
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Plus size={15} /> Add Item
               </button>
               <button
                 type="button"
                 onClick={refreshInventory}
-                className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded transition-colors flex items-center gap-1.5"
+                className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <RefreshCcw size={14} /> Refresh
               </button>
@@ -207,7 +213,7 @@ const Inventory = () => {
           <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5 flex items-center justify-between">
             <div>
               <h3 className="font-bold text-sm text-slate-900 dark:text-white">Inventory Stock Table</h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Listahan ng lahat ng naka-record na items at quantity.</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">List of all recorded items and quantities.</p>
             </div>
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded">
               Total Items: {inventoryData.length}
@@ -221,7 +227,7 @@ const Inventory = () => {
               </div>
             ) : inventoryData.length === 0 ? (
               <div className="px-6 py-12 text-center text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900">
-                Walang inventory items na nahanap. I-click ang "Add Item" para magdagdag.
+                No inventory items found. Click "Add Item" to add new records.
               </div>
             ) : (
               <table className="w-full text-left border-collapse">
@@ -272,7 +278,7 @@ const Inventory = () => {
                           <button
                             type="button"
                             onClick={() => handleDeleteItem(item.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                             title="Delete Item"
                           >
                             <Trash2 size={16} />
@@ -298,7 +304,7 @@ const Inventory = () => {
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -333,14 +339,15 @@ const Inventory = () => {
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Category</label>
-                  <input
-                    type="text"
+                  <select
                     name="category"
+                    required
                     value={formData.category}
                     onChange={handleInputChange}
-                    placeholder="e.g. Linens"
                     className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100 outline-none"
-                  />
+                  >
+                    {inventoryCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
                 </div>
               </div>
 
@@ -350,7 +357,7 @@ const Inventory = () => {
                   name="supplier_id"
                   value={formData.supplier_id}
                   onChange={handleInputChange}
-                  className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100 outline-none"
+                  className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100 outline-none cursor-pointer"
                 >
                   <option value="">No supplier linked</option>
                   {suppliers.filter((supplier) => supplier.is_active).map((supplier) => (
@@ -392,14 +399,14 @@ const Inventory = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-semibold hover:bg-slate-200 dark:hover:bg-slate-700"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-semibold disabled:opacity-50"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-semibold disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? "Saving..." : "Save Item"}
                 </button>

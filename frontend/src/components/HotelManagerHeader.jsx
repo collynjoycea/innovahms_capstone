@@ -49,22 +49,15 @@ const HotelManagerHeader = ({ isDarkMode, toggleTheme }) => {
           </div>
           <div>
             <h1 className={`text-sm font-black uppercase tracking-[0.2em] italic ${theme.textMain}`}>
-              Manager <span className="text-[#2FA084]">Console</span>
+              Manager <span className="text-[#2FA084]"></span>
             </h1>
             <p className={`text-[9px] font-bold ${theme.textSub} uppercase tracking-widest`}>
-              Executive Oversight Â· {new Date().toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
+              Executive Oversight · {new Date().toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
         </div>
 
-        {/* CENTER */}
-        <div className="hidden md:flex flex-1 max-w-md mx-8">
-          <div className="relative w-full group transition-all">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors group-focus-within:text-[#2FA084]" size={16} color={isDarkMode ? '#3f3f46' : '#a1a1aa'} />
-            <input type="text" placeholder="Search analytics, staff, or reports..."
-              className={`w-full h-11 pl-12 pr-4 rounded-xl border text-[11px] font-bold uppercase tracking-widest transition-all outline-none focus:ring-1 focus:ring-[#2FA084]/30 ${theme.input} ${theme.textMain} placeholder:text-zinc-600`} />
-          </div>
-        </div>
+      
 
         {/* RIGHT */}
         <div className="flex items-center gap-3">
@@ -99,7 +92,7 @@ const HotelManagerHeader = ({ isDarkMode, toggleTheme }) => {
                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em]">Manager Actions</p>
                 </div>
                 <button className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#2FA084]/10 hover:text-[#2FA084] text-xs transition-all ${theme.textMain}`}>
-                  <UserCircle size={16} /> Administrative Profile
+                  <UserCircle size={16} /> Administrative Profile 
                 </button>
                 <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/10 text-red-500 text-xs transition-all font-bold">
                   <LogOut size={16} /> Logout Console

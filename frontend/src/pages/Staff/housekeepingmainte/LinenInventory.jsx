@@ -27,7 +27,7 @@ const LinenInventory = () => {
       setLastSync(new Date());
       setError('');
     } catch (e) {
-      setError(e.response?.data?.error || 'Could not load linen inventory.');
+      setError(e.response?.data?.error || 'Could not load inventory.');
     }
   };
 
@@ -66,8 +66,12 @@ const LinenInventory = () => {
     }
   };
 
-  const linens     = inventory.filter(i => i.category === 'Linens'     && i.item_name.toLowerCase().includes(search.toLowerCase()));
-  const toiletries = inventory.filter(i => i.category === 'Toiletries' && i.item_name.toLowerCase().includes(search.toLowerCase()));
+  // Filter inventory based on search input
+  const filteredInventory = inventory.filter(i => 
+    i.item_name.toLowerCase().includes(search.toLowerCase()) ||
+    i.category.toLowerCase().includes(search.toLowerCase())
+  );
+
   const lowStockCount = inventory.filter(i => i.current_qty < i.max_qty * 0.4).length;
 
   const theme = {
@@ -79,9 +83,10 @@ const LinenInventory = () => {
     shadow:   'shadow-[0_20px_50px_rgba(0,0,0,0.5)]',
   };
 
-  const toRows = (items) => items.map(i => ({
+  const rows = filteredInventory.map(i => ({
     id:     i.id,
     item:   i.item_name,
+    category: i.category,
     sourceItem: i,
     stock:  Math.min(100, Math.round((i.current_qty / Math.max(i.max_qty, 1)) * 100)),
     qty:    `${i.current_qty}/${i.max_qty} ${i.unit}`,
@@ -89,94 +94,6 @@ const LinenInventory = () => {
     unit: i.unit,
     status: i.current_qty < i.max_qty * 0.4 ? 'Low Stock' : 'In Stock',
   }));
-
-  const InventoryTable = ({ title, items }) => (
-    <div className={`${theme.card} border ${theme.border} rounded-[2rem] overflow-hidden ${theme.shadow} mb-10`}>
-      <div className={`px-8 py-6 border-b ${theme.border} flex justify-between items-center bg-white/5`}>
-        <div className="flex items-center gap-3">
-          <Package className="text-[#6FCF97]" size={20} />
-          <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>{title}</h2>
-        </div>
-        <button className="px-5 py-2 rounded-xl bg-[#6FCF97] text-black font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-all">
-          <Plus size={14} strokeWidth={3} /> Request Restock
-        </button>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className={`text-[9px] font-black uppercase tracking-widest ${theme.textSub} border-b ${theme.border}`}>
-              <th className="px-8 py-5">Item Name</th>
-              <th className="px-8 py-5">Stock Level</th>
-              <th className="px-8 py-5">Qty / Max</th>
-              <th className="px-8 py-5">Status</th>
-              <th className="px-8 py-5">Usage</th>
-              <th className="px-8 py-5 text-right">Restock</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {items.length === 0 ? (
-              <tr><td colSpan={6} className={`px-8 py-10 text-center text-[11px] ${theme.textSub}`}>No items found.</td></tr>
-            ) : items.map((row, i) => (
-              <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
-                <td className={`px-8 py-5 text-[11px] font-bold ${theme.textMain}`}>{row.item}</td>
-                <td className="px-8 py-5 w-48">
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${row.stock < 40 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${row.stock}%` }} />
-                    </div>
-                    <span className={`text-[10px] font-black ${theme.textSub}`}>{row.stock}%</span>
-                  </div>
-                </td>
-                <td className={`px-8 py-5 text-[10px] font-bold ${theme.textSub}`}>{row.qty}</td>
-                <td className="px-8 py-5">
-                  <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${
-                    row.status === 'Low Stock' ? 'border-red-500/30 text-red-500 bg-red-500/5' : 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5'
-                  }`}>
-                    {row.status === 'Low Stock' && <AlertTriangle size={10} className="inline mr-1 mb-0.5" />}
-                    {row.status}
-                  </span>
-                </td>
-                <td className="px-8 py-5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      max={row.available}
-                      aria-label={`Quantity of ${row.item} used`}
-                      value={usageQty[row.id] || ''}
-                      onChange={e => setUsageQty(current => ({ ...current, [row.id]: e.target.value }))}
-                      className={`w-16 rounded-lg border px-2 py-2 text-xs ${isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-white border-zinc-300 text-zinc-900'}`}
-                    />
-                    <input
-                      type="text"
-                      aria-label={`Room for ${row.item} usage`}
-                      placeholder="Room"
-                      value={usageRoom[row.id] || ''}
-                      onChange={e => setUsageRoom(current => ({ ...current, [row.id]: e.target.value }))}
-                      className={`w-20 rounded-lg border px-2 py-2 text-xs ${isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500' : 'bg-white border-zinc-300 text-zinc-900 placeholder:text-zinc-400'}`}
-                    />
-                    <button
-                      onClick={() => handleConsume(row.sourceItem)}
-                      disabled={consumingId === row.id || row.available < 1}
-                      className="rounded-lg bg-[#6FCF97] px-3 py-2 text-[9px] font-black uppercase tracking-widest text-black disabled:opacity-50"
-                    >
-                      <MinusCircle size={13} className="mr-1 inline" />
-                      {consumingId === row.id ? 'Saving' : 'Use'}
-                    </button>
-                  </div>
-                </td>
-                <td className="px-8 py-5 text-right">
-                  <button onClick={() => handleRestock(row.id)} className={`p-2 rounded-lg border ${theme.border} text-[#6FCF97] hover:bg-[#6FCF97] hover:text-black transition-all`}>
-                    <ShoppingCart size={14} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
 
   return (
     <div className={`p-8 min-h-screen transition-all duration-500 ${theme.bg}`}>
@@ -234,10 +151,100 @@ const LinenInventory = () => {
         ))}
       </div>
 
-      {/* TABLES */}
-      <InventoryTable title="Linens Inventory"     items={toRows(linens)} />
-      <InventoryTable title="Toiletries Inventory" items={toRows(toiletries)} />
+      {/* SINGLE COMBINED INVENTORY TABLE */}
+      <div className={`${theme.card} border ${theme.border} rounded-[2rem] overflow-hidden ${theme.shadow} mb-10`}>
+        <div className={`px-8 py-6 border-b ${theme.border} flex justify-between items-center bg-white/5`}>
+          <div className="flex items-center gap-3">
+            <Package className="text-[#6FCF97]" size={20} />
+            <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Linens & Toiletries Inventory</h2>
+          </div>
+          <button className="px-5 py-2 rounded-xl bg-[#6FCF97] text-black font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-all">
+            <Plus size={14} strokeWidth={3} /> Request Restock
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className={`text-[9px] font-black uppercase tracking-widest ${theme.textSub} border-b ${theme.border}`}>
+                <th className="px-8 py-5">Item Name</th>
+                <th className="px-8 py-5">Category</th>
+                <th className="px-8 py-5">Stock Level</th>
+                <th className="px-8 py-5">Qty / Max</th>
+                <th className="px-8 py-5">Status</th>
+                <th className="px-8 py-5">Usage</th>
+                <th className="px-8 py-5 text-right">Restock</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {rows.length === 0 ? (
+                <tr><td colSpan={7} className={`px-8 py-10 text-center text-[11px] ${theme.textSub}`}>No items found.</td></tr>
+              ) : rows.map((row, i) => (
+                <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
+                  <td className={`px-8 py-5 text-[11px] font-bold ${theme.textMain}`}>{row.item}</td>
+                  <td className={`px-8 py-5 text-[10px] font-semibold uppercase tracking-wider text-[#6FCF97]`}>
+                    <span className="px-2.5 py-1 rounded-md bg-[#6FCF97]/10 border border-[#6FCF97]/20">
+                      {row.sourceItem.category}
+                    </span>
+                  </td>
+                  <td className="px-8 py-5 w-48">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${row.stock < 40 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${row.stock}%` }} />
+                      </div>
+                      <span className={`text-[10px] font-black ${theme.textSub}`}>{row.stock}%</span>
+                    </div>
+                  </td>
+                  <td className={`px-8 py-5 text-[10px] font-bold ${theme.textSub}`}>{row.qty}</td>
+                  <td className="px-8 py-5">
+                    <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${
+                      row.status === 'Low Stock' ? 'border-red-500/30 text-red-500 bg-red-500/5' : 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5'
+                    }`}>
+                      {row.status === 'Low Stock' && <AlertTriangle size={10} className="inline mr-1 mb-0.5" />}
+                      {row.status}
+                    </span>
+                  </td>
+                  <td className="px-8 py-5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max={row.available}
+                        aria-label={`Quantity of ${row.item} used`}
+                        value={usageQty[row.id] || ''}
+                        onChange={e => setUsageQty(current => ({ ...current, [row.id]: e.target.value }))}
+                        className={`w-16 rounded-lg border px-2 py-2 text-xs ${isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-white border-zinc-300 text-zinc-900'}`}
+                      />
+                      <input
+                        type="text"
+                        aria-label={`Room for ${row.item} usage`}
+                        placeholder="Room"
+                        value={usageRoom[row.id] || ''}
+                        onChange={e => setUsageRoom(current => ({ ...current, [row.id]: e.target.value }))}
+                        className={`w-20 rounded-lg border px-2 py-2 text-xs ${isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500' : 'bg-white border-zinc-300 text-zinc-900 placeholder:text-zinc-400'}`}
+                      />
+                      <button
+                        onClick={() => handleConsume(row.sourceItem)}
+                        disabled={consumingId === row.id || row.available < 1}
+                        className="rounded-lg bg-[#6FCF97] px-3 py-2 text-[9px] font-black uppercase tracking-widest text-black disabled:opacity-50"
+                      >
+                        <MinusCircle size={13} className="mr-1 inline" />
+                        {consumingId === row.id ? 'Saving' : 'Use'}
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-8 py-5 text-right">
+                    <button onClick={() => handleRestock(row.id)} className={`p-2 rounded-lg border ${theme.border} text-[#6FCF97] hover:bg-[#6FCF97] hover:text-black transition-all`}>
+                      <ShoppingCart size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
+      {/* RECENT USAGE TABLE */}
       <div className={`${theme.card} border ${theme.border} rounded-[2rem] overflow-hidden ${theme.shadow}`}>
         <div className={`px-8 py-6 border-b ${theme.border}`}>
           <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Recent Usage</h2>

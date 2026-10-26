@@ -37,15 +37,7 @@ const HotelManagerSidebar = ({ isDarkMode }) => {
         { name: "Executive Dashboard", path: "/manager/dashboard", icon: <LayoutDashboard /> }
       ]
     },
-    {
-      title: "REVENUE MANAGEMENT",
-      items: [
-        { name: "Revenue Monitor", path: "/manager/revenue", icon: <DollarSign /> },
-        { name: "Dynamic Pricing", path: "/manager/pricing", icon: <Percent /> },
-        { name: "Promotions & Offers", path: "/manager/promotions", icon: <BadgePercent /> }
-      ]
-    },
-    {
+     {
       title: "OPERATIONAL OVERSIGHT",
       items: [
         { name: "Staff Performance", path: "/manager/staff", icon: <Users2 /> },
@@ -151,16 +143,7 @@ const HotelManagerSidebar = ({ isDarkMode }) => {
             </span>
           </div>
 
-          <Link 
-            to="/manager/settings" 
-            className={`flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg transition-all font-black text-[10px] uppercase tracking-[0.1em] border ${
-              location.pathname === '/manager/settings' 
-                ? "bg-[#2FA084] text-black border-[#2FA084] shadow-lg shadow-[#2FA084]/20" 
-                : (isDarkMode ? "bg-white/5 text-[#2FA084] border-[#2FA084]/10 hover:bg-[#2FA084] hover:text-black" : "bg-gray-100 text-[#2FA084] border-gray-200 hover:bg-[#2FA084] hover:text-white")
-            }`}
-          >
-            <Settings size={14} /> System Settings
-          </Link>
+          
 
           <button 
             onClick={() => {

@@ -64,10 +64,10 @@ export default function StaffDashboard() {
   const maxChartVal = Math.max(...chartData.map(d => d.value), 1);
 
   const stats = [
-    { label: 'Expected Arrivals', val: data?.arrivalsToday ?? 0, sub: 'Check-in ready', icon: <ArrowDownRight size={20}/> },
-    { label: 'Departures Today', val: data?.departuresToday ?? 0, sub: 'Pending check-out', icon: <ArrowUpRight size={20}/> },
-    { label: 'Available Rooms', val: data?.availableRooms ?? 0, sub: 'Ready for guests', icon: <CheckCircle2 size={20}/> },
-    { label: 'Unpaid Balance', val: data ? `₱${Number(data.pendingBalance).toLocaleString()}` : '₱0', sub: 'Total receivables', icon: <Banknote size={20}/> },
+    { label: 'Expected Arrivals', val: data?.arrivalsToday ?? 0, sub: 'Check-in ready', icon: <ArrowDownRight size={18}/> },
+    { label: 'Departures Today', val: data?.departuresToday ?? 0, sub: 'Pending check-out', icon: <ArrowUpRight size={18}/> },
+    { label: 'Available Rooms', val: data?.availableRooms ?? 0, sub: 'Ready for guests', icon: <CheckCircle2 size={18}/> },
+    { label: 'Unpaid Balance', val: data ? `₱${Number(data.pendingBalance).toLocaleString()}` : '₱0', sub: 'Total receivables', icon: <Banknote size={18}/> },
   ];
 
   return (
@@ -109,24 +109,20 @@ export default function StaffDashboard() {
           <button onClick={fetchData} className={`p-3 rounded-2xl border ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border-zinc-200 text-zinc-400 hover:text-zinc-900'} transition-all`}>
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={() => navigate('/staff/new-reservation')} className="px-6 py-3.5 rounded-2xl bg-[#2FA084] text-black text-[11px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-[#2FA084]/20">
-            + New Booking
-          </button>
         </div>
       </div>
 
-      {/* STAT CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* COMPACT STAT CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((s, i) => (
-          <div key={i} className={`p-8 rounded-[2rem] border ${theme.card} relative overflow-hidden group`}>
-            <div className="relative z-10 text-left">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'} text-[#2FA084]`}>{s.icon}</div>
-              <p className={`text-[9px] font-black uppercase tracking-[0.2em] mb-1 ${theme.sub}`}>{s.label}</p>
-              <h3 className={`text-4xl font-black tracking-tighter ${theme.text}`}>{loading ? '0' : s.val}</h3>
-              <p className={`text-[9px] mt-1 ${theme.sub}`}>{s.sub}</p>
-            </div>
-            <div className="absolute -right-4 -bottom-4 opacity-[0.03] text-[#2FA084] group-hover:scale-110 transition-transform">
-              {React.cloneElement(s.icon, { size: 100 })}
+          <div key={i} className={`p-5 rounded-3xl border ${theme.card} relative overflow-hidden group`}>
+            <div className="relative z-10 text-left flex items-center justify-between">
+              <div>
+                <p className={`text-[9px] font-black uppercase tracking-[0.2em] mb-1 ${theme.sub}`}>{s.label}</p>
+                <h3 className={`text-2xl font-black tracking-tighter ${theme.text}`}>{loading ? '0' : s.val}</h3>
+                <p className={`text-[9px] mt-0.5 ${theme.sub}`}>{s.sub}</p>
+              </div>
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'} text-[#2FA084]`}>{s.icon}</div>
             </div>
           </div>
         ))}
@@ -139,7 +135,7 @@ export default function StaffDashboard() {
             <div className="flex items-center gap-2">
               <TrendingUp size={18} className="text-[#2FA084]" />
               <h3 className={`text-[12px] font-black uppercase tracking-widest ${theme.text}`}>
-                Occupancy & Bookings Trend ({timeFilter.toUpperCase()})
+                Occupancy & Bookings Trend ({timeFilter === 'today' ? 'Today (Hourly Check-ins)' : timeFilter.toUpperCase()})
               </h3>
             </div>
             <p className={`text-[10px] mt-0.5 ${theme.sub}`}>Visual breakdown based on selected timeframe</p>
@@ -151,21 +147,21 @@ export default function StaffDashboard() {
         </div>
 
         {/* Custom Bar Graph */}
-        <div className="h-48 flex items-end justify-between gap-4 pt-6 border-b pb-4 border-dashed border-zinc-500/20">
+        <div className="h-48 flex items-end justify-between gap-2 pt-6 border-b pb-4 border-dashed border-zinc-500/20 overflow-x-auto">
           {chartData.map((item, index) => {
             const heightPercent = Math.round((item.value / maxChartVal) * 100);
             return (
-              <div key={index} className="flex-1 flex flex-col items-center h-full justify-end group">
-                <span className={`text-[10px] font-black mb-2 opacity-0 group-hover:opacity-100 transition-all text-[#2FA084]`}>
+              <div key={index} className="flex-1 min-w-[28px] flex flex-col items-center h-full justify-end group">
+                <span className={`text-[9px] font-black mb-2 opacity-0 group-hover:opacity-100 transition-all text-[#2FA084]`}>
                   {item.value}
                 </span>
                 <div 
-                  className="w-full max-w-[48px] bg-[#2FA084]/20 hover:bg-[#2FA084] rounded-t-xl transition-all duration-500 relative overflow-hidden"
+                  className="w-full max-w-[36px] bg-[#2FA084]/20 hover:bg-[#2FA084] rounded-t-xl transition-all duration-500 relative overflow-hidden"
                   style={{ height: `${Math.max(heightPercent, 8)}%` }}
                 >
                   <div className="absolute top-0 left-0 right-0 h-1 bg-[#2FA084]" />
                 </div>
-                <span className={`text-[9px] font-black uppercase mt-3 tracking-tight ${theme.sub}`}>
+                <span className={`text-[8px] font-black uppercase mt-3 tracking-tighter truncate w-full text-center ${theme.sub}`} title={item.label}>
                   {item.label}
                 </span>
               </div>
@@ -216,7 +212,7 @@ export default function StaffDashboard() {
           )}
         </div>
 
-        {/* PRIORITY INTEL + OCCUPANCY RATE */}
+        {/* PRIORITY INTEL */}
         <div className="space-y-8">
           <div className={`p-8 rounded-[2.5rem] border ${theme.card}`}>
             <h3 className={`text-[11px] font-black uppercase tracking-widest mb-8 text-left ${theme.text}`}>Priority Intel</h3>
@@ -231,24 +227,6 @@ export default function StaffDashboard() {
                   <p className={`text-[11px] font-bold text-left truncate ${theme.text}`}>{log.text}</p>
                 </div>
               ))}
-            </div>
-          </div>
-
-          <div className="p-8 rounded-[2.5rem] bg-[#2FA084] text-black">
-            <div className="flex justify-between items-start mb-10">
-              <div className="text-left">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Occupancy Rate</p>
-                <h4 className="text-5xl font-black tracking-tighter">
-                  {data && data.availableRooms !== undefined
-                    ? `${Math.round(((data.inHouse || 0) / Math.max((data.inHouse || 0) + (data.availableRooms || 1), 1)) * 100)}%`
-                    : '0%'}
-                </h4>
-              </div>
-              <Users size={32} />
-            </div>
-            <div className="w-full h-2 bg-black/10 rounded-full overflow-hidden">
-              <div className="h-full bg-black rounded-full transition-all"
-                style={{ width: data ? `${Math.round(((data.inHouse || 0) / Math.max((data.inHouse || 0) + (data.availableRooms || 1), 1)) * 100)}%` : '0%' }} />
             </div>
           </div>
         </div>

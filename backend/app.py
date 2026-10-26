@@ -3021,69 +3021,6 @@ def _notify_admin_payment_received(cur, amount, reference, hotel_id=None):
         )
 
 
-def _notify_daily_low_stock(cur, hotel_id, inventory_rows):
-    if not inventory_rows:
-        return
-
-    cur.execute("SELECT owner_id FROM hotels WHERE id=%s", (hotel_id,))
-    hotel = cur.fetchone()
-    if not hotel:
-        return
-    owner_id = hotel.get("owner_id") if hasattr(hotel, "get") else hotel[0]
-    cur.execute("SELECT id FROM admins")
-    admin_ids = [
-        row.get("id") if hasattr(row, "get") else row[0]
-        for row in (cur.fetchall() or [])
-    ]
-    cur.execute(
-        """
-        SELECT id FROM staff
-        WHERE hotel_id=%s AND LOWER(COALESCE(role, '')) LIKE '%inventory%'
-          AND LOWER(COALESCE(status, 'active')) = 'active'
-        """,
-        (hotel_id,),
-    )
-    staff_ids = [
-        row.get("id") if hasattr(row, "get") else row[0]
-        for row in (cur.fetchall() or [])
-    ]
-    recipients = [(admin_id, "admin", "admin_low_inventory") for admin_id in admin_ids]
-    if owner_id:
-        recipients.append((owner_id, "owner", "owner_low_inventory"))
-    recipients.extend((staff_id, "staff", "staff_inventory_alert") for staff_id in staff_ids)
-    today = datetime.utcnow().date()
-
-    for item in inventory_rows:
-        for recipient_id, user_type, notification_key in recipients:
-            cur.execute(
-                """
-                SELECT 1
-                FROM notifications n
-                JOIN notification_types nt ON nt.id=n.notification_type_id
-                WHERE n.user_id=%s AND n.user_type=%s AND nt.type_key=%s
-                  AND n.data->>'itemId'=%s AND DATE(n.created_at)=%s
-                LIMIT 1
-                """,
-                (recipient_id, user_type, notification_key, str(item["id"]), today),
-            )
-            if cur.fetchone():
-                continue
-            _create_notification(
-                recipient_id,
-                user_type,
-                notification_key,
-                "Low Inventory Reminder",
-                f"{item.get('item_name') or 'An inventory item'} is low: "
-                f"{item.get('stock_level', 0)} remaining; reorder point is {item.get('reorder_point', 0)}.",
-                data={
-                    "itemId": item["id"],
-                    "hotelId": hotel_id,
-                    "stockLevel": item.get("stock_level", 0),
-                    "reorderPoint": item.get("reorder_point", 0),
-                },
-            )
-
-
 def _send_notification_async(notification_id):
     """Send notification via enabled channels asynchronously"""
     try:
@@ -7594,6 +7531,20 @@ def _owner_recommendation_cards(hotel, analytics_summary, room_mix, guest_rows):
     return cards
 
 
+def _calculate_period_occupancy_rate(reservations, total_rooms):
+    if not total_rooms:
+        return 0.0
+
+    occupied_room_ids = {
+        row.get("room_id")
+        for row in reservations
+        if row.get("room_id") is not None
+        and str(row.get("status") or "").strip().lower()
+        in {"checked_in", "checked_out", "paid", "confirmed", "completed", "occupied"}
+    }
+    return round(min(100.0, (len(occupied_room_ids) / total_rooms) * 100), 2)
+
+
 def _build_owner_analytics_payload(cur, owner_id, hotel, period):
     period = _normalize_owner_forecast_period(period)
     hotel_id = hotel.get("id")
@@ -7606,7 +7557,7 @@ def _build_owner_analytics_payload(cur, owner_id, hotel, period):
 
     booked_counter = defaultdict(int)
     revenue_counter = defaultdict(float)
-    occupied_counter = defaultdict(float)
+    occupied_rooms_by_period = defaultdict(set)
     guest_ledger = {}
     room_mix = {}
     total_revenue = 0.0
@@ -7632,8 +7583,8 @@ def _build_owner_analytics_payload(cur, owner_id, hotel, period):
         else:
             total_cancellations += 1
 
-        if status_text in success_statuses:
-            occupied_counter[bucket_key] += 1
+        if status_text in success_statuses and row.get("room_id") is not None:
+            occupied_rooms_by_period[bucket_key].add(row.get("room_id"))
 
         mix = room_mix.setdefault(room_type_key, {
             "label": room_type_key,
@@ -7684,14 +7635,17 @@ def _build_owner_analytics_payload(cur, owner_id, hotel, period):
         if not guest.get("imageUrl"):
             guest["imageUrl"] = room_image
 
-    labels = sorted(set(booked_counter.keys()) | set(revenue_counter.keys()) | set(occupied_counter.keys()))
-    if not labels:
-        labels = _default_owner_period_labels(period)
+    labels = sorted(
+        set(_default_owner_period_labels(period))
+        | set(booked_counter.keys())
+        | set(revenue_counter.keys())
+        | set(occupied_rooms_by_period.keys())
+    )
 
     revenue_series = [round(revenue_counter.get(label, 0.0), 2) for label in labels]
     booking_series = [booked_counter.get(label, 0) for label in labels]
     occupancy_series = [
-        round(min(100.0, (occupied_counter.get(label, 0.0) / total_rooms) * 100), 2) if total_rooms else 0.0
+        round(min(100.0, (len(occupied_rooms_by_period.get(label, set())) / total_rooms) * 100), 2) if total_rooms else 0.0
         for label in labels
     ]
 
@@ -7767,7 +7721,10 @@ def _build_owner_analytics_payload(cur, owner_id, hotel, period):
         "averageGuestSpendPhp": round(total_revenue / max(len(guest_rows), 1), 2) if guest_rows else 0.0,
         "cancellationRate": _percent(total_cancellations, len(reservations)),
         "highRiskGuests": len(high_risk_guests),
-        "currentOccupancyRate": round(occupancy_series[-1], 2) if occupancy_series else 0.0,
+        "currentOccupancyRate": round(
+            min(100.0, (len(occupied_rooms_by_period.get(_period_bucket_key(_utc_now().date(), period), set())) / total_rooms) * 100),
+            2,
+        ) if total_rooms else 0.0,
         "currentRevenuePhp": round(revenue_series[-1], 2) if revenue_series else 0.0,
         "forecastedRevenuePhp": round(projected_revenue, 2),
         "forecastedOccupancyRate": round(projected_occupancy, 2),
@@ -7850,6 +7807,56 @@ def _build_owner_staff_payload(cur, owner_id, hotel):
             "image": row.get("profile_image") or "",
         })
 
+    schedule_rows = []
+    if _table_exists(cur, "staff_duty_schedules"):
+        cur.execute(
+            """
+            SELECT d.id, d.staff_id, d.shift_date, d.shift_start, d.shift_end,
+                   d.task_description, s.first_name, s.last_name, s.email, s.role
+            FROM staff_duty_schedules d
+            JOIN staff s ON s.id = d.staff_id
+            WHERE d.hotel_id = %s AND d.shift_date >= CURRENT_DATE
+            ORDER BY d.shift_date, d.shift_start, s.last_name, s.first_name
+            """,
+            (hotel_id,),
+        )
+        schedule_rows = cur.fetchall() or []
+    schedules = []
+    next_schedule_by_staff = {}
+    today_shift_counts = {"morningShiftCount": 0, "afternoonShiftCount": 0, "nightShiftCount": 0}
+    for row in schedule_rows:
+        shift_date = row.get("shift_date")
+        shift_start = row.get("shift_start")
+        shift_end = row.get("shift_end")
+        staff_name = f"{row.get('first_name') or ''} {row.get('last_name') or ''}".strip()
+        schedule = {
+            "id": row.get("id"),
+            "staffId": row.get("staff_id"),
+            "staffName": staff_name,
+            "staffRole": row.get("role") or "Staff",
+            "shiftDate": shift_date.isoformat() if shift_date else "",
+            "shiftStart": shift_start.strftime("%H:%M") if shift_start else "",
+            "shiftEnd": shift_end.strftime("%H:%M") if shift_end else "",
+            "taskDescription": row.get("task_description") or "",
+        }
+        schedules.append(schedule)
+        next_schedule_by_staff.setdefault(row.get("staff_id"), schedule)
+        if shift_date == date.today() and shift_start:
+            hour = shift_start.hour
+            if 6 <= hour < 14:
+                today_shift_counts["morningShiftCount"] += 1
+            elif 14 <= hour < 22:
+                today_shift_counts["afternoonShiftCount"] += 1
+            else:
+                today_shift_counts["nightShiftCount"] += 1
+
+    for member in staff:
+        schedule = next_schedule_by_staff.get(member["id"])
+        member["assignedDuty"] = (
+            f"{schedule['shiftDate']} · {schedule['shiftStart']}-{schedule['shiftEnd']} · {schedule['taskDescription']}"
+            if schedule else ""
+        )
+
     avg_rating = round(sum(_to_float(item.get("rating"), 0) for item in staff) / max(len(staff), 1), 1) if staff else 0
     analytics = {
         "activeCount": active_count,
@@ -7861,9 +7868,7 @@ def _build_owner_staff_payload(cur, owner_id, hotel):
         "bonuses": len(staff) * 3000,
         "tardinessCount": max(0, len(staff) // 4),
         "overtimeHours": len(staff) * 2,
-        "morningShiftCount": active_count,
-        "afternoonShiftCount": max(0, len(staff) - active_count // 2),
-        "nightShiftCount": max(0, len(staff) // 3),
+        **today_shift_counts,
         "cleaningProgress": [
             {"name": "Guest Wing", "percentage": min(100, 35 + (active_count * 8))},
             {"name": "Suite Wing", "percentage": min(100, 28 + (len(staff) * 6))},
@@ -7871,7 +7876,7 @@ def _build_owner_staff_payload(cur, owner_id, hotel):
         ],
         "roles": [{"label": label, "count": count} for label, count in role_counter.most_common()],
     }
-    return {"ownerId": owner_id, "hotelId": hotel_id, "staff": staff, "analytics": analytics}
+    return {"ownerId": owner_id, "hotelId": hotel_id, "staff": staff, "schedules": schedules, "analytics": analytics}
 
 
 @app.route('/api/manager/dashboard/<int:owner_id>', methods=['GET'])
@@ -7916,7 +7921,6 @@ def owner_dashboard(owner_id):
 
         total_rooms = len(rooms_payload)
         available_rooms = room_status_counter.get("vacant", 0)
-        occupancy_rate = round((room_status_counter.get("occupied", 0) / total_rooms) * 100, 2) if total_rooms else 0
 
         reservations = []
         if _table_exists(cur, "reservations"):
@@ -7928,6 +7932,12 @@ def owner_dashboard(owner_id):
             res_query += " ORDER BY id DESC LIMIT 600"
             cur.execute(res_query, tuple(res_params))
             reservations = cur.fetchall() or []
+            current_period = _period_bucket_key(_utc_now().date(), period)
+            reservations = [
+                row for row in reservations
+                if _period_bucket_key(_extract_reservation_date(row), period) == current_period
+            ]
+        occupancy_rate = _calculate_period_occupancy_rate(reservations, total_rooms)
 
         customers_by_id = {}
         if _table_exists(cur, "customers"):
@@ -8176,7 +8186,7 @@ def owner_customers(owner_id):
     cur = None
     try:
         period = (request.args.get("period") or "monthly").strip().lower()
-        if period not in {"daily", "monthly"}:
+        if period not in {"daily", "monthly", "yearly"}:
             period = "monthly"
 
         conn = get_db_connection()
@@ -8288,6 +8298,49 @@ def _owner_staff_context(cur, owner_id):
     if not hotel:
         return (jsonify({"error": "No hotel found for this owner."}), 404), None
     return None, hotel
+
+
+def _manager_staff_context(cur, manager_id, mutation=False):
+    cur.execute(
+        """
+        SELECT h.id, h.owner_id, h.hotel_name, h.hotel_code, h.hotel_address
+        FROM staff s
+        JOIN hotels h ON h.id = s.hotel_id
+        WHERE s.id = %s AND s.role = %s
+        LIMIT 1
+        """,
+        (manager_id, MANAGER_ROLE),
+    )
+    hotel = cur.fetchone()
+    if not hotel:
+        return (jsonify({"error": "Manager account or hotel not found."}), 404), None
+
+    owner_id = hotel.get("owner_id")
+    if not owner_id:
+        return (jsonify({"error": "This manager's hotel is not linked to an owner account."}), 404), None
+
+    guard, _subscription = _owner_feature_guard(cur, owner_id, "staff", mutation=mutation)
+    if guard:
+        return guard, None
+    return None, hotel
+
+
+@app.route('/api/manager/staff/<int:manager_id>/directory', methods=['GET'])
+def manager_staff_directory(manager_id):
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        error_response, hotel = _manager_staff_context(cur, manager_id)
+        if error_response:
+            return error_response
+        payload = _build_owner_staff_payload(cur, hotel.get("owner_id"), hotel)
+        return jsonify(payload), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
 
 
 def _send_staff_credentials_email(staff_email, staff_name, role, hotel_name, hotel_code, password):
@@ -8617,6 +8670,231 @@ def manager_add_staff(owner_id):
     except Exception as e:
         if conn:
             conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+def _is_schedulable_staff_role(role):
+    normalized_role = re.sub(r"[^a-z]", "", str(role or "").lower())
+    return "frontdesk" in normalized_role or "housekeeping" in normalized_role
+
+
+def _parse_duty_schedule_input(data):
+    try:
+        staff_id = int(data.get("staffId"))
+        shift_date = datetime.strptime(str(data.get("shiftDate") or ""), "%Y-%m-%d").date()
+        shift_start = datetime.strptime(str(data.get("shiftStart") or ""), "%H:%M").time()
+        shift_end = datetime.strptime(str(data.get("shiftEnd") or ""), "%H:%M").time()
+    except (TypeError, ValueError):
+        return None
+
+    task_description = str(data.get("taskDescription") or "").strip()
+    if staff_id <= 0 or shift_date < date.today() or shift_start == shift_end or not task_description or len(task_description) > 500:
+        return None
+
+    return {
+        "staff_id": staff_id,
+        "shift_date": shift_date,
+        "shift_start": shift_start,
+        "shift_end": shift_end,
+        "task_description": task_description,
+    }
+
+
+def _notify_staff_of_duty_schedule(staff_id, role, schedule, updated=False):
+    staff_path = "/housekeeping/schedule" if "housekeeping" in str(role or "").lower() else "/staff/schedule"
+    action = "updated" if updated else "assigned"
+    date_label = schedule["shift_date"].strftime("%B %d, %Y")
+    start_label = schedule["shift_start"].strftime("%I:%M %p")
+    end_label = schedule["shift_end"].strftime("%I:%M %p")
+    return _create_notification(
+        staff_id,
+        "staff",
+        "staff_shift_reminder",
+        "Duty schedule updated" if updated else "New duty schedule",
+        f"Your duty on {date_label} ({start_label} - {end_label}) was {action}: {schedule['task_description']}.",
+        data={"destination": staff_path},
+    )
+
+
+@app.route('/api/manager/staff/<int:manager_id>/duty-schedules', methods=['POST'])
+def manager_create_duty_schedule(manager_id):
+    data = request.get_json(silent=True) or {}
+    schedule = _parse_duty_schedule_input(data)
+    if not schedule:
+        return jsonify({"error": "Provide a staff member, a future date, valid shift times, and a task (maximum 500 characters)."}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        error_response, hotel = _manager_staff_context(cur, manager_id, mutation=True)
+        if error_response:
+            return error_response
+
+        cur.execute(
+            "SELECT id, role FROM staff WHERE id = %s AND hotel_id = %s",
+            (schedule["staff_id"], hotel.get("id")),
+        )
+        staff = cur.fetchone()
+        if not staff:
+            return jsonify({"error": "Select a staff member from your hotel."}), 404
+        if not _is_schedulable_staff_role(staff.get("role")):
+            return jsonify({"error": "Duty schedules can only be assigned to Front Desk or Housekeeping staff."}), 400
+
+        cur.execute(
+            """
+            INSERT INTO staff_duty_schedules
+                (hotel_id, staff_id, shift_date, shift_start, shift_end, task_description)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (
+                hotel.get("id"), schedule["staff_id"], schedule["shift_date"],
+                schedule["shift_start"], schedule["shift_end"], schedule["task_description"],
+            ),
+        )
+        schedule_id = cur.fetchone()["id"]
+        conn.commit()
+
+        notification_id = _notify_staff_of_duty_schedule(schedule["staff_id"], staff.get("role"), schedule)
+        return jsonify({
+            "message": "Duty schedule assigned.",
+            "scheduleId": schedule_id,
+            "notificationSent": notification_id is not None,
+        }), 201
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/manager/staff/<int:manager_id>/duty-schedules/<int:schedule_id>', methods=['PUT'])
+def manager_update_duty_schedule(manager_id, schedule_id):
+    data = request.get_json(silent=True) or {}
+    schedule = _parse_duty_schedule_input(data)
+    if not schedule:
+        return jsonify({"error": "Provide a staff member, a future date, valid shift times, and a task (maximum 500 characters)."}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        error_response, hotel = _manager_staff_context(cur, manager_id, mutation=True)
+        if error_response:
+            return error_response
+
+        cur.execute(
+            """
+            SELECT d.staff_id, d.shift_date, d.shift_start, d.shift_end,
+                   d.task_description, s.role
+            FROM staff_duty_schedules d
+            JOIN staff s ON s.id = d.staff_id
+            WHERE d.id = %s AND d.hotel_id = %s
+            """,
+            (schedule_id, hotel.get("id")),
+        )
+        previous = cur.fetchone()
+        if not previous:
+            return jsonify({"error": "Duty schedule not found."}), 404
+
+        cur.execute(
+            "SELECT id, role FROM staff WHERE id = %s AND hotel_id = %s",
+            (schedule["staff_id"], hotel.get("id")),
+        )
+        staff = cur.fetchone()
+        if not staff:
+            return jsonify({"error": "Select a staff member from your hotel."}), 404
+        if not _is_schedulable_staff_role(staff.get("role")):
+            return jsonify({"error": "Duty schedules can only be assigned to Front Desk or Housekeeping staff."}), 400
+
+        cur.execute(
+            """
+            UPDATE staff_duty_schedules
+            SET staff_id = %s, shift_date = %s, shift_start = %s, shift_end = %s,
+                task_description = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s AND hotel_id = %s
+            """,
+            (
+                schedule["staff_id"], schedule["shift_date"], schedule["shift_start"],
+                schedule["shift_end"], schedule["task_description"], schedule_id, hotel.get("id"),
+            ),
+        )
+        conn.commit()
+
+        notifications = [
+            _notify_staff_of_duty_schedule(schedule["staff_id"], staff.get("role"), schedule, updated=True)
+        ]
+        if previous["staff_id"] != schedule["staff_id"]:
+            previous_schedule = {
+                "shift_date": previous["shift_date"],
+                "shift_start": previous["shift_start"],
+                "shift_end": previous["shift_end"],
+                "task_description": "This duty assignment was moved to another staff member.",
+            }
+            notifications.append(
+                _notify_staff_of_duty_schedule(previous["staff_id"], previous.get("role"), previous_schedule, updated=True)
+            )
+        return jsonify({
+            "message": "Duty schedule updated.",
+            "notificationSent": all(notification_id is not None for notification_id in notifications),
+        }), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/staff/<int:staff_id>/duty-schedules', methods=['GET'])
+def staff_get_duty_schedules(staff_id):
+    try:
+        from_date = datetime.strptime(request.args.get("from", date.today().isoformat()), "%Y-%m-%d").date()
+        through_date = datetime.strptime(
+            request.args.get("to", (date.today() + timedelta(days=6)).isoformat()),
+            "%Y-%m-%d",
+        ).date()
+    except ValueError:
+        return jsonify({"error": "Schedule dates must use YYYY-MM-DD format."}), 400
+    if through_date < from_date or (through_date - from_date).days > 62:
+        return jsonify({"error": "Choose a valid date range of no more than 63 days."}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT id FROM staff WHERE id = %s", (staff_id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Staff member not found."}), 404
+
+        cur.execute(
+            """
+            SELECT id, shift_date, shift_start, shift_end, task_description
+            FROM staff_duty_schedules
+            WHERE staff_id = %s AND shift_date BETWEEN %s AND %s
+            ORDER BY shift_date, shift_start
+            """,
+            (staff_id, from_date, through_date),
+        )
+        schedules = [
+            {
+                "id": row["id"],
+                "shiftDate": row["shift_date"].isoformat(),
+                "shiftStart": row["shift_start"].strftime("%H:%M"),
+                "shiftEnd": row["shift_end"].strftime("%H:%M"),
+                "taskDescription": row["task_description"],
+            }
+            for row in cur.fetchall() or []
+        ]
+        return jsonify({"schedules": schedules}), 200
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
         _safe_close(conn, cur)
@@ -15001,53 +15279,6 @@ def _ensure_inventory_settings_table(cur):
     )
 
 
-def _ensure_supplier_purchase_tables(cur):
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS purchase_orders (
-            id SERIAL PRIMARY KEY,
-            hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
-            po_number VARCHAR(100) UNIQUE NOT NULL,
-            supplier VARCHAR(200) NOT NULL,
-            status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
-            total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
-            ordered_at TIMESTAMP DEFAULT NOW(),
-            expected_delivery DATE,
-            received_at TIMESTAMP,
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS suppliers (
-            id SERIAL PRIMARY KEY,
-            hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
-            name VARCHAR(200) NOT NULL,
-            contact_person VARCHAR(200) DEFAULT '',
-            email VARCHAR(200) DEFAULT '',
-            phone VARCHAR(50) DEFAULT '',
-            address TEXT DEFAULT '',
-            notes TEXT DEFAULT '',
-            is_active BOOLEAN NOT NULL DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW(),
-            UNIQUE (hotel_id, name)
-        )
-    """)
-    cur.execute("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL")
-    cur.execute("ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL")
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS purchase_order_items (
-            id SERIAL PRIMARY KEY,
-            po_id INTEGER NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
-            item_id INTEGER NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
-            quantity INTEGER NOT NULL CHECK (quantity > 0),
-            unit_cost NUMERIC(10, 2) NOT NULL DEFAULT 0,
-            UNIQUE (po_id, item_id)
-        )
-    """)
-
-
 @app.route('/api/manager/inventory/suppliers', methods=['GET'])
 @app.route('/api/inventory/suppliers', methods=['GET'])
 def inv_get_suppliers():
@@ -15059,7 +15290,6 @@ def inv_get_suppliers():
             return jsonify({'error': 'hotel_id is required.'}), 400
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        _ensure_supplier_purchase_tables(cur)
         cur.execute("""
             SELECT id, name, contact_person, email, phone, address, notes, is_active
             FROM suppliers
@@ -15088,7 +15318,6 @@ def inv_create_supplier():
             return jsonify({'error': 'hotelId and supplier name are required.'}), 400
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        _ensure_supplier_purchase_tables(cur)
         cur.execute("""
             INSERT INTO suppliers (hotel_id, name, contact_person, email, phone, address, notes)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -15123,7 +15352,6 @@ def inv_update_supplier(supplier_id):
             return jsonify({'error': 'hotelId and supplier name are required.'}), 400
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        _ensure_supplier_purchase_tables(cur)
         cur.execute("""
             UPDATE suppliers
             SET name=%s, contact_person=%s, email=%s, phone=%s, address=%s,
@@ -15160,7 +15388,6 @@ def inv_archive_supplier(supplier_id):
             return jsonify({'error': 'hotel_id is required.'}), 400
         conn = get_db_connection()
         cur = conn.cursor()
-        _ensure_supplier_purchase_tables(cur)
         cur.execute(
             "UPDATE suppliers SET is_active=FALSE, updated_at=NOW() WHERE id=%s AND hotel_id=%s",
             (supplier_id, hotel_id),
@@ -15186,7 +15413,6 @@ def inv_items():
         category = request.args.get('category', '').strip()
         search   = request.args.get('search', '').strip()
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
-        _ensure_supplier_purchase_tables(cur)
         q = "SELECT * FROM inventory_items WHERE 1=1"
         p = []
         if hotel_id: q += " AND hotel_id = %s"; p.append(hotel_id)
@@ -15226,7 +15452,6 @@ def inv_add_item():
     try:
         d = request.json or {}
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
-        _ensure_supplier_purchase_tables(cur)
         supplier_id = _to_int_or_none(d.get('supplierId'))
         supplier_name = str(d.get('supplier') or '').strip()
         if supplier_id:
@@ -15260,7 +15485,6 @@ def inv_update_item(item_id):
     try:
         d = request.json or {}
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
-        _ensure_supplier_purchase_tables(cur)
         supplier_id = _to_int_or_none(d.get('supplierId'))
         supplier_name = str(d.get('supplier') or '').strip()
         if supplier_id:
@@ -15410,11 +15634,6 @@ def inv_low_stock():
             ORDER BY (stock_level::float / NULLIF(max_stock,0)) ASC
         """, hp)
         rows = cur.fetchall() or []
-        if hotel_id and rows:
-            _seed_notification_types(cur)
-            _ensure_notification_tables(cur)
-            _notify_daily_low_stock(cur, hotel_id, rows)
-            conn.commit()
         items = [{
             'id': r['id'], 'skuId': r['sku_id'], 'name': r['item_name'],
             'category': r['category'], 'unit': r['unit'], 'supplier': r.get('supplier') or '',
@@ -15434,7 +15653,6 @@ def inv_purchase_orders():
     try:
         hotel_id = request.args.get('hotel_id', type=int)
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
-        _ensure_supplier_purchase_tables(cur)
         po_cols = _table_columns(cur, "purchase_orders")
         select_cols = ["po.id", "po.po_number", "po.supplier", "po.status"]
         for col in ("total_amount", "notes", "created_at", "created_by", "staff_id", "expected_date", "expected_delivery", "received_date", "received_at", "supplier_id"):
@@ -15497,7 +15715,6 @@ def inv_create_po():
         import random, string
         po_num = 'PO-' + ''.join(random.choices(string.digits, k=8))
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
-        _ensure_supplier_purchase_tables(cur)
         cur.execute(
             "SELECT id, name FROM suppliers WHERE id=%s AND hotel_id=%s AND is_active=TRUE",
             (supplier_id, hotel_id),
@@ -15581,7 +15798,6 @@ def inv_receive_po(po_id):
     try:
         d = request.json or {}
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
-        _ensure_supplier_purchase_tables(cur)
         po_cols = _table_columns(cur, "purchase_orders")
         cur.execute(
             "SELECT id, po_number, hotel_id, supplier, supplier_id, status FROM purchase_orders WHERE id=%s FOR UPDATE",
@@ -15703,15 +15919,6 @@ def inv_dashboard():
         total_skus = _to_int((cur.fetchone() or {}).get('c'), 0)
         cur.execute(f"SELECT COUNT(*) AS c FROM inventory_items WHERE stock_level <= reorder_point {hf}", hp)
         low_stock = _to_int((cur.fetchone() or {}).get('c'), 0)
-        if hotel_id and low_stock:
-            _seed_notification_types(cur)
-            _ensure_notification_tables(cur)
-            cur.execute(
-                "SELECT * FROM inventory_items WHERE hotel_id=%s AND stock_level <= reorder_point",
-                (hotel_id,),
-            )
-            _notify_daily_low_stock(cur, hotel_id, cur.fetchall() or [])
-            conn.commit()
         cur.execute(f"SELECT COUNT(*) AS c FROM inventory_items WHERE stock_level <= 0 {hf}", hp)
         out_of_stock = _to_int((cur.fetchone() or {}).get('c'), 0)
         today = datetime.now().date()

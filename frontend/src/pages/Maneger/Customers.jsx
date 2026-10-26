@@ -4,7 +4,7 @@ import { Users, Star, AlertCircle, TrendingUp, Search, ChevronRight, Download, X
 const peso = (value) => `PHP ${Number(value || 0).toLocaleString()}`;
 
 const Customers = () => {
-  const [payload, setPayload] = useState({ customers: [], topGuests: [], atRiskGuests: [], stats: {}, trends: {} });
+  const [payload, setPayload] = useState({ customers: [], topGuests: [], atRiskGuests: [], stats: {}, trends: { bookings: [], labels: [] } });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSegment, setActiveSegment] = useState('ALL');
@@ -19,7 +19,7 @@ const Customers = () => {
     }
   })();
 
-  const period = behaviorFilter === 'weekly' ? 'daily' : 'monthly';
+  const period = behaviorFilter === 'weekly' ? 'daily' : behaviorFilter === 'yearly' ? 'yearly' : 'monthly';
 
   const fetchGuests = async () => {
     if (!ownerId) return setLoading(false);
@@ -63,7 +63,12 @@ const Customers = () => {
     avgValue: payload?.stats?.averageGuestSpendPhp || 0,
   }), [guests, payload]);
 
-  const trendBars = (payload?.trends?.bookings || []).slice(-6);
+  const rawTrendBars = payload?.trends?.bookings || [];
+  const rawTrendLabels = payload?.trends?.labels || [];
+
+  const chartPointCount = behaviorFilter === 'weekly' ? 7 : behaviorFilter === 'yearly' ? 5 : 6;
+  const trendBars = rawTrendBars.slice(-chartPointCount);
+  const trendLabels = rawTrendLabels.slice(-chartPointCount);
   const maxTrend = Math.max(...trendBars.map((v) => Number(v || 0)), 1);
 
   const exportCSV = () => {
@@ -104,7 +109,7 @@ const Customers = () => {
           </div>
           <button 
             onClick={exportCSV} 
-            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded shadow-sm flex items-center gap-1.5 transition-colors"
+            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Download size={14} /> Export Report
           </button>
@@ -150,8 +155,10 @@ const Customers = () => {
                 {['weekly', 'monthly', 'yearly'].map((filterKey) => (
                   <button 
                     key={filterKey} 
+                    type="button"
+                    aria-pressed={behaviorFilter === filterKey}
                     onClick={() => setBehaviorFilter(filterKey)} 
-                    className={`px-3 py-1 text-[10px] font-bold uppercase rounded transition-colors ${
+                    className={`px-3 py-1 text-[10px] font-bold uppercase rounded transition-colors cursor-pointer ${
                       behaviorFilter === filterKey 
                         ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' 
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
@@ -163,21 +170,28 @@ const Customers = () => {
               </div>
             </div>
 
-            <div className="h-56 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded p-4 flex flex-col justify-end">
-              <div className="flex items-end gap-3 h-full">
-                {trendBars.length ? trendBars.map((value, index) => (
-                  <div key={`${value}-${index}`} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                    <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-t h-full flex items-end overflow-hidden">
-                      <div 
-                        className="w-full bg-emerald-700 dark:bg-emerald-600 rounded-t transition-all" 
-                        style={{ height: `${Math.max(10, (Number(value || 0) / maxTrend) * 100)}%` }} 
-                      />
+            <div className="bg-slate-50/50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded p-4">
+              <div className="flex h-32 items-end gap-2 overflow-x-auto">
+                {trendBars.length > 0 ? trendBars.map((value, index) => {
+                  const numericVal = Number(value || 0);
+                  const heightPixels = Math.max(8, (numericVal / maxTrend) * 88);
+                  const labelText = trendLabels[index] ? String(trendLabels[index]).slice(-5) : `#${index + 1}`;
+
+                  return (
+                    <div key={`trend-${index}`} className="flex flex-1 flex-col items-center gap-2">
+                      <div className="flex h-24 w-full items-end rounded bg-slate-100 p-1 dark:bg-slate-800/60">
+                        <div
+                          className="w-full rounded-sm bg-emerald-800 transition-all duration-500 dark:bg-emerald-600"
+                          style={{ height: `${heightPixels}px` }}
+                          title={`${numericVal} bookings`}
+                        />
+                      </div>
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500" title={String(trendLabels[index] || labelText)}>
+                        {labelText}
+                      </span>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {(payload?.trends?.labels || []).slice(-6)[index]?.slice(-2) || '--'}
-                    </span>
-                  </div>
-                )) : (
+                  );
+                }) : (
                   <div className="flex h-full w-full items-center justify-center text-slate-400 text-xs">
                     <div className="text-center">
                       <BarChart3 className="mx-auto mb-1 opacity-40" size={28}/>
@@ -186,6 +200,12 @@ const Customers = () => {
                   </div>
                 )}
               </div>
+              {trendBars.length > 0 && (
+                <div className="mt-3 flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  <span>{Number(trendBars[0] || 0)} bookings</span>
+                  <span>{Number(trendBars[trendBars.length - 1] || 0)} bookings</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -273,7 +293,7 @@ const Customers = () => {
                     <td className="p-4 text-right">
                       <button 
                         onClick={() => setSelectedGuest(guest)} 
-                        className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
+                        className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
                       >
                         Details <ChevronRight size={13}/>
                       </button>
@@ -299,7 +319,7 @@ const Customers = () => {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg max-w-md w-full p-6 shadow-xl relative animate-in fade-in zoom-in duration-150">
             <button 
               onClick={() => setSelectedGuest(null)} 
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 rounded"
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 rounded cursor-pointer"
             >
               <X size={18}/>
             </button>
@@ -329,7 +349,7 @@ const Customers = () => {
 
             <button 
               onClick={() => setSelectedGuest(null)}
-              className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded transition-colors shadow-sm"
+              className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded transition-colors shadow-sm cursor-pointer"
             >
               Close Profile
             </button>

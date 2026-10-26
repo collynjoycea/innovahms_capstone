@@ -10,9 +10,14 @@ import {
 
 const HKSchedule = () => {
   const { isDarkMode } = useOutletContext() || { isDarkMode: true };
-  const { qs } = useStaffSession();
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const { qs, staffId } = useStaffSession();
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  });
   const [shifts, setShifts] = useState([]);
+  const [dutySchedules, setDutySchedules] = useState([]);
+  const [dutyScheduleError, setDutyScheduleError] = useState('');
 
   useEffect(() => {
     axios.get(`/api/housekeeping/schedule${qs}&date=${selectedDate}`)
@@ -20,12 +25,29 @@ const HKSchedule = () => {
       .catch(() => {});
   }, [qs, selectedDate]);
 
+  useEffect(() => {
+    if (!staffId) {
+      setDutySchedules([]);
+      setDutyScheduleError('Please log in again to view your duty schedule.');
+      return;
+    }
+    axios.get(`/api/staff/${staffId}/duty-schedules?from=${selectedDate}&to=${selectedDate}`)
+      .then(res => {
+        setDutySchedules(res.data.schedules || []);
+        setDutyScheduleError('');
+      })
+      .catch((error) => {
+        setDutySchedules([]);
+        setDutyScheduleError(error.response?.data?.error || 'Could not load manager-assigned duty schedule.');
+      });
+  }, [staffId, selectedDate]);
+
   // Build week dates around selectedDate
   const weeklyDates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(selectedDate);
-    const day = new Date(d);
-    day.setDate(d.getDate() - d.getDay() + 1 + i);
-    const iso = day.toISOString().split('T')[0];
+    const [year, month, date] = selectedDate.split('-').map(Number);
+    const day = new Date(year, month - 1, date);
+    day.setDate(day.getDate() - ((day.getDay() + 6) % 7) + i);
+    const iso = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
     return {
       day: day.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
       date: String(day.getDate()),
@@ -35,13 +57,22 @@ const HKSchedule = () => {
   });
 
   const shiftIcons = { Morning: <Sun size={14}/>, Break: <Coffee size={14}/>, Afternoon: <Moon size={14}/> };
-  const displayShifts = shifts.map(s => ({
+  const displayShifts = [
+    ...dutySchedules.map((s) => ({
+      time: `${s.shiftStart} - ${s.shiftEnd}`,
+      task: s.taskDescription,
+      zone: 'Manager-assigned duty',
+      type: 'Assigned',
+      icon: <Clock size={14} />,
+    })),
+    ...shifts.map(s => ({
     time: `${s.shift_start} - ${s.shift_end}`,
     task: s.task_label || 'Shift',
     zone: s.zone || '',
     type: s.task_label?.toLowerCase().includes('break') ? 'Break' : 'Morning',
     icon: s.task_label?.toLowerCase().includes('break') ? <Coffee size={14}/> : <Sun size={14}/>,
-  }));
+    })),
+  ];
 
   const theme = {
     bg: isDarkMode ? "bg-[#0c0c0e]" : "bg-[#f0f0f3]",
@@ -70,8 +101,8 @@ const HKSchedule = () => {
         <div className="flex items-center gap-4">
            <div className={`px-4 py-2 rounded-xl border ${theme.border} ${theme.card} flex items-center gap-3`}>
               <Clock size={16} className={theme.accent} />
-              <span className={`text-[11px] font-black ${theme.textMain}`}>08:00 AM - 05:00 PM</span>
-              <span className="text-[9px] font-bold text-green-500 bg-green-500/10 px-2 py-0.5 rounded uppercase">On Duty</span>
+              <span className={`text-[11px] font-black ${theme.textMain}`}>{dutySchedules.length} manager-assigned shift{dutySchedules.length === 1 ? '' : 's'}</span>
+              <span className="text-[9px] font-bold text-[#6FCF97] bg-[#6FCF97]/10 px-2 py-0.5 rounded uppercase">Manager schedule</span>
            </div>
         </div>
       </div>
@@ -82,10 +113,26 @@ const HKSchedule = () => {
         <div className="lg:col-span-2 space-y-8">
           <div className={`${theme.card} border ${theme.border} rounded-3xl p-8 ${theme.shadow}`}>
             <div className="flex justify-between items-center mb-8">
-              <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>March 2026</h2>
+              <h2 className={`text-sm font-black uppercase tracking-[0.2em] ${theme.textMain}`}>
+                {new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </h2>
               <div className="flex gap-2">
-                <button className={`p-2 rounded-lg border ${theme.border} hover:bg-white/5`}><ChevronLeft size={16}/></button>
-                <button className={`p-2 rounded-lg border ${theme.border} hover:bg-white/5`}><ChevronRight size={16}/></button>
+                <button
+                  onClick={() => {
+                    const [year, month, day] = selectedDate.split('-').map(Number);
+                    const previous = new Date(year, month - 1, day - 7);
+                    setSelectedDate(`${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}-${String(previous.getDate()).padStart(2, '0')}`);
+                  }}
+                  aria-label="Previous week"
+                  className={`p-2 rounded-lg border ${theme.border} hover:bg-white/5`}><ChevronLeft size={16}/></button>
+                <button
+                  onClick={() => {
+                    const [year, month, day] = selectedDate.split('-').map(Number);
+                    const next = new Date(year, month - 1, day + 7);
+                    setSelectedDate(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`);
+                  }}
+                  aria-label="Next week"
+                  className={`p-2 rounded-lg border ${theme.border} hover:bg-white/5`}><ChevronRight size={16}/></button>
               </div>
             </div>
 
@@ -115,6 +162,7 @@ const HKSchedule = () => {
           {/* 3. DAILY TIMELINE */}
           <div className="space-y-4">
             <h3 className={`text-[10px] font-black uppercase tracking-[0.3em] pl-2 ${theme.textSub}`}>Shift Timeline</h3>
+            {dutyScheduleError && <p role="alert" className="rounded-lg bg-red-500/10 p-3 text-xs text-red-500">{dutyScheduleError}</p>}
             {displayShifts.map((shift, i) => (
               <div key={i} className={`${theme.card} border ${theme.border} p-6 rounded-2xl flex items-center justify-between group hover:border-[#6FCF97]/50 transition-all`}>
                 <div className="flex items-center gap-6">

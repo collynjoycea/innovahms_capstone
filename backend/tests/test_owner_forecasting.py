@@ -15,6 +15,24 @@ class OwnerForecastingTest(unittest.TestCase):
         self.assertEqual(app_module._next_period_label("2026-Q4", "quarterly", 1), "2027-Q1")
         self.assertEqual(app_module._next_period_label("2026", "yearly", 1), "2027")
 
+    def test_period_occupancy_rate_counts_unique_reserved_rooms(self):
+        reservations = [
+            {"room_id": 1, "status": "confirmed"},
+            {"room_id": 1, "status": "checked_in"},
+            {"room_id": 2, "status": "completed"},
+            {"room_id": 3, "status": "cancelled"},
+            {"room_id": None, "status": "paid"},
+        ]
+
+        self.assertEqual(app_module._calculate_period_occupancy_rate(reservations, 4), 50.0)
+        self.assertEqual(app_module._calculate_period_occupancy_rate(reservations, 0), 0.0)
+
+    def test_behavior_trends_include_zero_value_periods(self):
+        expected_lengths = {"daily": 30, "monthly": 24, "yearly": 5}
+        for period, expected_length in expected_lengths.items():
+            with self.subTest(period=period):
+                self.assertEqual(len(app_module._default_owner_period_labels(period)), expected_length)
+
     def test_forecast_payload_supports_today_monthly_quarterly_and_yearly(self):
         periods = {
             "today": ("daily", 30, 7),

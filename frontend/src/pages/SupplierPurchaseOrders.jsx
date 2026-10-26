@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Archive, Plus, RefreshCw, Truck } from "lucide-react";
+import { Archive, Plus, RefreshCw, Truck, ShoppingCart, PackagePlus, FileText, CheckCircle2 } from "lucide-react";
 import useStaffSession from "../hooks/useStaffSession";
 
 const EMPTY_SUPPLIER = { name: "", contactPerson: "", email: "", phone: "", address: "", notes: "" };
@@ -54,15 +54,6 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
     lines: [{ itemId: "", quantity: 1, unitCost: 0 }],
   });
 
-  const theme = {
-    page: isDarkMode ? "bg-[#0f1117] text-slate-100" : "bg-slate-50 text-slate-900",
-    card: isDarkMode ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white",
-    muted: isDarkMode ? "text-slate-400" : "text-slate-500",
-    input: isDarkMode
-      ? "border-slate-700 bg-slate-800 text-slate-100"
-      : "border-slate-300 bg-white text-slate-900",
-  };
-
   const refresh = useCallback(async () => {
     if (!hotelId) {
       setError("This account does not have a hotel linked to it.");
@@ -73,19 +64,17 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
     setError("");
     try {
       const query = `?hotel_id=${encodeURIComponent(hotelId)}`;
-      const [supplierResponse, itemResponse, orderResponse, lowStockResponse] = await Promise.all([
+      const [supplierResponse, itemResponse, orderResponse] = await Promise.all([
         fetch(`/api/inventory/suppliers${query}`),
         fetch(`/api/inventory/items${query}`),
         fetch(`/api/inventory/purchase-orders${query}`),
-        fetch(`/api/inventory/low-stock${query}`),
       ]);
       const responses = await Promise.all([
         supplierResponse.json(),
         itemResponse.json(),
         orderResponse.json(),
-        lowStockResponse.json(),
       ]);
-      const failedIndex = [supplierResponse, itemResponse, orderResponse, lowStockResponse].findIndex((response) => !response.ok);
+      const failedIndex = [supplierResponse, itemResponse, orderResponse].findIndex((response) => !response.ok);
       if (failedIndex !== -1) {
         throw new Error(responses[failedIndex]?.error || "Could not load supplier and inventory data.");
       }
@@ -129,7 +118,7 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not save supplier.");
       setSupplierForm(EMPTY_SUPPLIER);
-      setMessage("Supplier added.");
+      setMessage("Supplier added successfully.");
       await refresh();
     } catch (requestError) {
       setError(requestError.message || "Could not save supplier.");
@@ -194,7 +183,7 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
         notes: "",
         lines: [{ itemId: "", quantity: 1, unitCost: 0 }],
       });
-      setMessage(`Purchase order ${data.poNumber} created.`);
+      setMessage(`Purchase order ${data.poNumber} created successfully.`);
       await refresh();
     } catch (requestError) {
       setError(requestError.message || "Could not create purchase order.");
@@ -225,132 +214,238 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
   };
 
   return (
-    <div className={`min-h-screen p-5 sm:p-8 ${theme.page}`}>
+    <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <header className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border p-6 ${theme.card}`}>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-emerald-600">Supply Management</p>
-            <h1 className="mt-1 text-2xl font-bold">Suppliers & Purchase Orders</h1>
-            <p className={`mt-1 text-sm ${theme.muted}`}>Manage suppliers and receive orders directly into hotel inventory.</p>
+        
+        {/* Header Section */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-700 dark:text-emerald-400 font-bold">Supply Chain Control</span>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Suppliers & Purchase Orders</h1>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                Manage vendor profiles, issue purchase orders, and sync deliveries directly into hotel inventory.
+              </p>
+            </div>
+            <button 
+              type="button" 
+              onClick={refresh} 
+              className="inline-flex items-center gap-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer self-start lg:self-auto"
+            >
+              <RefreshCw size={14} /> Refresh Data
+            </button>
           </div>
-          <button type="button" onClick={refresh} className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm ${theme.input}`}>
-            <RefreshCw size={15} /> Refresh
-          </button>
-        </header>
+        </div>
 
-        {error ? <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{error}</p> : null}
-        {message ? <p role="status" className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{message}</p> : null}
+        {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error}</p> : null}
+        {message ? <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">{message}</p> : null}
 
-        <section className={`rounded-xl border p-6 ${theme.card}`}>
-          <h2 className="mb-4 text-lg font-semibold">Add a supplier</h2>
-          <form onSubmit={saveSupplier} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Suppliers Section */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <Truck size={16} className="text-emerald-700 dark:text-emerald-400" /> Supplier Directory
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Register and oversee trusted vendors and suppliers.</p>
+          </div>
+
+          <form onSubmit={saveSupplier} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-6">
             {[
-              ["name", "Supplier name", true],
-              ["contactPerson", "Contact person", false],
-              ["email", "Email", false],
-              ["phone", "Phone", false],
-              ["address", "Address", false],
-              ["notes", "Notes", false],
+              ["name", "Supplier Name *", true],
+              ["contactPerson", "Contact Person", false],
+              ["email", "Email Address", false],
+              ["phone", "Phone Number", false],
+              ["address", "Business Address", false],
+              ["notes", "Notes / Terms", false],
             ].map(([field, label, required]) => (
-              <label key={field} className={`text-xs font-medium ${theme.muted}`}>
+              <label key={field} className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                 {label}
                 <input
                   required={required}
-                  type={field === "phone" ? "tel" : "text"}
+                  type={field === "phone" ? "tel" : field === "email" ? "email" : "text"}
                   inputMode={field === "phone" ? "tel" : undefined}
+                  placeholder={`Enter ${label.toLowerCase().replace('*', '').trim()}`}
                   value={supplierForm[field]}
                   onChange={(event) => setSupplierForm((current) => ({
                     ...current,
                     [field]: sanitizeSupplierField(field, event.target.value),
                   }))}
-                  className={`mt-1 block w-full rounded-lg border px-3 py-2 text-sm ${theme.input}`}
+                  className="mt-1 block w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 outline-none focus:border-emerald-600 transition-colors"
                 />
               </label>
             ))}
-            <button disabled={saving} className="inline-flex items-center justify-center gap-2 self-end rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white disabled:opacity-50">
-              <Plus size={16} /> Add Supplier
-            </button>
+            <div className="sm:col-span-2 lg:col-span-3 flex justify-end pt-2">
+              <button disabled={saving} className="inline-flex items-center gap-1.5 rounded bg-emerald-700 hover:bg-emerald-800 px-4 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 cursor-pointer">
+                <Plus size={15} /> Add Supplier Profile
+              </button>
+            </div>
           </form>
-          <div className="mt-5 overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className={theme.muted}><tr><th className="p-2">Supplier</th><th className="p-2">Contact</th><th className="p-2">Phone / Email</th><th className="p-2">Action</th></tr></thead>
-              <tbody>
+
+          <div className="overflow-x-auto rounded border border-slate-200 dark:border-slate-800">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 text-[10px] font-mono uppercase text-slate-400 tracking-wider">
+                  <th className="p-3.5 font-semibold">Supplier Name</th>
+                  <th className="p-3.5 font-semibold">Contact Person</th>
+                  <th className="p-3.5 font-semibold">Phone / Email</th>
+                  <th className="p-3.5 font-semibold">Address</th>
+                  <th className="p-3.5 font-semibold text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {suppliers.filter((supplier) => supplier.is_active).map((supplier) => (
-                  <tr key={supplier.id} className="border-t border-slate-200 dark:border-slate-800">
-                    <td className="p-2 font-semibold">{supplier.name}</td>
-                    <td className={`p-2 ${theme.muted}`}>{supplier.contact_person || "—"}</td>
-                    <td className={`p-2 ${theme.muted}`}>{supplier.phone || supplier.email || "—"}</td>
-                    <td className="p-2"><button type="button" onClick={() => archiveSupplier(supplier.id)} className="inline-flex items-center gap-1 text-xs text-red-600"><Archive size={13} /> Archive</button></td>
+                  <tr key={supplier.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="p-3.5 font-bold text-slate-900 dark:text-white uppercase">{supplier.name}</td>
+                    <td className="p-3.5 text-slate-600 dark:text-slate-300">{supplier.contact_person || "—"}</td>
+                    <td className="p-3.5 text-slate-600 dark:text-slate-300 font-mono">{supplier.phone || supplier.email || "—"}</td>
+                    <td className="p-3.5 text-slate-500 truncate max-w-xs">{supplier.address || "—"}</td>
+                    <td className="p-3.5 text-right">
+                      <button type="button" onClick={() => archiveSupplier(supplier.id)} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer">
+                        <Archive size={13} /> Archive
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {!loading && suppliers.length === 0 ? <p className={`py-4 text-sm ${theme.muted}`}>No suppliers yet. Add one above to start a purchase order.</p> : null}
+            {!loading && suppliers.filter((supplier) => supplier.is_active).length === 0 ? (
+              <p className="py-8 text-center text-xs text-slate-400">No active suppliers found. Register one above to begin.</p>
+            ) : null}
           </div>
-        </section>
+        </div>
 
-        <section className={`rounded-xl border p-6 ${theme.card}`}>
-          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><Truck size={18} className="text-emerald-600" /> Create a purchase order</h2>
+        {/* Create Purchase Order Section */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <PackagePlus size={16} className="text-emerald-700 dark:text-emerald-400" /> Create Purchase Order
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Order items from active suppliers to restock inventory levels.</p>
+          </div>
+
           {suppliers.filter((supplier) => supplier.is_active).length === 0 || items.length === 0 ? (
-            <p className={`text-sm ${theme.muted}`}>Add an active supplier and inventory items before creating an order.</p>
+            <div className="rounded border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-xs text-slate-400">
+              Please register an active supplier and ensure inventory items exist before generating a purchase order.
+            </div>
           ) : (
-            <form onSubmit={createOrder} className="space-y-4">
+            <form onSubmit={createOrder} className="space-y-4 text-xs">
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className={`text-xs font-medium ${theme.muted}`}>Supplier
-                  <select required value={orderForm.supplierId} onChange={(event) => setOrderForm((current) => ({ ...current, supplierId: event.target.value }))} className={`mt-1 block w-full rounded-lg border px-3 py-2 text-sm ${theme.input}`}>
+                <label className="font-semibold text-slate-700 dark:text-slate-300">Supplier *
+                  <select required value={orderForm.supplierId} onChange={(event) => setOrderForm((current) => ({ ...current, supplierId: event.target.value }))} className="mt-1 block w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 outline-none cursor-pointer">
                     <option value="">Choose a supplier</option>
                     {suppliers.filter((supplier) => supplier.is_active).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
                   </select>
                 </label>
-                <label className={`text-xs font-medium ${theme.muted}`}>Expected delivery
-                  <input type="date" value={orderForm.expectedDate} onChange={(event) => setOrderForm((current) => ({ ...current, expectedDate: event.target.value }))} className={`mt-1 block w-full rounded-lg border px-3 py-2 text-sm ${theme.input}`} />
+                <label className="font-semibold text-slate-700 dark:text-slate-300">Expected Delivery Date
+                  <input type="date" value={orderForm.expectedDate} onChange={(event) => setOrderForm((current) => ({ ...current, expectedDate: event.target.value }))} className="mt-1 block w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 outline-none" />
                 </label>
               </div>
-              <div className="space-y-2">
+
+              <div className="space-y-2 pt-2">
+                <label className="block font-semibold text-slate-700 dark:text-slate-300">Order Items Line Breakdown</label>
                 {orderForm.lines.map((line, index) => (
-                  <div key={index} className="grid gap-2 sm:grid-cols-[minmax(180px,1fr)_120px_140px_auto]">
-                    <select required value={line.itemId} onChange={(event) => changeLine(index, "itemId", event.target.value)} className={`rounded-lg border px-3 py-2 text-sm ${theme.input}`}>
+                  <div key={index} className="grid gap-2 sm:grid-cols-[minmax(180px,1fr)_120px_140px_auto] items-center">
+                    <select required value={line.itemId} onChange={(event) => changeLine(index, "itemId", event.target.value)} className="rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 outline-none cursor-pointer">
                       <option value="">Choose inventory item</option>
-                      {items.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.stockLevel} {item.unit})</option>)}
+                      {items.map((item) => <option key={item.id} value={item.id}>{item.name} (Stock: {item.stockLevel} {item.unit || 'units'})</option>)}
                     </select>
-                    <input aria-label="Quantity" type="number" min="1" required value={line.quantity} onChange={(event) => changeLine(index, "quantity", event.target.value)} className={`rounded-lg border px-3 py-2 text-sm ${theme.input}`} />
-                    <input aria-label="Unit cost" type="number" min="0" step="0.01" required value={line.unitCost} onChange={(event) => changeLine(index, "unitCost", event.target.value)} className={`rounded-lg border px-3 py-2 text-sm ${theme.input}`} />
-                    <button type="button" disabled={orderForm.lines.length === 1} onClick={() => setOrderForm((current) => ({ ...current, lines: current.lines.filter((_, lineIndex) => lineIndex !== index) }))} className="rounded-lg border border-slate-300 px-3 text-xs text-red-600 disabled:opacity-40 dark:border-slate-700">Remove</button>
+                    <input aria-label="Quantity" type="number" min="1" required placeholder="Qty" value={line.quantity} onChange={(event) => changeLine(index, "quantity", event.target.value)} className="rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 outline-none" />
+                    <input aria-label="Unit cost" type="number" min="0" step="0.01" required placeholder="Unit Cost (₱)" value={line.unitCost} onChange={(event) => changeLine(index, "unitCost", event.target.value)} className="rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 outline-none" />
+                    <button type="button" disabled={orderForm.lines.length === 1} onClick={() => setOrderForm((current) => ({ ...current, lines: current.lines.filter((_, lineIndex) => lineIndex !== index) }))} className="rounded border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40 cursor-pointer">Remove</button>
                   </div>
                 ))}
-                <button type="button" onClick={() => setOrderForm((current) => ({ ...current, lines: [...current.lines, { itemId: "", quantity: 1, unitCost: 0 }] }))} className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400"><Plus size={14} /> Add item</button>
+                <button type="button" onClick={() => setOrderForm((current) => ({ ...current, lines: [...current.lines, { itemId: "", quantity: 1, unitCost: 0 }] }))} className="inline-flex items-center gap-1 pt-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer">
+                  <Plus size={14} /> Add another line item
+                </button>
               </div>
-              <label className={`block text-xs font-medium ${theme.muted}`}>Notes
-                <textarea rows={2} value={orderForm.notes} onChange={(event) => setOrderForm((current) => ({ ...current, notes: event.target.value }))} className={`mt-1 block w-full rounded-lg border px-3 py-2 text-sm ${theme.input}`} />
+
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 pt-2">Notes & Instructions
+                <textarea rows={2} placeholder="Optional delivery notes or terms..." value={orderForm.notes} onChange={(event) => setOrderForm((current) => ({ ...current, notes: event.target.value }))} className="mt-1 block w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 outline-none" />
               </label>
-              <button disabled={saving} className="rounded-lg bg-emerald-700 px-5 py-2.5 font-semibold text-white disabled:opacity-50">Create Purchase Order</button>
+
+              <div className="flex justify-end pt-2">
+                <button disabled={saving} className="rounded bg-emerald-700 hover:bg-emerald-800 px-5 py-2.5 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer">
+                  Generate Purchase Order
+                </button>
+              </div>
             </form>
           )}
-        </section>
+        </div>
 
-        <section className={`overflow-hidden rounded-xl border ${theme.card}`}>
-          <div className="flex items-center justify-between p-5"><h2 className="text-lg font-semibold">Purchase order history</h2><span className={`text-sm ${theme.muted}`}>{orders.length} orders</span></div>
-          {loading ? <p className={`p-5 text-sm ${theme.muted}`}>Loading orders…</p> : orders.length === 0 ? <p className={`p-5 text-sm ${theme.muted}`}>No orders yet.</p> : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className={theme.muted}><tr><th className="p-3">PO</th><th className="p-3">Supplier</th><th className="p-3">Items</th><th className="p-3">Total</th><th className="p-3">Expected</th><th className="p-3">Status</th><th className="p-3">Action</th></tr></thead>
-                <tbody>
+        {/* Purchase Order History Section */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 p-6">
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                <FileText size={16} className="text-emerald-700 dark:text-emerald-400" /> Purchase Order History
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Track fulfillment status and process incoming shipments.</p>
+            </div>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded">
+              Total Orders: {orders.length}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            {loading ? (
+              <div className="p-8 text-center text-xs text-slate-400">Loading purchase order records...</div>
+            ) : orders.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-400">No purchase orders generated yet.</div>
+            ) : (
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 text-[10px] font-mono uppercase text-slate-400 tracking-wider">
+                    <th className="p-3.5 font-semibold">PO Number</th>
+                    <th className="p-3.5 font-semibold">Supplier</th>
+                    <th className="p-3.5 font-semibold">Line Items</th>
+                    <th className="p-3.5 font-semibold">Total Amount</th>
+                    <th className="p-3.5 font-semibold">Expected Date</th>
+                    <th className="p-3.5 font-semibold">Status</th>
+                    <th className="p-3.5 font-semibold text-right">Fulfillment Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {orders.map((order) => (
-                    <tr key={order.id} className="border-t border-slate-200 align-top dark:border-slate-800">
-                      <td className="p-3 font-mono font-semibold">{order.poNumber}</td>
-                      <td className="p-3">{order.supplier}</td>
-                      <td className="p-3"><ul className={`space-y-1 text-xs ${theme.muted}`}>{(order.items || []).map((item) => <li key={item.itemId}>{item.name} · {item.quantity} {item.unit}</li>)}</ul></td>
-                      <td className="p-3">PHP {Number(order.totalAmount || 0).toLocaleString()}</td>
-                      <td className="p-3">{order.expectedDate || "—"}</td>
-                      <td className="p-3"><span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{order.status}</span></td>
-                      <td className="p-3">{order.status !== "RECEIVED" && order.status !== "CANCELLED" ? <button type="button" onClick={() => receiveOrder(order)} className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white">Receive & update stock</button> : <span className={`text-xs ${theme.muted}`}>{order.receivedDate || "Complete"}</span>}</td>
+                    <tr key={order.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors align-top">
+                      <td className="p-3.5 font-mono font-bold text-slate-900 dark:text-white">{order.poNumber}</td>
+                      <td className="p-3.5 font-semibold text-slate-700 dark:text-slate-300">{order.supplier}</td>
+                      <td className="p-3.5">
+                        <ul className="space-y-1 text-slate-600 dark:text-slate-400">
+                          {(order.items || []).map((item) => (
+                            <li key={item.itemId}>• {item.name} — <span className="font-mono font-bold">{item.quantity}</span> {item.unit || 'units'}</li>
+                          ))}
+                        </ul>
+                      </td>
+                      <td className="p-3.5 font-bold text-emerald-700 dark:text-emerald-400">₱{Number(order.totalAmount || 0).toLocaleString()}</td>
+                      <td className="p-3.5 text-slate-500">{order.expectedDate || "—"}</td>
+                      <td className="p-3.5">
+                        <span className={`inline-flex rounded px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                          order.status === "RECEIVED" 
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                            : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                        }`}>
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-right">
+                        {order.status !== "RECEIVED" && order.status !== "CANCELLED" ? (
+                          <button type="button" onClick={() => receiveOrder(order)} className="rounded bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer">
+                            Receive & Sync Stock
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic flex items-center justify-end gap-1">
+                            <CheckCircle2 size={13} className="text-emerald-600" /> {order.receivedDate ? `Received ${order.receivedDate}` : "Completed"}
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
-        </section>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   );

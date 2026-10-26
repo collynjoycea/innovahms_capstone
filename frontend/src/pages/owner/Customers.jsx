@@ -19,7 +19,7 @@ const Customers = () => {
     }
   })();
 
-  const period = behaviorFilter === 'weekly' ? 'daily' : 'monthly';
+  const period = behaviorFilter === 'weekly' ? 'daily' : behaviorFilter === 'yearly' ? 'yearly' : 'monthly';
 
   const fetchGuests = async () => {
     if (!ownerId) return setLoading(false);
@@ -63,7 +63,9 @@ const Customers = () => {
     avgValue: payload?.stats?.averageGuestSpendPhp || 0,
   }), [guests, payload]);
 
-  const trendBars = (payload?.trends?.bookings || []).slice(-6);
+  const chartPointCount = behaviorFilter === 'weekly' ? 7 : behaviorFilter === 'yearly' ? 5 : 6;
+  const trendBars = (payload?.trends?.bookings || []).slice(-chartPointCount);
+  const trendLabels = (payload?.trends?.labels || []).slice(-chartPointCount);
   const maxTrend = Math.max(...trendBars.map((v) => Number(v || 0)), 1);
 
   const exportCSV = () => {
@@ -104,7 +106,7 @@ const Customers = () => {
           </div>
           <button 
             onClick={exportCSV} 
-            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded shadow-sm flex items-center gap-1.5 transition-colors"
+            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Download size={14} /> Export Report
           </button>
@@ -145,39 +147,57 @@ const Customers = () => {
           {/* Behavioral Analytics Chart */}
           <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
             <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white">Behavioral Analytics</h3>
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded">
-                {['weekly', 'monthly', 'yearly'].map((filterKey) => (
-                  <button 
-                    key={filterKey} 
-                    onClick={() => setBehaviorFilter(filterKey)} 
-                    className={`px-3 py-1 text-[10px] font-bold uppercase rounded transition-colors ${
-                      behaviorFilter === filterKey 
-                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' 
-                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-                    }`}
-                  >
-                    {filterKey}
-                  </button>
-                ))}
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500">BEHAVIORAL ANALYTICS</p>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">Booking Trends</h3>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                  {trendBars.length > 0 ? Number(trendBars[trendBars.length - 1] || 0) : 0}
+                </span>
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded">
+                  {['weekly', 'monthly', 'yearly'].map((filterKey) => (
+                    <button 
+                      key={filterKey} 
+                      onClick={() => setBehaviorFilter(filterKey)} 
+                      className={`px-3 py-1 text-[10px] font-bold uppercase rounded transition-colors cursor-pointer ${
+                        behaviorFilter === filterKey 
+                          ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' 
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      {filterKey}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="h-56 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded p-4 flex flex-col justify-end">
-              <div className="flex items-end gap-3 h-full">
-                {trendBars.length ? trendBars.map((value, index) => (
-                  <div key={`${value}-${index}`} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                    <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-t h-full flex items-end overflow-hidden">
-                      <div 
-                        className="w-full bg-emerald-700 dark:bg-emerald-600 rounded-t transition-all" 
-                        style={{ height: `${Math.max(10, (Number(value || 0) / maxTrend) * 100)}%` }} 
-                      />
+            <div className="bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded p-4">
+              <div className="flex items-end gap-3 h-40">
+                {trendBars.length ? trendBars.map((value, index) => {
+                  const numericValue = Number(value || 0);
+                  const heightPercent = Math.max(12, Math.round((numericValue / maxTrend) * 100));
+                  const rawLabel = trendLabels[index] ? String(trendLabels[index]) : '';
+                  const label = /^\d{4}-\d{2}$/.test(rawLabel) 
+                    ? new Date(`${rawLabel}-01`).toLocaleDateString("en-US", { month: "short" }).toUpperCase()
+                    : rawLabel.slice(-5) || `#${index + 1}`;
+
+                  return (
+                    <div key={`${label}-${index}`} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                      {/* Background container bar with full height */}
+                      <div className="w-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 rounded-t h-full flex items-end overflow-hidden p-1">
+                        <div 
+                          className="w-full bg-emerald-800 dark:bg-emerald-600 rounded-t transition-all duration-500" 
+                          style={{ height: `${heightPercent}%` }} 
+                        />
+                      </div>
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 truncate w-full text-center">
+                        {label}
+                      </span>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {(payload?.trends?.labels || []).slice(-6)[index]?.slice(-2) || '--'}
-                    </span>
-                  </div>
-                )) : (
+                  );
+                }) : (
                   <div className="flex h-full w-full items-center justify-center text-slate-400 text-xs">
                     <div className="text-center">
                       <BarChart3 className="mx-auto mb-1 opacity-40" size={28}/>
@@ -185,6 +205,12 @@ const Customers = () => {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Min/Max value summary indicators at bottom */}
+              <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <span>{trendBars.length ? Math.min(...trendBars.map(v => Number(v || 0))) : 0}</span>
+                <span>{trendBars.length ? Math.max(...trendBars.map(v => Number(v || 0))) : 0}</span>
               </div>
             </div>
           </div>
@@ -273,7 +299,7 @@ const Customers = () => {
                     <td className="p-4 text-right">
                       <button 
                         onClick={() => setSelectedGuest(guest)} 
-                        className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
+                        className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
                       >
                         Details <ChevronRight size={13}/>
                       </button>
@@ -299,7 +325,7 @@ const Customers = () => {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg max-w-md w-full p-6 shadow-xl relative animate-in fade-in zoom-in duration-150">
             <button 
               onClick={() => setSelectedGuest(null)} 
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 rounded"
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 rounded cursor-pointer"
             >
               <X size={18}/>
             </button>
@@ -329,7 +355,7 @@ const Customers = () => {
 
             <button 
               onClick={() => setSelectedGuest(null)}
-              className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded transition-colors shadow-sm"
+              className="w-full py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded transition-colors shadow-sm cursor-pointer"
             >
               Close Profile
             </button>
