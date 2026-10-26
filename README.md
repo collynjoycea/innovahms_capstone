@@ -1,77 +1,74 @@
 # Innova HMS
 
-Hotel management school project with:
-- `frontend/` for the React + Vite client
-- `backend/` for the Flask API and database setup
-- `rasa/` for the chatbot configuration
+Hotel management system with a React/Vite frontend, Flask backend, and optional Rasa assistant.
 
-## Main Folder Guide
+## Project Directory Guide
 
-### `frontend/src`
-- `App.jsx`
-  Main route map for the whole frontend.
-- `components/`
-  Shared UI parts used across multiple pages and layouts.
-- `customer/`
-  Customer-only pages such as dashboard and bookings.
-- `hooks/`
-  Reusable React hooks.
-- `layouts/`
-  Shared page shells per role or section.
-- `pages/`
-  Route pages grouped by feature or role.
-- `utils/`
-  Small helper functions.
+```text
+innovahms-main/
+|-- backend/
+|   |-- app.py                 Flask routes and API
+|   |-- database/              SQL schema, migrations, seeds, bootstrap helpers
+|   |-- static/uploads/        User-uploaded room, document, and housekeeping files
+|   |-- tests/                 Backend automated tests
+|   `-- requirements.txt       Python dependencies
+|-- frontend/
+|   |-- public/                Public images and static assets
+|   `-- src/
+|       |-- components/        Shared interface components
+|       |-- customer/          Customer dashboard and booking screens
+|       |-- data/              Frontend data constants
+|       |-- hooks/             Shared React hooks
+|       |-- layouts/           Shared page layouts
+|       |-- pages/             Route screens grouped by role and feature
+|       `-- utils/             Shared frontend helpers
+|-- rasa/
+|   |-- actions/               Custom Rasa actions
+|   `-- data/                  Intent examples, stories, and rules
+|-- README.md                  Project overview and setup notes
+|-- TODO.md                    Project task list
+`-- .vscode/                   Workspace editor settings
+```
 
-### `backend`
-- `app.py`
-  Main Flask backend file and API routes.
-- `database/`
-  SQL setup, schema, seed files, and database bootstrap helpers.
-- `static/uploads/`
-  Uploaded room images and static file assets served by backend.
+### Existing folder names
 
-## Database Files
+Some frontend role folders use older names, including `frontend/src/pages/Maneger/`, `frontend/src/pages/Staff/frontdesktop/`, and `frontend/src/pages/Staff/inventorysupply/`. Current route imports depend on these paths. Keep their spelling and capitalization unchanged unless doing a dedicated migration that updates and tests every import, route, and deployment reference.
 
-The active SQL setup is kept in `backend/database/` and reduced to these five files:
-- `schema.sql`
-- `features.sql`
-- `membership.sql`
-- `notifications.sql`
-- `seed.sql`
+### Generated and local-only folders
 
-Extra database-safe bootstrap helpers now live in `backend/database/bootstrap.py`.
-That keeps `backend/app.py` focused on routes, request handling, and database access instead of schema definitions.
+`node_modules/`, `frontend/dist/`, Python `__pycache__/`, and `.git/` are dependency, build, cache, or version-control data—not application source folders. Do not manually move or rename them. The frontend build recreates `frontend/dist/`; package managers recreate `node_modules/`.
+
+## Backend Database
+
+SQL schema, data seeds, and migrations live under `backend/database/`. Shared database bootstrap helpers live in `backend/database/bootstrap.py`.
 
 For existing databases, apply `backend/database/inventory_supplier_purchase_orders.sql` once before deploying inventory API changes. Inventory endpoints do not run schema DDL during requests.
-For existing databases, also apply `backend/database/staff_duty_schedules.sql` once before deploying manager duty scheduling. Managers assign and update dated staff shifts; staff can view their own schedule in the Front Desk or Housekeeping portal and receive an in-app notification when it changes.
-For existing databases, apply `backend/database/room_pricing.sql` once to backfill weekday/weekend rates and existing hourly prices. Room APIs also bootstrap missing pricing columns for legacy databases. New rooms use flat rates by default; enable weekend/weekday rates to configure separate overnight and 3-, 6-, 9-, 12-, and 24-hour rates. Owner special discounts apply once to the whole booking subtotal.
+
+For existing databases, apply `backend/database/staff_duty_schedules.sql` once before deploying manager duty scheduling. Managers assign and update dated staff shifts; staff can view their schedules in the Front Desk or Housekeeping portal and receive an in-app notification when a shift changes.
+
+For existing databases, apply `backend/database/room_pricing.sql` once to backfill weekday/weekend rates and existing hourly prices. Room APIs also bootstrap missing pricing columns for legacy databases. New rooms use flat rates by default; enable weekday/weekend rates to configure separate overnight and 3-, 6-, 9-, 12-, and 24-hour rates. Owner special discounts apply once to the whole booking subtotal.
 
 ## Nova Guest Assistant
 
-Nova is available in the customer-facing site and supports English, Tagalog, and Taglish. Its built-in concierge uses live room, rate, capacity, amenity, hotel-policy, offer, and customer-reservation data where configured. It understands weekday/weekend and short-stay rate questions, checks a signed-in guest's recent reservations or a specific booking reference, and guides guests to booking pages. Unknown property details are identified as unconfirmed rather than invented; non-hotel questions receive a brief scope reminder. An optional `RASA_WEBHOOK_URL` can handle hotel-related questions not covered by the built-in concierge.
+Nova supports English, Tagalog, and Taglish. The built-in concierge uses live room, rate, capacity, amenity, hotel-policy, offer, and customer-reservation data where configured. It understands weekday/weekend and short-stay rates, can check a signed-in guest's recent reservations or a specific booking reference, and guides guests to booking pages. It identifies unknown property details as unconfirmed rather than inventing answers. An optional `RASA_WEBHOOK_URL` can handle hotel-related questions not covered by the built-in concierge.
 
-## Folder Rules
+Rasa configuration and training data are in `rasa/`; train the model after changing its domain, rules, stories, or NLU examples.
 
-To keep debugging simple:
-- SQL files live in `backend/database/`
-- backend Python code lives in `backend/`
-- frontend code lives in `frontend/`
-- Rasa YAML files live in `rasa/` and `rasa/data/`
-- uploaded backend files live in `backend/static/uploads/`
+## Frontend Commands
 
-## Suggested Debugging Flow
+Run these commands from `frontend/`:
 
-1. Check `frontend/src/App.jsx` to see which page or route is active.
-2. Check the matching page inside `frontend/src/pages/` or `frontend/src/customer/`.
-3. If the page fetches data, search the API path inside `backend/app.py`.
-4. If the issue is layout-only, inspect the related file in `frontend/src/components/` or `frontend/src/layouts/`.
+```powershell
+npm run dev
+npm run build
+```
 
-## Cleanup Done
+The production build is written to `frontend/dist/`.
 
-Removed unused or template-style files to make the project easier to understand:
-- old CRA test/template files
-- unused sample components
-- unused extra layout/page files
+## Where to Start
 
-This cleanup was limited to files that were not referenced by the current app structure.
+1. Check `frontend/src/App.jsx` for the active route and page imports.
+2. Check the relevant screen under `frontend/src/pages/` or `frontend/src/customer/`.
+3. Check `backend/app.py` for the matching API route.
+4. Check `backend/database/` for the related schema or migration.
+5. Check `frontend/src/components/` and `frontend/src/layouts/` for shared UI.
