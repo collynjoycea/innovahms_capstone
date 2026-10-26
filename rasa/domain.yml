@@ -67,41 +67,59 @@ slots:
 
 responses:
   utter_greet:
-    - text: "Welcome to Innova-HMS! I'm your 24/7 AI assistant. Feel free to ask me anything!"
+    - text: "Hi! I'm Nova, the INNOVA-HMS virtual assistant. I can help with rooms, rates, bookings, amenities, and hotel policies."
+    - text: "Kumusta! Ako si Nova, ang virtual assistant ng INNOVA-HMS. Matutulungan kita sa mga kuwarto, presyo, booking, amenities, at patakaran ng hotel."
   utter_goodbye:
     - text: "Thank you. If you need help with your stay, room selection, or booking concerns, just send a message."
+    - text: "Salamat! Mag-message lang kung kailangan mo ng tulong tungkol sa stay, pagpili ng kuwarto, o booking."
   utter_ask_booking_details:
-    - text: "Please share your preferred room type, check-in/check-out dates, or number of guests so I can guide your reservation."
+    - text: "Tell me your preferred room type, check-in/check-out dates, or guest count so I can guide your booking. Never send a password or full payment-card details."
+    - text: "Ibigay ang gusto mong uri ng kuwarto, check-in/check-out dates, o bilang ng bisita para matulungan kitang mag-book. Huwag magpadala ng password o buong detalye ng payment card."
   utter_about_hotel:
-    - text: "Innova-HMS is a smart hotel platform providing seamless booking, check-in, digital keys, loyalty rewards, and 24/7 guest support. Check our About Us page for more details."
+    - text: "INNOVA-HMS is a hotel booking and guest-services platform. Property-specific services and policies depend on the hotel information shown in the app."
+    - text: "Ang INNOVA-HMS ay platform para sa hotel booking at guest services. Depende sa impormasyong nakalagay sa app ang mga serbisyo at patakaran ng bawat hotel."
   utter_features:
-    - text: "Our key features include: 360 virtual tours, instant digital key access via QR, loyalty points program, real-time room availability, instant booking confirmation, and smart concierge support. Visit Features page for more."
+    - text: "You can browse rooms, review listed amenities and rates, make reservations, and explore 360 tours where available. Check the room details and booking page for current options."
+    - text: "Maaari kang tumingin ng mga kuwarto, amenities at presyo, mag-book, at mag-explore ng 360 tour kung available. Tingnan ang detalye ng kuwarto at booking page para sa kasalukuyang opsyon."
   utter_virtual_tour:
-    - text: "Your can explore 360 virtual tours of our rooms from the Home page or Vision Suites section. Click 'Explore 360' on any room card to start your virtual tour."
+    - text: "Open Home or Vision Suites and choose 'Explore 360' on a room card when a virtual tour is available."
+    - text: "Buksan ang Home o Vision Suites at piliin ang 'Explore 360' sa room card kung may available na virtual tour."
   utter_reviews:
     - text: "Check our guest reviews on the Home page Reviews section to see what previous guests say about their experience with us."
+    - text: "Tingnan ang Reviews section sa Home page para mabasa ang feedback ng mga guest."
   utter_payment_methods:
-    - text: "We accept all major credit cards, debit cards, and online payment methods. Payment details are confirmed during checkout."
+    - text: "Available booking options include cash on arrival, QR Ph, and card checkout when enabled. Check checkout for the payment methods available to your booking; I can't confirm direct GCash or Maya support."
+    - text: "Kabilang sa booking options ang cash pagdating, QR Ph, at card checkout kung enabled. Tingnan sa checkout ang available na paraan ng bayad; hindi ko makumpirma kung direktang suportado ang GCash o Maya."
   utter_cancellation_policy:
-    - text: "We offer free cancellation up to 48 hours before check-in. Check your booking details or our Privileges page for the full cancellation policy."
+    - text: "Cancellation and refund terms depend on the policy attached to your booking. Review your booking details or contact the hotel; I don't want to guess at a deadline."
+    - text: "Depende sa policy ng booking mo ang cancellation at refund. Tingnan ang booking details o makipag-ugnayan sa hotel; ayokong manghula ng deadline."
   utter_contact_info:
-    - text: "You can contact us through the Contact page with your phone number and email. Our team responds within hours during business hours."
+    - text: "Use the contact details displayed on the hotel listing or booking confirmation. Don't share passwords or full card details."
+    - text: "Gamitin ang contact details na nakalagay sa hotel listing o booking confirmation. Huwag magbahagi ng password o buong detalye ng card."
   utter_location:
-    - text: "You can find our exact location, directions, and interactive map on the Neighborhood Map page. We're centrally located for easy access to major attractions."
+    - text: "The hotel's location and map are shown on its listing or detail page. I don't have a confirmed address to provide here."
+    - text: "Makikita ang lokasyon at mapa ng hotel sa listing o detail page nito. Wala akong kumpirmadong address na maibibigay rito."
   utter_restaurant:
-    - text: "Yes, we have an on-site restaurant offering local and international cuisine. You can make dining reservations through the front desk or during your stay."
+    - text: "Restaurant and dining details aren't confirmed in the chat data. Please check the hotel listing or contact the property."
+    - text: "Hindi kumpirmado sa chat data ang detalye tungkol sa restaurant at pagkain. Tingnan ang hotel listing o makipag-ugnayan sa property."
   utter_parking:
-    - text: "Yes, free parking is available for our guests. Parking details and instructions are provided upon check-in."
+    - text: "Parking availability and fees aren't confirmed in the chat data. Please check with the hotel before booking."
+    - text: "Hindi kumpirmado sa chat data ang availability at bayad sa parking. Magtanong muna sa hotel bago mag-book."
   utter_transportation:
-    - text: "Airport transfers and shuttle services are available upon request. Contact us during booking or check-in to arrange transportation."
+    - text: "Airport transfers and shuttle services aren't confirmed in the chat data. Please contact the hotel to ask about availability and fees."
+    - text: "Hindi kumpirmado sa chat data ang airport transfer o shuttle. Makipag-ugnayan sa hotel para malaman kung available at magkano."
   utter_membership:
-    - text: "Join our membership program to earn loyalty points on every booking! Check the Membership page for benefits, tiers, and how to sign up for exclusive rewards."
+    - text: "Open the Privileges page to review the available plans and benefits. Points and discounts depend on the terms shown for your account and booking."
+    - text: "Buksan ang Privileges page para makita ang mga plan at benepisyo. Depende sa terms para sa account at booking mo ang points at discount."
   utter_special_requests:
-    - text: "We accommodate special requests based on availability. Please mention your special needs during booking or contact our team directly."
+    - text: "Special requests depend on property availability and policy. Add your request during booking or contact the hotel to confirm; don't include sensitive payment information."
+    - text: "Depende sa availability at patakaran ng property ang special requests. Ilagay ito habang nagbu-book o makipag-ugnayan sa hotel; huwag isama ang sensitibong detalye ng bayad."
   utter_information:
-    - text: "I'd be happy to help! Feel free to ask me anything about the hotel, our policies, amenities, booking process, or any other information you need. What specifically would you like to know?"
+    - text: "I can help with room options, rates, amenities, booking steps, hotel policies, and guest services. What would you like to know?"
+    - text: "Matutulungan kita sa mga kuwarto, presyo, amenities, proseso ng booking, patakaran, at guest services. Ano ang gusto mong malaman?"
   utter_out_of_scope:
-    - text: "I'm here to help with anything you need. Feel free to ask me any question about the hotel, your booking, or anything else!"
+    - text: "Sorry, I'm focused on hotel stays, rooms, bookings, and guest services. What can I help you with for your stay?"
+    - text: "Pasensya na, nakatuon ako sa hotel stay, mga kuwarto, booking, at guest services. Ano ang maitutulong ko sa stay mo?"
 
 actions:
   - action_check_room_availability

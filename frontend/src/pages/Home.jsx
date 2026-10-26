@@ -14,6 +14,7 @@ import {
   CalendarCheck,
 } from "lucide-react";
 import resolveImg from "../utils/resolveImg";
+import RoomDiscountBadge from "../components/RoomDiscountBadge";
 
 /* ==========================================
    FALLBACK DATA (Para siguradong may lalabas)
@@ -242,6 +243,8 @@ export default function LandingPage() {
               forecast: `${Math.max(capacity, 2)} Pax`,
               roomType,
               price: priceVal,
+              ownerDiscountType: room.ownerDiscountType || room.owner_discount_type || "none",
+              ownerDiscountValue: Number(room.ownerDiscountValue ?? room.owner_discount_value ?? 0),
               amenities: Array.isArray(room.amenities) ? room.amenities : [],
               avgRating: hardcodedRoomRatings[index % hardcodedRoomRatings.length],
               reviewCount: Number(room.reviewCount || room.review_count || 120),
@@ -647,6 +650,11 @@ export default function LandingPage() {
                         alt={hotel.name}
                         onError={(e) => { e.currentTarget.src = '/images/deluxe-room.jpg'; }}
                         className="w-full h-full object-cover"
+                      />
+                      <RoomDiscountBadge
+                        discountType={hotel.ownerDiscountType}
+                        discountValue={hotel.ownerDiscountValue}
+                        className="absolute top-3 left-3"
                       />
                       <div className="absolute bottom-3 left-3 bg-black/65 backdrop-blur-sm px-2 py-1 flex items-center gap-1 border border-white/10 text-white rounded-md">
                         <span className="text-[11px] font-bold">{Number(hotel.avgRating || 0).toFixed(1)}</span>

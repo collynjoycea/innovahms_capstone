@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, AlertTriangle, X, Search, Image as ImageIcon, CheckCircle } from 'lucide-react';
 import resolveImg from '../../utils/resolveImg';
+import { showAdminResult } from '../../utils/adminDialogs';
 
 const ROOM_TYPES = ['Standard', 'Double', 'Suite', 'Deluxe', 'Family Room'];
+// Tinanggal ang 24 Hours dahil Overnight Rate na ito
+const STAY_RATE_OPTIONS = [['3', '3 Hours'], ['6', '6 Hours'], ['9', '9 Hours'], ['12', '12 Hours']];
 
 const Rooms = () => {
   const [notification, setNotification] = useState({ show: false, message: '' });
@@ -26,9 +29,18 @@ const Rooms = () => {
     roomType: 'Standard',
     bedType: '',
     price: '',
+    weekendRate: '',
+    useDayRates: false,
+    ownerDiscountType: 'none',
+    ownerDiscountValue: '0',
     rate3Hours: '',
     rate6Hours: '',
+    rate9Hours: '',
     rate12Hours: '',
+    weekendRate3Hours: '',
+    weekendRate6Hours: '',
+    weekendRate9Hours: '',
+    weekendRate12Hours: '',
     description: '',
     highlights: [],
     maxAdults: 2,
@@ -39,6 +51,29 @@ const Rooms = () => {
   };
   const [roomData, setRoomData] = useState(initialRoomData);
   const [filters, setFilters] = useState({ roomNumber: '', roomType: 'All', maxPrice: '', status: 'All' });
+
+  // Render 2x2 grid for 3, 6, 9, 12 hours
+  const renderDurationRates = (prefix = '') => (
+    <div className="grid grid-cols-2 gap-3 mt-2">
+      {STAY_RATE_OPTIONS.map(([hours, label]) => {
+        const key = prefix ? `${prefix}${hours}Hours` : `rate${hours}Hours`;
+        return (
+          <label key={key} className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+            {label} (₱)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              value={roomData[key]}
+              className="mt-1 w-full rounded border border-slate-300 bg-white p-2 text-xs outline-none transition-colors focus:border-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              onChange={e => updateField(key, e.target.value)}
+            />
+          </label>
+        );
+      })}
+    </div>
+  );
 
   const ownerSession = JSON.parse(localStorage.getItem('ownerSession'));
   const hotelId = ownerSession?.hotelId || ownerSession?.hotel_id || ownerSession?.id;
@@ -100,9 +135,18 @@ const Rooms = () => {
       roomType: room.roomType,
       bedType: room.bedType || '1 Queen Bed',
       price: room.price,
+      weekendRate: room.weekendRate ?? room.price,
+      useDayRates: room.useDayRates ?? false,
+      ownerDiscountType: room.ownerDiscountType || 'none',
+      ownerDiscountValue: room.ownerDiscountValue ?? '0',
       rate3Hours: room.rate3Hours || '',
       rate6Hours: room.rate6Hours || '',
+      rate9Hours: room.rate9Hours || '',
       rate12Hours: room.rate12Hours || '',
+      weekendRate3Hours: room.weekendRate3Hours || '',
+      weekendRate6Hours: room.weekendRate6Hours || '',
+      weekendRate9Hours: room.weekendRate9Hours || '',
+      weekendRate12Hours: room.weekendRate12Hours || '',
       description: room.description || '',
       highlights: room.highlights || [],
       maxAdults: room.maxAdults || 2,
@@ -119,8 +163,25 @@ const Rooms = () => {
     if (key === 'roomNumber' && !String(value).trim()) {
       error = "Room number is required.";
     }
+    if (key === 'roomNumber' && String(value).trim().length > 20) {
+      error = "Room number cannot be longer than 20 characters.";
+    }
+    if (key === 'roomNumber' && String(value).trim() && rooms.some(room =>
+      room.id !== (isEditing ? currentRoomId : null) &&
+      String(room.roomNumber || '').trim().toLowerCase() === String(value).trim().toLowerCase()
+    )) {
+      error = "A room with this number already exists in this hotel.";
+    }
     if (key === 'price') {
-      if (!value || Number(value) <= 0) error = "Valid price per night is required.";
+      if (!value || Number(value) <= 0) error = "Valid standard/weekday nightly rate is required.";
+    }
+    if (key === 'weekendRate' && (!value || Number(value) <= 0)) {
+      error = "Valid weekend rate is required.";
+    }
+    if (key === 'ownerDiscountValue') {
+      const amount = Number(value);
+      if (!Number.isFinite(amount) || amount < 0) error = "Discount must be zero or greater.";
+      else if (roomData.ownerDiscountType === 'percentage' && amount > 100) error = "Percentage discount cannot exceed 100%.";
     }
     if (key === 'maxAdults' && (Number(value) < 1)) {
       error = "At least 1 adult capacity is required.";
@@ -149,7 +210,7 @@ const Rooms = () => {
     const errors = {};
     const newTouched = {};
 
-    ["roomNumber", "price", "maxAdults", "maxChildren"].forEach(field => {
+    ["roomNumber", "price", ...(roomData.useDayRates ? ["weekendRate"] : []), "ownerDiscountValue", "maxAdults", "maxChildren"].forEach(field => {
       newTouched[field] = true;
       const err = validateSingleField(field, roomData[field]);
       if (err) errors[field] = err;
@@ -233,16 +294,25 @@ const Rooms = () => {
       formData.append('bedType', roomData.bedType);
       
       formData.append('price', parseFloat(roomData.price) || 0);
+      formData.append('weekendRate', parseFloat(roomData.weekendRate) || 0);
+      formData.append('useDayRates', roomData.useDayRates ? 'true' : 'false');
+      formData.append('ownerDiscountType', roomData.ownerDiscountType || 'none');
+      formData.append('ownerDiscountValue', parseFloat(roomData.ownerDiscountValue) || 0);
       formData.append('rate3Hours', parseFloat(roomData.rate3Hours) || 0);
       formData.append('rate6Hours', parseFloat(roomData.rate6Hours) || 0);
+      formData.append('rate9Hours', parseFloat(roomData.rate9Hours) || 0);
       formData.append('rate12Hours', parseFloat(roomData.rate12Hours) || 0);
+      formData.append('weekendRate3Hours', parseFloat(roomData.weekendRate3Hours) || 0);
+      formData.append('weekendRate6Hours', parseFloat(roomData.weekendRate6Hours) || 0);
+      formData.append('weekendRate9Hours', parseFloat(roomData.weekendRate9Hours) || 0);
+      formData.append('weekendRate12Hours', parseFloat(roomData.weekendRate12Hours) || 0);
       formData.append('description', roomData.description || '');
       formData.append('highlights', JSON.stringify(roomData.highlights || []));
       formData.append('maxAdults', parseInt(roomData.maxAdults) || 2);
       formData.append('maxChildren', parseInt(roomData.maxChildren) || 0);
 
       formData.append('amenities', JSON.stringify(roomData.amenities)); 
-      formData.append('features', JSON.stringify(roomData.features)); // Isinasama na rin sa DB payload
+      formData.append('features', JSON.stringify(roomData.features));
 
       roomData.images.forEach((file) => {
         if (file instanceof File) {
@@ -263,16 +333,23 @@ const Rooms = () => {
 
       if (res.ok) { 
         setShowModal(false); 
-        fetchRooms(); 
+        await fetchRooms();
         setRoomData(initialRoomData); 
 
         const successMsg = isEditing 
           ? `Room ${roomData.roomNumber} updated successfully!` 
           : `Room ${roomData.roomNumber} created successfully!`;
-        showStatus(successMsg);
+        await showAdminResult({
+          title: isEditing ? 'Room Updated Successfully' : 'Room Added Successfully',
+          text: successMsg,
+        });
       } else {
-        const errorData = await res.json();
-        setErrorMessage("Error: " + (errorData.error || "Failed to process room request."));
+        const errorData = await res.json().catch(() => ({}));
+        if (errorData.field === 'roomNumber') {
+          setTouchedFields(prev => ({ ...prev, roomNumber: true }));
+          setFieldErrors(prev => ({ ...prev, roomNumber: errorData.error || "This room number is already in use." }));
+        }
+        setErrorMessage(errorData.error || "Failed to process room request.");
       }
     } catch (err) {
       console.error("Submission error:", err);
@@ -315,7 +392,7 @@ const Rooms = () => {
         </div>
         <button 
           onClick={openAddModal} 
-          className="bg-emerald-800 text-white px-5 py-2.5 rounded text-xs font-bold flex items-center gap-2 hover:bg-emerald-900 shadow-sm transition-colors"
+          className="bg-emerald-800 text-white px-5 py-2.5 rounded text-xs font-bold flex items-center gap-2 hover:bg-emerald-900 shadow-sm transition-colors cursor-pointer"
         >
           <Plus size={16} /> Add New Room
         </button>
@@ -413,8 +490,8 @@ const Rooms = () => {
                   </td>
                   <td className="px-6 py-3.5 text-right">
                     <div className="flex justify-end gap-3 text-slate-400 dark:text-slate-500">
-                      <button onClick={() => openEditModal(room)} className="hover:text-blue-500 transition-colors"><Edit size={16} /></button>
-                      <button onClick={() => { setRoomToDelete(room); setShowDeleteModal(true); }} className="hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                      <button onClick={() => openEditModal(room)} className="hover:text-blue-500 transition-colors cursor-pointer"><Edit size={16} /></button>
+                      <button onClick={() => { setRoomToDelete(room); setShowDeleteModal(true); }} className="hover:text-red-500 transition-colors cursor-pointer"><Trash2 size={16} /></button>
                     </div>
                   </td>
                 </tr>
@@ -431,14 +508,14 @@ const Rooms = () => {
             
             <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 mb-5">
                 <div>
-                  <h2 className="font-bold text-base text-slate-900 dark:text-white">
+                  <h2 className="font-bold text-sm text-slate-900 dark:text-white uppercase tracking-tight">
                     {isEditing ? 'Update Room Information' : 'New Room Registration'}
                   </h2>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     {isEditing ? `Modifying settings for Room ${roomData.roomNumber}` : 'Enter a unique room number for this room.'}
                   </p>
                 </div>
-                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white"><X size={20} /></button>
+                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"><X size={20} /></button>
             </div>
             
             {/* Modal Error Banner */}
@@ -454,36 +531,40 @@ const Rooms = () => {
               {/* Left Column: Basic Details */}
               <div className="space-y-4">
                 <div>
-                    <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Room # <span className="text-red-500">*</span></label>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Room # <span className="text-red-500">*</span></label>
                     <input
                       type="text"
+                      maxLength={20}
                       value={roomData.roomNumber}
                       placeholder="e.g. 101"
-                      className="w-full rounded border border-slate-300 p-2.5 font-mono outline-none dark:border-slate-700 dark:bg-slate-800"
+                      className="w-full rounded border border-slate-300 p-2 text-xs font-mono outline-none dark:border-slate-700 dark:bg-slate-800"
                       onChange={e => updateField('roomNumber', e.target.value)}
                       onBlur={() => handleBlur('roomNumber')}
                     />
                     <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-slate-400">
                       Enter floor number + room number (e.g. 101 = Floor 1, Room 01).
                     </span>
+                    {touchedFields.roomNumber && fieldErrors.roomNumber && (
+                      <span className="mt-0.5 block text-[10px] text-red-600">{fieldErrors.roomNumber}</span>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Type</label>
+                        <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Type</label>
                         <select 
                           value={roomData.roomType} 
-                          className="w-full rounded border border-slate-300 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-800" 
+                          className="w-full rounded border border-slate-300 bg-white p-2 text-xs dark:border-slate-700 dark:bg-slate-800"
                           onChange={e => updateField('roomType', e.target.value)}
                         >
                             {ROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                     </div>
                     <div>
-                        <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Bed Type</label>
+                        <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Bed Type</label>
                         <select 
                           value={roomData.bedType} 
-                          className="w-full rounded border border-slate-300 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-800" 
+                          className="w-full rounded border border-slate-300 bg-white p-2 text-xs dark:border-slate-700 dark:bg-slate-800"
                           onChange={e => updateField('bedType', e.target.value)}
                         >
                             {['1 Single Bed', '1 Double Bed', '1 Queen Bed', '1 King Bed', '2 Twin Beds'].map(b => <option key={b} value={b}>{b}</option>)}
@@ -491,31 +572,119 @@ const Rooms = () => {
                     </div>
                 </div>
 
+                <label className="flex items-center justify-between gap-3 rounded border border-slate-200 p-2.5 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200 cursor-pointer">
+                  <span>Enable Weekend/Weekday Rates</span>
+                  <input
+                    type="checkbox"
+                    checked={roomData.useDayRates}
+                    onChange={e => updateField('useDayRates', e.target.checked)}
+                    className="h-4 w-4 accent-emerald-600 cursor-pointer"
+                  />
+                </label>
+
+                {roomData.useDayRates ? (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {[
+                      { title: 'Weekday Rates (Mon-Fri)', nightlyKey: 'price', hourlyPrefix: '' },
+                      { title: 'Weekend Rates (Sat-Sun)', nightlyKey: 'weekendRate', hourlyPrefix: 'weekendRate' },
+                    ].map(({ title, nightlyKey, hourlyPrefix }) => (
+                      <section key={nightlyKey} className="space-y-3 rounded border border-slate-200 p-3.5 dark:border-slate-700">
+                        <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5">{title}</h3>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          Overnight / Nightly Rate (₱)
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={roomData[nightlyKey]}
+                            placeholder="1418"
+                            className="mt-1 w-full rounded border border-slate-300 p-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800"
+                            onChange={e => updateField(nightlyKey, e.target.value)}
+                            onBlur={() => handleBlur(nightlyKey)}
+                          />
+                          {touchedFields[nightlyKey] && fieldErrors[nightlyKey] && (
+                            <span className="mt-0.5 block text-[10px] text-red-600">{fieldErrors[nightlyKey]}</span>
+                          )}
+                        </label>
+                        <div>
+                          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mt-2">Short-Stay Hours</span>
+                          {renderDurationRates(hourlyPrefix)}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                ) : (
+                  <section className="space-y-3 rounded border border-slate-200 p-3.5 dark:border-slate-700">
+                    <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5">Standard / Flat Rates</h3>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Overnight / Nightly Rate (₱)
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={roomData.price}
+                        placeholder="1418"
+                        className="mt-1 w-full rounded border border-slate-300 p-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800"
+                        onChange={e => updateField('price', e.target.value)}
+                        onBlur={() => handleBlur('price')}
+                      />
+                      {touchedFields.price && fieldErrors.price && (
+                        <span className="mt-0.5 block text-[10px] text-red-600">{fieldErrors.price}</span>
+                      )}
+                    </label>
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mt-2">Short-Stay Hours</span>
+                      {renderDurationRates()}
+                    </div>
+                  </section>
+                )}
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Owner Discount</label>
+                      <select
+                        value={roomData.ownerDiscountType}
+                        className="w-full rounded border border-slate-300 bg-white p-2 text-xs dark:border-slate-700 dark:bg-slate-800"
+                        onChange={e => updateField('ownerDiscountType', e.target.value)}
+                      >
+                        <option value="none">No discount</option>
+                        <option value="fixed">Flat discount per booking (₱)</option>
+                        <option value="percentage">Percentage discount (%)</option>
+                      </select>
+                    </div>
+                    {roomData.ownerDiscountType !== 'none' && (
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          {roomData.ownerDiscountType === 'fixed' ? 'Discount per Booking (₱)' : 'Discount (%)'}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={roomData.ownerDiscountType === 'percentage' ? '100' : undefined}
+                          step="0.01"
+                          value={roomData.ownerDiscountValue}
+                          className={`w-full rounded border p-2 text-xs outline-none ${
+                            touchedFields.ownerDiscountValue && fieldErrors.ownerDiscountValue ? "border-red-500 bg-red-50/20" : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                          }`}
+                          onChange={e => updateField('ownerDiscountValue', e.target.value)}
+                          onBlur={() => handleBlur('ownerDiscountValue')}
+                        />
+                        {touchedFields.ownerDiscountValue && fieldErrors.ownerDiscountValue && (
+                          <span className="text-[10px] text-red-600 mt-0.5 block">{fieldErrors.ownerDiscountValue}</span>
+                        )}
+                      </div>
+                    )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Price / Night (₱) <span className="text-red-500">*</span></label>
-                        <input 
-                          type="number" 
-                          value={roomData.price} 
-                          placeholder="1418"
-                          className={`w-full rounded border p-2.5 outline-none ${
-                            touchedFields.price && fieldErrors.price ? "border-red-500 bg-red-50/20" : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
-                          }`} 
-                          onChange={e => updateField('price', e.target.value)} 
-                          onBlur={() => handleBlur('price')}
-                        />
-                        {touchedFields.price && fieldErrors.price && (
-                          <span className="text-[10px] text-red-600 mt-0.5 block">{fieldErrors.price}</span>
-                        )}
-                    </div>
-                    <div>
-                      <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Capacity Breakdown</label>
+                      <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Capacity Breakdown</label>
                       <div className="grid grid-cols-2 gap-2">
                         <input 
                           type="number" 
                           min="1"
                           placeholder="Adults"
-                          className="w-full rounded border border-slate-300 bg-white p-2 text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" 
+                          className="w-full rounded border border-slate-300 bg-white p-2 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                           value={roomData.maxAdults} 
                           onChange={e => updateField('maxAdults', e.target.value)} 
                           onBlur={() => handleBlur('maxAdults')}
@@ -525,7 +694,7 @@ const Rooms = () => {
                           type="number" 
                           min="0"
                           placeholder="Children"
-                          className="w-full rounded border border-slate-300 bg-white p-2 text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" 
+                          className="w-full rounded border border-slate-300 bg-white p-2 text-xs text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                           value={roomData.maxChildren} 
                           onChange={e => updateField('maxChildren', e.target.value)} 
                           title="Max Children"
@@ -535,41 +704,21 @@ const Rooms = () => {
                 </div>
 
                 <div>
-                  <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Short-Stay Rates (PHP)</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[['rate3Hours', '3 Hours'], ['rate6Hours', '6 Hours'], ['rate12Hours', '12 Hours']].map(([key, label]) => (
-                      <div key={key}>
-                        <span className="mb-1 block text-[10px] text-slate-400">{label}</span>
-                        <input 
-                          type="number" 
-                          min="0" 
-                          step="0.01" 
-                          placeholder="0" 
-                          value={roomData[key]} 
-                          className="w-full rounded border border-slate-300 p-2 outline-none dark:border-slate-700 dark:bg-slate-800" 
-                          onChange={e => updateField(key, e.target.value)} 
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                    <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Description</label>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Description</label>
                     <textarea 
                       rows="3" 
-                      className="w-full resize-none rounded border border-slate-300 p-2.5 outline-none dark:border-slate-700 dark:bg-slate-800" 
+                      className="w-full resize-none rounded border border-slate-300 p-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800"
                       value={roomData.description} 
                       onChange={e => updateField('description', e.target.value)}
                     ></textarea>
                 </div>
 
                 <div>
-                  <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Room Facilities</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Room Facilities</label>
                   <textarea
-                    rows="5"
-                    placeholder="One highlight per line, e.g. Video and audio\nSmart TV with YouTube and Netflix\nNo pets allowed"
-                    className="w-full resize-y rounded border border-slate-300 p-2.5 outline-none dark:border-slate-700 dark:bg-slate-800"
+                    rows="4"
+                    placeholder="One highlight per line, e.g. Video and audio\nSmart TV with YouTube and Netflix"
+                    className="w-full resize-y rounded border border-slate-300 p-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800"
                     value={(roomData.highlights || []).join('\n')}
                     onChange={(e) => updateField('highlights', e.target.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean))}
                   />
@@ -579,7 +728,7 @@ const Rooms = () => {
                         key={option}
                         type="button"
                         onClick={() => updateField('highlights', [...(roomData.highlights || []), option])}
-                        className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                        className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 cursor-pointer"
                       >
                         + {option}
                       </button>
@@ -591,14 +740,13 @@ const Rooms = () => {
 
               {/* Right Column: Features, Amenities & Images */}
               <div className="space-y-4">
-                {/* Room Features / Inclusions (Gaya ng No windows view, private bathroom, etc.) */}
                 <div>
-                  <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Room Features </label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Room Features</label>
                   <div className="relative mb-2">
                     <input 
                       type="text" 
                       placeholder="Type feature (e.g. No Windows view) & press Enter..." 
-                      className="w-full rounded border border-slate-300 p-2.5 outline-none transition-colors focus:border-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:placeholder:text-slate-500"
+                      className="w-full rounded border border-slate-300 p-2 text-xs outline-none transition-colors focus:border-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:placeholder:text-slate-500"
                       value={featureInput}
                       onChange={(e) => setFeatureInput(e.target.value)}
                       onKeyDown={addFeature}
@@ -610,7 +758,7 @@ const Rooms = () => {
                     {roomData.features.map((feature, idx) => (
                       <span key={idx} className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded text-[11px] font-bold dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800">
                         {feature}
-                        <button type="button" onClick={() => removeFeature(feature)} className="hover:text-red-500">
+                        <button type="button" onClick={() => removeFeature(feature)} className="hover:text-red-500 cursor-pointer">
                           <X size={12} />
                         </button>
                       </span>
@@ -623,7 +771,7 @@ const Rooms = () => {
                         key={option}
                         type="button"
                         onClick={() => setRoomData({...roomData, features: [...roomData.features, option]})}
-                        className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                        className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 cursor-pointer"
                       >
                         + {option}
                       </button>
@@ -633,12 +781,12 @@ const Rooms = () => {
 
                 {/* Amenities */}
                 <div>
-                  <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Amenities</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Amenities</label>
                   <div className="relative mb-2">
                     <input 
                       type="text" 
                       placeholder="Type amenity and press Enter..." 
-                      className="w-full rounded border border-slate-300 p-2.5 outline-none transition-colors focus:border-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:placeholder:text-slate-500"
+                      className="w-full rounded border border-slate-300 p-2 text-xs outline-none transition-colors focus:border-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:placeholder:text-slate-500"
                       value={amenityInput}
                       onChange={(e) => setAmenityInput(e.target.value)}
                       onKeyDown={addAmenity}
@@ -650,7 +798,7 @@ const Rooms = () => {
                     {roomData.amenities.map((amenity, idx) => (
                       <span key={idx} className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-[11px] font-bold dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
                         {amenity}
-                        <button type="button" onClick={() => removeAmenity(amenity)} className="hover:text-red-500">
+                        <button type="button" onClick={() => removeAmenity(amenity)} className="hover:text-red-500 cursor-pointer">
                           <X size={12} />
                         </button>
                       </span>
@@ -663,7 +811,7 @@ const Rooms = () => {
                         key={option}
                         type="button"
                         onClick={() => setRoomData({...roomData, amenities: [...roomData.amenities, option]})}
-                        className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                        className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 cursor-pointer"
                       >
                         + {option}
                       </button>
@@ -673,7 +821,7 @@ const Rooms = () => {
 
                 {/* Upload Room Images */}
                 <div>
-                    <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Upload Room Images</label>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">Upload Room Images</label>
                     <div className="space-y-2">
                         <input 
                             type="file" 
@@ -707,7 +855,7 @@ const Rooms = () => {
                                         <button 
                                             type="button"
                                             onClick={() => removeImage(idx)}
-                                            className="absolute top-1 right-1 p-0.5 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="absolute top-1 right-1 p-0.5 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                                         >
                                             <X size={12} />
                                         </button>
@@ -722,13 +870,13 @@ const Rooms = () => {
                     <button 
                       type="button" 
                       onClick={() => setShowModal(false)} 
-                      className="flex-1 rounded py-2 border border-slate-300 font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      className="flex-1 rounded py-2 border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button 
                       type="submit" 
-                      className="flex-2 py-2 px-6 bg-emerald-800 text-white rounded font-bold hover:bg-emerald-900 shadow-sm"
+                      className="flex-2 py-2 px-6 bg-emerald-800 text-white rounded text-xs font-bold hover:bg-emerald-900 shadow-sm cursor-pointer"
                     >
                         {isEditing ? 'Save Changes' : 'Confirm & Create Room'}
                     </button>
@@ -749,8 +897,8 @@ const Rooms = () => {
                 <h2 className="mb-1 font-bold text-base text-slate-900 dark:text-white">Delete Room Record?</h2>
                 <p className="mb-6 text-xs text-slate-500 dark:text-slate-400">Removing Room {roomToDelete?.roomNumber} from database is a permanent action.</p>
                 <div className="flex flex-col gap-2 text-xs font-bold">
-                    <button onClick={confirmDelete} className="w-full py-2.5 bg-red-600 text-white rounded hover:bg-red-700 shadow-sm">Confirm Deletion</button>
-                    <button onClick={() => setShowDeleteModal(false)} className="w-full py-2 text-slate-600 dark:text-slate-300">Cancel</button>
+                    <button onClick={confirmDelete} className="w-full py-2.5 bg-red-600 text-white rounded hover:bg-red-700 shadow-sm cursor-pointer">Confirm Deletion</button>
+                    <button onClick={() => setShowDeleteModal(false)} className="w-full py-2 text-slate-600 dark:text-slate-300 cursor-pointer">Cancel</button>
                 </div>
             </div>
         </div>

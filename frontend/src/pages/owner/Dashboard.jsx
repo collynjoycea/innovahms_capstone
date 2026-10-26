@@ -341,27 +341,67 @@ export default function Dashboard() {
                 </div>
                 <span className="rounded border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">{period}</span>
               </div>
-              <div className="mt-5 space-y-4">
-                <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-4">
-                  <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Forecast Occupancy</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{Math.round(summary.forecastedOccupancyRate || 0)}%</p>
-                  <p className="mt-1 text-[11px] text-slate-500">Forecast for the next {summary.forecastHorizon || 0} {period === "today" ? "days" : period === "quarterly" ? "quarters" : period === "yearly" ? "years" : "months"}.</p>
+              <div className="mt-5 space-y-3">
+
+                {/* Revenue Signal */}
+                <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-3.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Next-Period Revenue</p>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                      summary.revenueTrend === "up" ? "text-emerald-600 dark:text-emerald-400" :
+                      summary.revenueTrend === "down" ? "text-rose-500" : "text-slate-400"
+                    }`}>
+                      {summary.revenueTrend === "up" ? "▲ Rising" : summary.revenueTrend === "down" ? "▼ Falling" : "→ Flat"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">{formatPhp(summary.forecastedRevenuePhp)}</p>
+                  <p className="mt-0.5 text-[10px] text-slate-400">vs {formatPhp(summary.lastRevenuePhp)} last {period === "today" ? "day" : period === "quarterly" ? "quarter" : period === "yearly" ? "year" : "month"}</p>
                 </div>
+
+                {/* Occupancy Signal */}
+                <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-3.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Next-Period Occupancy</p>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                      summary.occupancyTrend === "up" ? "text-emerald-600 dark:text-emerald-400" :
+                      summary.occupancyTrend === "down" ? "text-rose-500" : "text-slate-400"
+                    }`}>
+                      {summary.occupancyTrend === "up" ? "▲ Rising" : summary.occupancyTrend === "down" ? "▼ Falling" : "→ Flat"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">{Math.round(summary.forecastedOccupancyRate || 0)}%</p>
+                  <p className="mt-0.5 text-[10px] text-slate-400">vs {Math.round(summary.lastOccupancyRate || 0)}% last {period === "today" ? "day" : period === "quarterly" ? "quarter" : period === "yearly" ? "year" : "month"}</p>
+                </div>
+
+                {/* Demand + Engine */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-3">
-                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Demand Volume</p>
-                    <p className="mt-1 text-base font-bold text-slate-900 dark:text-white">{compact((trends.bookings || []).reduce((sum, value) => sum + Number(value || 0), 0))}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Demand</p>
+                      <span className={`text-[9px] font-bold uppercase ${
+                        summary.demandTrend === "up" ? "text-emerald-500" :
+                        summary.demandTrend === "down" ? "text-rose-500" : "text-slate-400"
+                      }`}>
+                        {summary.demandTrend === "up" ? "▲" : summary.demandTrend === "down" ? "▼" : "→"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-base font-bold text-slate-900 dark:text-white">{compact(summary.demandTotal ?? (trends.bookings || []).reduce((s, v) => s + Number(v || 0), 0))}</p>
+                    <p className="text-[9px] text-slate-400 mt-0.5">Total bookings</p>
                   </div>
                   <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 rounded p-3">
-                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Forecast Engine</p>
-                    <p className="mt-1 text-base font-bold capitalize text-slate-900 dark:text-white truncate">{analytics?.forecast?.engine?.mode?.replace("-", " ") || "Prophet AI"}</p>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Engine</p>
+                    <p className="mt-1 text-sm font-bold capitalize text-slate-900 dark:text-white truncate">{analytics?.forecast?.engine?.mode?.replace(/-/g, " ") || "Prophet AI"}</p>
+                    <p className="text-[9px] text-slate-400 mt-0.5">{analytics?.forecast?.engine?.prophet ? "Prophet active" : "Linear fallback"}</p>
                   </div>
                 </div>
+
               </div>
             </div>
             <div className="mt-4 border border-emerald-600/30 bg-emerald-50/50 dark:border-emerald-500/30 dark:bg-emerald-950/30 p-3.5 rounded">
-              <p className="text-[10px] font-mono uppercase tracking-wider text-emerald-800 dark:text-emerald-300 font-bold">Tala mula sa AI Planning</p>
-              <p className="mt-1 text-[11px] font-medium leading-relaxed text-slate-700 dark:text-slate-300">Use the forecast revenue of {formatPhp(summary.forecastedRevenuePhp)} to optimize pricing and staff schedules.</p>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-emerald-800 dark:text-emerald-300 font-bold">AI Planning Note</p>
+              <p className="mt-1 text-[11px] font-medium leading-relaxed text-slate-700 dark:text-slate-300">
+                Forecast horizon: <span className="font-bold">{summary.forecastHorizon || 0} {period === "today" ? "days" : period === "quarterly" ? "quarters" : period === "yearly" ? "years" : "months"}</span> ahead. Use {formatPhp(summary.forecastedRevenuePhp)} to optimize pricing and staffing.
+              </p>
             </div>
           </div>
         </div>

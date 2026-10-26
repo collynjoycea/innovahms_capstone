@@ -116,8 +116,8 @@ export default function GlobalAIAssistant() {
 
   if (shouldHide) return null;
 
-  const handleSend = async () => {
-    const message = input.trim();
+  const handleSend = async (suggestedMessage) => {
+    const message = (suggestedMessage ?? input).trim();
     if (!message || isTyping) return;
 
     const userMessage = {
@@ -131,28 +131,38 @@ export default function GlobalAIAssistant() {
     setNotice("");
 
     const lowerMessage = message.toLowerCase();
+    const isTagalog = /\b(?:magkano|paano|saan|nasaan|ano|anong|may|ba|pwede|puwede|gusto|ko|ngayon|bukas|kuwarto|kwarto|reserba|kansela|salamat|kumusta)\b/.test(lowerMessage);
     const signedInCustomerId = sessionUser?.id || sessionUser?.customer_id || sessionUser?.user_id;
     const mentionsBooking = lowerMessage.includes("booking") || lowerMessage.includes("reservation");
     const asksBookingStatus = [
       "booking status", "reservation status", "check my booking", "check my reservation",
       "where is my booking", "where is my reservation", "where's my booking", "where's my reservation",
       "track my booking", "track my reservation", "status of my booking", "status of my reservation",
+      "status ng booking", "status ng reservation", "status ng booking ko", "status ng reservation ko",
+      "kamusta booking ko", "kumusta booking ko", "kumusta reservation ko", "na-confirm na ba",
     ].some((phrase) => lowerMessage.includes(phrase));
     if (asksBookingStatus && !signedInCustomerId) {
       setMessages((prev) => [...prev, {
         id: `b-${Date.now()}`,
         from: "bot",
-        text: "Please sign in to your guest account to check your reservation status. Open /login.",
+        text: isTagalog
+          ? "Mag-sign in muna sa guest account para matingnan ang status ng reservation mo. Buksan ang /login."
+          : "Please sign in to your guest account to check your reservation status. Open /login.",
         timestamp: Date.now(),
       }]);
       return;
     }
     const asksToChangeBooking = mentionsBooking
-      && ["change", "modify", "update", "reschedule", "switch room", "change room", "guest count", "number of guests"].some((phrase) => lowerMessage.includes(phrase));
+      && ["change", "modify", "update", "reschedule", "switch room", "change room", "guest count", "number of guests",
+        "baguhin", "palitan", "ilipat", "i-reschedule", "baguhin ang petsa", "palitan ang petsa"].some((phrase) => lowerMessage.includes(phrase));
     if (asksToChangeBooking) {
       const responseText = signedInCustomerId
-        ? "You can change the dates, room, and guest count of an upcoming booking from My Bookings. Choose “Modify stay dates” and confirm the change. The room must be available and fit your guest count; the total and remaining balance are recalculated. Open /customer/bookings."
-        : "Please sign in to your guest account first. After signing in, ask me again and I can guide you through an upcoming booking change. Open /login.";
+        ? isTagalog
+          ? "Buksan ang My Bookings para makita ang mga opsyon sa pagbabago o pagkansela ng reservation. Depende sa status ng booking at patakaran ng hotel ang eligibility. Kung available ang pagbabago, kailangang may bakanteng kuwarto at muling kakalkulahin ang total at natitirang bayad. Buksan ang /customer/bookings."
+          : "Open My Bookings to review modification or cancellation options for your reservation. Eligibility depends on the booking status and hotel policy. If a change is available, the room must be available and the total and remaining balance are recalculated. Open /customer/bookings."
+        : isTagalog
+          ? "Mag-sign in muna sa guest account para makita ang mga opsyon sa pagbabago o pagkansela ng booking mula sa My Bookings. Buksan ang /login."
+          : "Please sign in to your guest account to review modification or cancellation options in My Bookings. Open /login.";
       setMessages((prev) => [...prev, {
         id: `b-${Date.now()}`,
         from: "bot",
@@ -224,6 +234,12 @@ export default function GlobalAIAssistant() {
     setMessages(reset);
     setNotice("History cleared for current session.");
   };
+  const quickQuestions = [
+    "Show available room types",
+    "Magkano ang 6 oras na stay sa Queen room?",
+    "How do I book a room?",
+    "Paano tingnan ang status ng booking ko?",
+  ];
 
   return (
     <>
@@ -276,9 +292,38 @@ export default function GlobalAIAssistant() {
                       Sign in
                     </Link>
                   ) : null}
+                  {message.from === "bot" && message.text.includes("/vision-suites") ? (
+                    <Link to="/vision-suites" className="mt-2 block font-bold text-emerald-700 underline dark:text-emerald-300">
+                      Browse rooms
+                    </Link>
+                  ) : null}
+                  {message.from === "bot" && message.text.includes("/customer/dashboard") ? (
+                    <Link to="/customer/dashboard" className="mt-2 block font-bold text-emerald-700 underline dark:text-emerald-300">
+                      Open Customer Dashboard
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             ))}
+
+            {!messages.some((message) => message.from === "user") ? (
+              <div className="space-y-2 pt-1">
+                <p className="text-[10px] font-bold text-[#8d7e63] dark:text-[#9e927b]">Subukan / Try asking:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {quickQuestions.map((question) => (
+                    <button
+                      key={question}
+                      type="button"
+                      onClick={() => handleSend(question)}
+                      disabled={isTyping}
+                      className="rounded-full border border-[#d6eee7] dark:border-white/10 bg-white dark:bg-[#1b1914] px-2.5 py-1.5 text-left text-[10px] leading-snug text-[#1F6F5F] dark:text-[#9ad8c2] hover:bg-[#eaf8f3] dark:hover:bg-[#24221b] disabled:opacity-50"
+                    >
+                      {question}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             {isTyping ? (
               <div className="text-[11px] font-semibold text-[#8d7e63] dark:text-[#9e927b]">Assistant is typing...</div>

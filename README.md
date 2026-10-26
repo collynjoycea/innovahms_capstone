@@ -45,6 +45,11 @@ That keeps `backend/app.py` focused on routes, request handling, and database ac
 
 For existing databases, apply `backend/database/inventory_supplier_purchase_orders.sql` once before deploying inventory API changes. Inventory endpoints do not run schema DDL during requests.
 For existing databases, also apply `backend/database/staff_duty_schedules.sql` once before deploying manager duty scheduling. Managers assign and update dated staff shifts; staff can view their own schedule in the Front Desk or Housekeeping portal and receive an in-app notification when it changes.
+For existing databases, apply `backend/database/room_pricing.sql` once to backfill weekday/weekend rates and existing hourly prices. Room APIs also bootstrap missing pricing columns for legacy databases. New rooms use flat rates by default; enable weekend/weekday rates to configure separate overnight and 3-, 6-, 9-, 12-, and 24-hour rates. Owner special discounts apply once to the whole booking subtotal.
+
+## Nova Guest Assistant
+
+Nova is available in the customer-facing site and supports English, Tagalog, and Taglish. Its built-in concierge uses live room, rate, capacity, amenity, hotel-policy, offer, and customer-reservation data where configured. It understands weekday/weekend and short-stay rate questions, checks a signed-in guest's recent reservations or a specific booking reference, and guides guests to booking pages. Unknown property details are identified as unconfirmed rather than invented; non-hotel questions receive a brief scope reminder. An optional `RASA_WEBHOOK_URL` can handle hotel-related questions not covered by the built-in concierge.
 
 ## Folder Rules
 

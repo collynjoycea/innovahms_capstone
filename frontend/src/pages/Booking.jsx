@@ -267,9 +267,15 @@ function SuccessModal({ open, booking, hasReviewed, onReview, onClose }) {
           <div className="my-6 space-y-2 rounded-xl border border-slate-800 bg-slate-800/50 p-4 text-left text-sm">
             <div className="flex justify-between"><span className="text-slate-400">Booking #</span><span className="font-semibold text-emerald-400">{booking?.bookingNumber}</span></div>
             <div className="flex justify-between"><span className="text-slate-400">Nights</span><span className="font-medium">{booking?.totalNights}</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">Subtotal</span><span className="font-medium">{peso(booking?.subtotalAmount || booking?.baseAmount || 0)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Rates before discounts</span><span className="font-medium">{peso(booking?.baseAmount || 0)}</span></div>
+            {!!Number(booking?.roomDiscountAmount || 0) && (
+              <div className="flex justify-between"><span className="text-slate-400">Room discount</span><span className="font-medium text-emerald-400">-{peso(booking?.roomDiscountAmount || 0)}</span></div>
+            )}
             {!!Number(booking?.privilegeDiscountAmount || 0) && (
               <div className="flex justify-between"><span className="text-slate-400">Privilege savings</span><span className="font-medium text-emerald-400">-{peso(booking?.privilegeDiscountAmount || 0)}</span></div>
+            )}
+            {!!Number(booking?.pointsDiscountAmount || 0) && (
+              <div className="flex justify-between"><span className="text-slate-400">Points discount</span><span className="font-medium text-emerald-400">-{peso(booking?.pointsDiscountAmount || 0)}</span></div>
             )}
             <div className="flex justify-between"><span className="text-slate-400">VAT ({booking?.vatPercent || VAT_PERCENT}%)</span><span className="font-medium">{peso(booking?.vatAmount || 0)}</span></div>
             <div className="flex justify-between border-t border-slate-700/60 pt-2 font-bold"><span className="text-slate-300">Total</span><span className="text-slate-100">{peso(booking?.totalAmount || 0)}</span></div>
@@ -303,7 +309,7 @@ function SuccessModal({ open, booking, hasReviewed, onReview, onClose }) {
 }
 
 // Shared Content UI para sa Booking Summary (Ginagamit pareho sa Modal at datihan sa Card)
-function BookingSummaryContent({ room, checkIn, checkOut, checkInTime, checkOutTime, durationHours, nights, adults, children, paymentMethod, baseTotal, pointsRedeemed, pointsDiscountAmount, subtotalAfterDiscount, total }) {
+function BookingSummaryContent({ room, checkIn, checkOut, checkInTime, checkOutTime, durationHours, nights, adults, children, paymentMethod, baseTotal, roomDiscountAmount, pointsRedeemed, pointsDiscountAmount, subtotalAfterDiscount, total }) {
   return (
     <>
       <div className="mb-4 space-y-2.5 text-xs">
@@ -324,9 +330,15 @@ function BookingSummaryContent({ room, checkIn, checkOut, checkInTime, checkOutT
 
       <div className="border-t border-slate-200 pt-4 text-xs dark:border-slate-800">
         <div className="mb-2 flex justify-between">
-          <span className="text-slate-500 dark:text-slate-400">Base total</span>
+          <span className="text-slate-500 dark:text-slate-400">Rates before discount</span>
           <span className="text-slate-800 dark:text-slate-200">{baseTotal > 0 ? peso(baseTotal) : '--'}</span>
         </div>
+        {roomDiscountAmount > 0 && (
+          <div className="mb-2 flex justify-between text-emerald-600 dark:text-emerald-400">
+            <span>Owner room discount</span>
+            <span>-{peso(roomDiscountAmount)}</span>
+          </div>
+        )}
         {pointsRedeemed > 0 && (
           <div className="mb-2 flex justify-between text-emerald-600 dark:text-emerald-400">
             <span>Points discount ({pointsRedeemed.toLocaleString()} pts)</span>
@@ -352,7 +364,7 @@ function BookingSummaryContent({ room, checkIn, checkOut, checkInTime, checkOutT
 
 const vatAmountCalc = (sub) => Number((sub * (VAT_PERCENT / 100)).toFixed(2));
 
-function BookingConfirmationModal({ open, room, checkIn, checkOut, checkInTime, checkOutTime, durationHours, nights, adults, children, paymentMethod, paymentPlan, total, baseTotal, pointsRedeemed, pointsDiscountAmount, subtotalAfterDiscount, onClose, onConfirm, submitting }) {
+function BookingConfirmationModal({ open, room, checkIn, checkOut, checkInTime, checkOutTime, durationHours, nights, adults, children, paymentMethod, paymentPlan, total, baseTotal, roomDiscountAmount, pointsRedeemed, pointsDiscountAmount, subtotalAfterDiscount, onClose, onConfirm, submitting }) {
   if (!open) return null;
   const paymentAmount = paymentPlan === 'deposit' ? total * 0.5 : total;
   const paymentLabel = paymentMethod === 'cash' ? 'Cash on Arrival' : paymentMethod.toUpperCase();
@@ -381,6 +393,7 @@ function BookingConfirmationModal({ open, room, checkIn, checkOut, checkInTime, 
           children={children}
           paymentMethod={paymentLabel}
           baseTotal={baseTotal}
+          roomDiscountAmount={roomDiscountAmount}
           pointsRedeemed={pointsRedeemed}
           pointsDiscountAmount={pointsDiscountAmount}
           subtotalAfterDiscount={subtotalAfterDiscount}
@@ -560,7 +573,7 @@ export default function Booking() {
   const [checkOutTime, setCheckOutTime] = useState('12:00');
   const [durationHours, setDurationHours] = useState(() => {
     const value = Number(params.get('duration'));
-    return [3, 6, 12].includes(value) ? value : 0;
+    return [3, 6, 9, 12, 24].includes(value) ? value : 0;
   });
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
@@ -743,10 +756,42 @@ export default function Booking() {
   }, [room?.id, blockedRanges, checkIn, checkOut, today, durationHours]);
 
   const nights = durationHours ? 1 : Math.max(0, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000));
-  const selectedHourlyRate = durationHours ? Number(room?.[`rate${durationHours}Hours`] || 0) : Number(room?.price || 0);
-  const baseTotal = room ? (durationHours ? selectedHourlyRate : nights * selectedHourlyRate) : 0;
+  const weekdayRate = Number(room?.weekdayRate ?? room?.price ?? 0);
+  const weekendRate = Number(room?.weekendRate ?? room?.price ?? weekdayRate);
+  const useDayRates = Boolean(room?.useDayRates);
+  const ownerDiscountType = room?.ownerDiscountType || 'none';
+  const ownerDiscountValue = Math.max(0, Number(room?.ownerDiscountValue || 0));
+  const selectedDate = parseDateValue(checkIn);
+  const selectedDateIsWeekend = selectedDate && (selectedDate.getDay() === 0 || selectedDate.getDay() === 6);
+  const selectedDateRate = (() => {
+    return useDayRates && selectedDateIsWeekend ? weekendRate : weekdayRate;
+  })();
+  const selectedHourlyRate = durationHours
+    ? Number(room?.[`${useDayRates && selectedDateIsWeekend ? 'weekendRate' : 'rate'}${durationHours}Hours`] || 0)
+    : selectedDateRate;
+  const nightlyRates = (() => {
+    if (!room || durationHours || !checkIn || !checkOut) return [];
+    const start = parseDateValue(checkIn);
+    const end = parseDateValue(checkOut);
+    if (!start || !end || end <= start) return [];
+    const rates = [];
+    for (const date = new Date(start); date < end; date.setDate(date.getDate() + 1)) {
+      const weekend = date.getDay() === 0 || date.getDay() === 6;
+      const rate = useDayRates && weekend ? weekendRate : weekdayRate;
+      rates.push({ date: new Date(date), rate, dayType: useDayRates ? (weekend ? 'Weekend' : 'Weekday') : 'Flat rate' });
+    }
+    return rates;
+  })();
+  const baseTotal = room
+    ? durationHours
+      ? selectedHourlyRate
+      : Number(nightlyRates.reduce((total, night) => total + night.rate, 0).toFixed(2))
+    : 0;
+  const roomDiscountAmount = ownerDiscountType === 'percentage'
+    ? Number((baseTotal * Math.min(ownerDiscountValue, 100) / 100).toFixed(2))
+    : ownerDiscountType === 'fixed' ? Math.min(baseTotal, ownerDiscountValue) : 0;
   const availablePoints = Math.max(0, Number(pointsBalance?.points ?? pointsBalance?.pointsBalance?.total ?? 0));
-  const subtotalAfterDiscount = Number(baseTotal.toFixed(2));
+  const subtotalAfterDiscount = Number(Math.max(0, baseTotal - roomDiscountAmount).toFixed(2));
   const vatAmount = Number((subtotalAfterDiscount * (VAT_PERCENT / 100)).toFixed(2));
   const totalBeforePoints = Number((subtotalAfterDiscount + vatAmount).toFixed(2));
   const requestedPoints = useAllPoints ? availablePoints : Math.max(0, Math.floor(Number(pointsToUse) || 0));
@@ -901,6 +946,7 @@ export default function Booking() {
         paymentPlan={paymentPlan}
         total={total}
         baseTotal={baseTotal}
+        roomDiscountAmount={roomDiscountAmount}
         pointsRedeemed={pointsRedeemed}
         pointsDiscountAmount={pointsDiscountAmount}
         subtotalAfterDiscount={subtotalAfterDiscount}
@@ -958,8 +1004,13 @@ export default function Booking() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{peso(durationHours ? selectedHourlyRate : room.price || 0)}</p>
+                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{peso(selectedHourlyRate)}</p>
                     <p className="text-xs text-slate-400">/ {durationHours ? `${durationHours} hours` : 'night'}</p>
+                    {!durationHours && roomDiscountAmount > 0 && (
+                      <p className="mt-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                        {peso(roomDiscountAmount)} owner discount for this stay
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -982,13 +1033,27 @@ export default function Booking() {
                 <div className="mb-5">
                   <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Stay Duration</label>
                   <select value={durationHours} onChange={(e) => { setDurationHours(Number(e.target.value)); setFieldErrors((current) => ({ ...current, durationHours: '' })); }} onBlur={() => validateFields()} className={invalidClass('durationHours', selectCls)}>
-                    <option value={0}>Overnight — {peso(room?.price || 0)} / night</option>
-                    {[3, 6, 12].map((hours) => {
-                      const rate = Number(room?.[`rate${hours}Hours`] || 0);
+                    <option value={0}>Overnight — {peso(selectedDateRate)} for check-in night</option>
+                    {[3, 6, 9, 12, 24].map((hours) => {
+                      const rate = Number(room?.[`${useDayRates && selectedDateIsWeekend ? 'weekendRate' : 'rate'}${hours}Hours`] || 0);
                       return <option key={hours} value={hours} disabled={rate <= 0}>{hours} hours — {rate > 0 ? peso(rate) : 'Not available'}</option>;
                     })}
                   </select>
                 </div>
+
+                {!durationHours && nightlyRates.length > 0 && (
+                  <div className="mb-5 rounded-lg border border-slate-200 p-3 text-xs dark:border-slate-700">
+                    <p className="mb-2 font-semibold text-slate-700 dark:text-slate-200">Nightly rate breakdown</p>
+                    <div className="space-y-1.5">
+                      {nightlyRates.map((night) => (
+                        <div key={formatDateValue(night.date)} className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
+                          <span>{dateButtonLabel(night.date)} · {night.dayType}</span>
+                          <span className="text-right">{peso(night.rate)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mb-5 rounded-lg bg-emerald-50/60 p-3.5 text-xs text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
                   <p className="font-semibold">{availabilityLoading ? 'Checking room availability...' : 'Calendar Availability'}</p>

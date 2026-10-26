@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import resolveImg from "../utils/resolveImg";
 import { CALOOCAN_HOTELS } from "../data/caloocanHotels";
+import RoomDiscountBadge from "../components/RoomDiscountBadge";
 
 const FALLBACKS = [
   "/images/deluxe-room.jpg",
@@ -443,6 +444,11 @@ export default function HotelDetail() {
                         src={resolveImg(roomImage)}
                         alt={roomName}
                         className="h-full w-full object-cover"
+                      />
+                      <RoomDiscountBadge
+                        discountType={room.ownerDiscountType ?? room.owner_discount_type}
+                        discountValue={room.ownerDiscountValue ?? room.owner_discount_value}
+                        className="absolute left-3 top-3"
                       />
                       <span className="absolute right-3 top-3 rounded-full bg-[#080d0b]/80 px-2 py-1 text-[9px] font-mono uppercase tracking-[0.18em] text-[#6FCF97]">
                         {String(room.status || "Available").toUpperCase()}

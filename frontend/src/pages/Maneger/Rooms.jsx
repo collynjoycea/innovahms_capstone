@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, AlertTriangle, X, Search, Image as ImageIcon, CheckCircle } from 'lucide-react';
 import resolveImg from '../../utils/resolveImg';
+import { showAdminResult } from '../../utils/adminDialogs';
 
 const ROOM_TYPES = ['Standard', 'Double', 'Suite', 'Deluxe', 'Family Room'];
+const STAY_RATE_OPTIONS = [['3', '3 Hours'], ['6', '6 Hours'], ['9', '9 Hours'], ['12', '12 Hours'], ['24', '24 Hours']];
 
 const Rooms = () => {
   const [notification, setNotification] = useState({ show: false, message: '' });
@@ -26,9 +28,20 @@ const Rooms = () => {
     roomType: 'Standard',
     bedType: '',
     price: '',
+    weekendRate: '',
+    useDayRates: false,
+    ownerDiscountType: 'none',
+    ownerDiscountValue: '0',
     rate3Hours: '',
     rate6Hours: '',
+    rate9Hours: '',
     rate12Hours: '',
+    rate24Hours: '',
+    weekendRate3Hours: '',
+    weekendRate6Hours: '',
+    weekendRate9Hours: '',
+    weekendRate12Hours: '',
+    weekendRate24Hours: '',
     description: '',
     highlights: [],
     maxAdults: 2,
@@ -39,6 +52,27 @@ const Rooms = () => {
   };
   const [roomData, setRoomData] = useState(initialRoomData);
   const [filters, setFilters] = useState({ roomNumber: '', roomType: 'All', maxPrice: '', status: 'All' });
+  const renderDurationRates = (prefix = '') => (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {STAY_RATE_OPTIONS.map(([hours, label]) => {
+        const key = prefix ? `${prefix}${hours}Hours` : `rate${hours}Hours`;
+        return (
+          <label key={key} className="text-xs font-medium text-slate-600 dark:text-slate-300">
+            {label} (₱)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              value={roomData[key]}
+              className="mt-1 w-full rounded border border-slate-300 p-2 outline-none dark:border-slate-700 dark:bg-slate-800"
+              onChange={e => updateField(key, e.target.value)}
+            />
+          </label>
+        );
+      })}
+    </div>
+  );
 
   const managerSession = JSON.parse(localStorage.getItem('managerSession'));
   const hotelId = managerSession?.hotelId || managerSession?.hotel_id;
@@ -100,9 +134,20 @@ const Rooms = () => {
       roomType: room.roomType,
       bedType: room.bedType || '1 Queen Bed',
       price: room.price,
+      weekendRate: room.weekendRate ?? room.price,
+      useDayRates: room.useDayRates ?? false,
+      ownerDiscountType: room.ownerDiscountType || 'none',
+      ownerDiscountValue: room.ownerDiscountValue ?? '0',
       rate3Hours: room.rate3Hours || '',
       rate6Hours: room.rate6Hours || '',
+      rate9Hours: room.rate9Hours || '',
       rate12Hours: room.rate12Hours || '',
+      rate24Hours: room.rate24Hours || '',
+      weekendRate3Hours: room.weekendRate3Hours || '',
+      weekendRate6Hours: room.weekendRate6Hours || '',
+      weekendRate9Hours: room.weekendRate9Hours || '',
+      weekendRate12Hours: room.weekendRate12Hours || '',
+      weekendRate24Hours: room.weekendRate24Hours || '',
       description: room.description || '',
       highlights: room.highlights || [],
       maxAdults: room.maxAdults || 2,
@@ -119,8 +164,25 @@ const Rooms = () => {
     if (key === 'roomNumber' && !String(value).trim()) {
       error = "Room number is required.";
     }
+    if (key === 'roomNumber' && String(value).trim().length > 20) {
+      error = "Room number cannot be longer than 20 characters.";
+    }
+    if (key === 'roomNumber' && String(value).trim() && rooms.some(room =>
+      room.id !== (isEditing ? currentRoomId : null) &&
+      String(room.roomNumber || '').trim().toLowerCase() === String(value).trim().toLowerCase()
+    )) {
+      error = "A room with this number already exists in this hotel.";
+    }
     if (key === 'price') {
-      if (!value || Number(value) <= 0) error = "Valid price per night is required.";
+      if (!value || Number(value) <= 0) error = "Valid standard/weekday nightly rate is required.";
+    }
+    if (key === 'weekendRate' && (!value || Number(value) <= 0)) {
+      error = "Valid weekend rate is required.";
+    }
+    if (key === 'ownerDiscountValue') {
+      const amount = Number(value);
+      if (!Number.isFinite(amount) || amount < 0) error = "Discount must be zero or greater.";
+      else if (roomData.ownerDiscountType === 'percentage' && amount > 100) error = "Percentage discount cannot exceed 100%.";
     }
     if (key === 'maxAdults' && (Number(value) < 1)) {
       error = "At least 1 adult capacity is required.";
@@ -149,7 +211,7 @@ const Rooms = () => {
     const errors = {};
     const newTouched = {};
 
-    ["roomNumber", "price", "maxAdults", "maxChildren"].forEach(field => {
+    ["roomNumber", "price", ...(roomData.useDayRates ? ["weekendRate"] : []), "ownerDiscountValue", "maxAdults", "maxChildren"].forEach(field => {
       newTouched[field] = true;
       const err = validateSingleField(field, roomData[field]);
       if (err) errors[field] = err;
@@ -233,9 +295,20 @@ const Rooms = () => {
       formData.append('bedType', roomData.bedType);
       
       formData.append('price', parseFloat(roomData.price) || 0);
+      formData.append('weekendRate', parseFloat(roomData.weekendRate) || 0);
+      formData.append('useDayRates', roomData.useDayRates ? 'true' : 'false');
+      formData.append('ownerDiscountType', roomData.ownerDiscountType || 'none');
+      formData.append('ownerDiscountValue', parseFloat(roomData.ownerDiscountValue) || 0);
       formData.append('rate3Hours', parseFloat(roomData.rate3Hours) || 0);
       formData.append('rate6Hours', parseFloat(roomData.rate6Hours) || 0);
+      formData.append('rate9Hours', parseFloat(roomData.rate9Hours) || 0);
       formData.append('rate12Hours', parseFloat(roomData.rate12Hours) || 0);
+      formData.append('rate24Hours', parseFloat(roomData.rate24Hours) || 0);
+      formData.append('weekendRate3Hours', parseFloat(roomData.weekendRate3Hours) || 0);
+      formData.append('weekendRate6Hours', parseFloat(roomData.weekendRate6Hours) || 0);
+      formData.append('weekendRate9Hours', parseFloat(roomData.weekendRate9Hours) || 0);
+      formData.append('weekendRate12Hours', parseFloat(roomData.weekendRate12Hours) || 0);
+      formData.append('weekendRate24Hours', parseFloat(roomData.weekendRate24Hours) || 0);
       formData.append('description', roomData.description || '');
       formData.append('highlights', JSON.stringify(roomData.highlights || []));
       formData.append('maxAdults', parseInt(roomData.maxAdults) || 2);
@@ -263,16 +336,23 @@ const Rooms = () => {
 
       if (res.ok) { 
         setShowModal(false); 
-        fetchRooms(); 
+        await fetchRooms();
         setRoomData(initialRoomData); 
 
         const successMsg = isEditing 
           ? `Room ${roomData.roomNumber} updated successfully!` 
           : `Room ${roomData.roomNumber} created successfully!`;
-        showStatus(successMsg);
+        await showAdminResult({
+          title: isEditing ? 'Room Updated Successfully' : 'Room Added Successfully',
+          text: successMsg,
+        });
       } else {
-        const errorData = await res.json();
-        setErrorMessage("Error: " + (errorData.error || "Failed to process room request."));
+        const errorData = await res.json().catch(() => ({}));
+        if (errorData.field === 'roomNumber') {
+          setTouchedFields(prev => ({ ...prev, roomNumber: true }));
+          setFieldErrors(prev => ({ ...prev, roomNumber: errorData.error || "This room number is already in use." }));
+        }
+        setErrorMessage(errorData.error || "Failed to process room request.");
       }
     } catch (err) {
       console.error("Submission error:", err);
@@ -457,6 +537,7 @@ const Rooms = () => {
                     <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Room # <span className="text-red-500">*</span></label>
                     <input
                       type="text"
+                      maxLength={20}
                       value={roomData.roomNumber}
                       placeholder="e.g. 101"
                       className="w-full rounded border border-slate-300 p-2.5 font-mono outline-none dark:border-slate-700 dark:bg-slate-800"
@@ -466,6 +547,9 @@ const Rooms = () => {
                     <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-slate-400">
                       Enter floor number + room number (e.g. 101 = Floor 1, Room 01).
                     </span>
+                    {touchedFields.roomNumber && fieldErrors.roomNumber && (
+                      <span className="mt-0.5 block text-[10px] text-red-600">{fieldErrors.roomNumber}</span>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -491,23 +575,105 @@ const Rooms = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                  <span>Enable Weekend/Weekday Rates</span>
+                  <input
+                    type="checkbox"
+                    checked={roomData.useDayRates}
+                    onChange={e => updateField('useDayRates', e.target.checked)}
+                    className="h-5 w-5 accent-emerald-600"
+                  />
+                </label>
+
+                {roomData.useDayRates ? (
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {[
+                      { title: 'Weekday Rates (Monday-Friday)', nightlyKey: 'price', hourlyPrefix: '' },
+                      { title: 'Weekend Rates (Saturday-Sunday)', nightlyKey: 'weekendRate', hourlyPrefix: 'weekendRate' },
+                    ].map(({ title, nightlyKey, hourlyPrefix }) => (
+                      <section key={nightlyKey} className="space-y-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                        <h3 className="font-semibold text-slate-700 dark:text-slate-200">{title}</h3>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+                          Overnight / Nightly Rate (₱)
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={roomData[nightlyKey]}
+                            placeholder="1418"
+                            className="mt-1 w-full rounded border border-slate-300 p-2.5 outline-none dark:border-slate-700 dark:bg-slate-800"
+                            onChange={e => updateField(nightlyKey, e.target.value)}
+                            onBlur={() => handleBlur(nightlyKey)}
+                          />
+                          {touchedFields[nightlyKey] && fieldErrors[nightlyKey] && (
+                            <span className="mt-0.5 block text-[10px] text-red-600">{fieldErrors[nightlyKey]}</span>
+                          )}
+                        </label>
+                        {renderDurationRates(hourlyPrefix)}
+                      </section>
+                    ))}
+                  </div>
+                ) : (
+                  <section className="space-y-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                    <h3 className="font-semibold text-slate-700 dark:text-slate-200">Standard / Flat Rates</h3>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+                      Overnight / Nightly Rate (₱)
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={roomData.price}
+                        placeholder="1418"
+                        className="mt-1 w-full rounded border border-slate-300 p-2.5 outline-none dark:border-slate-700 dark:bg-slate-800"
+                        onChange={e => updateField('price', e.target.value)}
+                        onBlur={() => handleBlur('price')}
+                      />
+                      {touchedFields.price && fieldErrors.price && (
+                        <span className="mt-0.5 block text-[10px] text-red-600">{fieldErrors.price}</span>
+                      )}
+                    </label>
+                    {renderDurationRates()}
+                  </section>
+                )}
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                        <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Price / Night (₱) <span className="text-red-500">*</span></label>
-                        <input 
-                          type="number" 
-                          value={roomData.price} 
-                          placeholder="1418"
-                          className={`w-full rounded border p-2.5 outline-none ${
-                            touchedFields.price && fieldErrors.price ? "border-red-500 bg-red-50/20" : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
-                          }`} 
-                          onChange={e => updateField('price', e.target.value)} 
-                          onBlur={() => handleBlur('price')}
-                        />
-                        {touchedFields.price && fieldErrors.price && (
-                          <span className="text-[10px] text-red-600 mt-0.5 block">{fieldErrors.price}</span>
-                        )}
+                      <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Owner Discount</label>
+                      <select
+                        value={roomData.ownerDiscountType}
+                        className="w-full rounded border border-slate-300 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-800"
+                        onChange={e => updateField('ownerDiscountType', e.target.value)}
+                      >
+                        <option value="none">No discount</option>
+                        <option value="fixed">Flat discount per booking (₱)</option>
+                        <option value="percentage">Percentage discount (%)</option>
+                      </select>
                     </div>
+                    {roomData.ownerDiscountType !== 'none' && (
+                      <div>
+                        <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">
+                          {roomData.ownerDiscountType === 'fixed' ? 'Special Discount per Booking (₱)' : 'Special Discount (%)'}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={roomData.ownerDiscountType === 'percentage' ? '100' : undefined}
+                          step="0.01"
+                          value={roomData.ownerDiscountValue}
+                          className={`w-full rounded border p-2.5 outline-none ${
+                            touchedFields.ownerDiscountValue && fieldErrors.ownerDiscountValue ? "border-red-500 bg-red-50/20" : "border-slate-300 dark:border-slate-700 dark:bg-slate-800"
+                          }`}
+                          onChange={e => updateField('ownerDiscountValue', e.target.value)}
+                          onBlur={() => handleBlur('ownerDiscountValue')}
+                        />
+                        {touchedFields.ownerDiscountValue && fieldErrors.ownerDiscountValue && (
+                          <span className="text-[10px] text-red-600 mt-0.5 block">{fieldErrors.ownerDiscountValue}</span>
+                        )}
+                      </div>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Capacity Breakdown</label>
                       <div className="grid grid-cols-2 gap-2">
@@ -532,26 +698,6 @@ const Rooms = () => {
                         />
                       </div>
                     </div>
-                </div>
-
-                <div>
-                  <label className="mb-1 block font-semibold text-slate-700 dark:text-slate-300">Short-Stay Rates (PHP)</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[['rate3Hours', '3 Hours'], ['rate6Hours', '6 Hours'], ['rate12Hours', '12 Hours']].map(([key, label]) => (
-                      <div key={key}>
-                        <span className="mb-1 block text-[10px] text-slate-400">{label}</span>
-                        <input 
-                          type="number" 
-                          min="0" 
-                          step="0.01" 
-                          placeholder="0" 
-                          value={roomData[key]} 
-                          className="w-full rounded border border-slate-300 p-2 outline-none dark:border-slate-700 dark:bg-slate-800" 
-                          onChange={e => updateField(key, e.target.value)} 
-                        />
-                      </div>
-                    ))}
-                  </div>
                 </div>
 
                 <div>

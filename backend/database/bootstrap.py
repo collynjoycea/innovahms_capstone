@@ -620,6 +620,8 @@ def ensure_hourly_room_rate_columns(cur):
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_3_hours NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_6_hours NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_12_hours NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_9_hours NUMERIC(12, 2) DEFAULT 0",
+        "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS rate_24_hours NUMERIC(12, 2) DEFAULT 0",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS bed_type VARCHAR(50)",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS features TEXT[] DEFAULT '{}'::text[]",
         "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS highlights TEXT[] DEFAULT '{}'::text[]",
@@ -628,6 +630,85 @@ def ensure_hourly_room_rate_columns(cur):
     ]
     for statement in statements:
         _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="hourly_rates_alter")
+    ensure_room_pricing_columns(cur)
+
+
+def ensure_room_pricing_columns(cur):
+    room_columns = {
+        "weekend_rate": "NUMERIC(10, 2)",
+        "use_day_rates": "BOOLEAN NOT NULL DEFAULT TRUE",
+        "owner_discount_type": "VARCHAR(20) NOT NULL DEFAULT 'none'",
+        "owner_discount_value": "NUMERIC(10, 2) NOT NULL DEFAULT 0",
+        "weekend_rate_3_hours": "NUMERIC(12, 2)",
+        "weekend_rate_6_hours": "NUMERIC(12, 2)",
+        "weekend_rate_9_hours": "NUMERIC(12, 2)",
+        "weekend_rate_12_hours": "NUMERIC(12, 2)",
+        "weekend_rate_24_hours": "NUMERIC(12, 2)",
+    }
+    cur.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'rooms'"
+    )
+    existing_room_columns = {
+        row["column_name"] if isinstance(row, dict) else row[0]
+        for row in cur.fetchall()
+    }
+    missing_room_columns = {
+        name: definition
+        for name, definition in room_columns.items()
+        if name not in existing_room_columns
+    }
+    if missing_room_columns:
+        clauses = ", ".join(
+            f"ADD COLUMN IF NOT EXISTS {name} {definition}"
+            for name, definition in missing_room_columns.items()
+        )
+        cur.execute(f"ALTER TABLE rooms {clauses}")
+
+        cur.execute(
+            "UPDATE rooms SET weekend_rate = price_per_night WHERE weekend_rate IS NULL OR weekend_rate <= 0"
+        )
+        for hours in (3, 6, 9, 12, 24):
+            column_name = f"weekend_rate_{hours}_hours"
+            cur.execute(
+                f"UPDATE rooms SET {column_name} = rate_{hours}_hours WHERE {column_name} IS NULL"
+            )
+
+        normalize_clauses = [
+            "ALTER COLUMN weekend_rate SET DEFAULT 0",
+            "ALTER COLUMN weekend_rate SET NOT NULL",
+        ]
+        normalize_clauses.extend(
+            clause
+            for hours in (3, 6, 9, 12, 24)
+            for clause in (
+                f"ALTER COLUMN weekend_rate_{hours}_hours SET DEFAULT 0",
+                f"ALTER COLUMN weekend_rate_{hours}_hours SET NOT NULL",
+            )
+        )
+        cur.execute(f"ALTER TABLE rooms {', '.join(normalize_clauses)}")
+
+    reservation_columns = {
+        "room_discount_type": "VARCHAR(20) NOT NULL DEFAULT 'none'",
+        "room_discount_amount": "NUMERIC(12, 2) NOT NULL DEFAULT 0",
+    }
+    cur.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'reservations'"
+    )
+    existing_reservation_columns = {
+        row["column_name"] if isinstance(row, dict) else row[0]
+        for row in cur.fetchall()
+    }
+    missing_reservation_columns = {
+        name: definition
+        for name, definition in reservation_columns.items()
+        if name not in existing_reservation_columns
+    }
+    if missing_reservation_columns:
+        clauses = ", ".join(
+            f"ADD COLUMN IF NOT EXISTS {name} {definition}"
+            for name, definition in missing_reservation_columns.items()
+        )
+        cur.execute(f"ALTER TABLE reservations {clauses}")
 
 
 def ensure_reservation_time_columns(cur):

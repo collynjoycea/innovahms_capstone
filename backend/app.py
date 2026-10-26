@@ -5447,8 +5447,12 @@ def google_login():
 
         conn = get_db_connection()
         cur = conn.cursor()
+        _ensure_profile_media_columns(cur)
 
-        cur.execute("SELECT id, first_name, last_name, email, contact_number FROM customers WHERE email = %s", (email,))
+        cur.execute(
+            "SELECT id, first_name, last_name, email, contact_number, profile_image FROM customers WHERE email = %s",
+            (email,),
+        )
         user = cur.fetchone()
 
         if not user:
@@ -5464,8 +5468,10 @@ def google_login():
             final_first_name = first_name
             final_last_name = last_name
             final_contact = ""
+            final_profile_image = idinfo.get('picture') or ""
         else:
-            user_id, final_first_name, final_last_name, db_email, final_contact = user
+            user_id, final_first_name, final_last_name, db_email, final_contact, final_profile_image = user
+            final_profile_image = final_profile_image or idinfo.get('picture') or ""
 
         cur.close()
         conn.close()
@@ -5477,7 +5483,8 @@ def google_login():
                 "firstName": final_first_name,
                 "lastName": final_last_name,
                 "email": email,
-                "contactNumber": final_contact
+                "contactNumber": final_contact,
+                "profileImage": final_profile_image,
             }
         }), 200
 
@@ -5490,7 +5497,7 @@ def facebook_login():
     data = request.json
     access_token = data.get('accessToken')
 
-    fb_url = f"https://graph.facebook.com/me?fields=id,first_name,last_name,email&access_token={access_token}"
+    fb_url = f"https://graph.facebook.com/me?fields=id,first_name,last_name,email,picture.type(large)&access_token={access_token}"
     fb_response = requests.get(fb_url).json()
 
     if 'error' in fb_response:
@@ -5503,8 +5510,12 @@ def facebook_login():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        _ensure_profile_media_columns(cur)
 
-        cur.execute("SELECT id, first_name, last_name, email, contact_number FROM customers WHERE email = %s", (email,))
+        cur.execute(
+            "SELECT id, first_name, last_name, email, contact_number, profile_image FROM customers WHERE email = %s",
+            (email,),
+        )
         user = cur.fetchone()
 
         if not user:
@@ -5517,8 +5528,10 @@ def facebook_login():
             user_id = cur.fetchone()[0]
             conn.commit()
             final_first_name, final_last_name, final_contact = first_name, last_name, ""
+            final_profile_image = (fb_response.get("picture") or {}).get("data", {}).get("url") or ""
         else:
-            user_id, final_first_name, final_last_name, _, final_contact = user
+            user_id, final_first_name, final_last_name, _, final_contact, final_profile_image = user
+            final_profile_image = final_profile_image or (fb_response.get("picture") or {}).get("data", {}).get("url") or ""
 
         cur.close()
         conn.close()
@@ -5530,7 +5543,8 @@ def facebook_login():
                 "firstName": final_first_name, 
                 "lastName": final_last_name,
                 "email": email,
-                "contactNumber": final_contact
+                "contactNumber": final_contact,
+                "profileImage": final_profile_image,
             }
         }), 200
 
@@ -9434,9 +9448,21 @@ def get_rooms(hotel_id):
                 'roomType': _normalize_room_type(r.get('room_type')),
                 'bedType': r.get('bed_type') or '',
                 'price': float(r.get('price_per_night') or 0),
+                'weekdayRate': float(r.get('price_per_night') or 0),
+                'weekendRate': float(r.get('weekend_rate') or r.get('price_per_night') or 0),
+                'useDayRates': bool(r.get('use_day_rates')),
+                'ownerDiscountType': r.get('owner_discount_type') or 'none',
+                'ownerDiscountValue': float(r.get('owner_discount_value') or 0),
                 'rate3Hours': float(r.get('rate_3_hours') or 0),
                 'rate6Hours': float(r.get('rate_6_hours') or 0),
+                'rate9Hours': float(r.get('rate_9_hours') or 0),
                 'rate12Hours': float(r.get('rate_12_hours') or 0),
+                'rate24Hours': float(r.get('rate_24_hours') or 0),
+                'weekendRate3Hours': float(r.get('weekend_rate_3_hours') or 0),
+                'weekendRate6Hours': float(r.get('weekend_rate_6_hours') or 0),
+                'weekendRate9Hours': float(r.get('weekend_rate_9_hours') or 0),
+                'weekendRate12Hours': float(r.get('weekend_rate_12_hours') or 0),
+                'weekendRate24Hours': float(r.get('weekend_rate_24_hours') or 0),
                 'description': r.get('description') or '',
                 'maxAdults': int(r.get('max_adults') or 2),
                 'maxChildren': int(r.get('max_children') or 0),
@@ -9482,6 +9508,115 @@ def _to_pg_array(items):
     return '{' + ','.join(f'"{e}"' for e in escaped) + '}'
 
 
+def _room_pricing_form_values(form):
+    try:
+        weekday_rate = float(form.get('weekdayRate') or form.get('price') or 0)
+        weekend_rate_value = form.get('weekendRate')
+        weekend_rate = float(weekend_rate_value or weekday_rate)
+        discount_type = str(form.get('ownerDiscountType') or 'none').strip().lower()
+        discount_value = float(form.get('ownerDiscountValue') or 0)
+        day_rates_value = str(form.get('useDayRates') or 'false').strip().lower()
+        if day_rates_value not in {'true', 'false', '1', '0', 'on', 'off'}:
+            return None, "Choose whether weekend/weekday rates are enabled."
+        duration_rates = {}
+        for hours in (3, 6, 9, 12, 24):
+            duration_rates[f"rate_{hours}_hours"] = float(form.get(f'rate{hours}Hours') or 0)
+            duration_rates[f"weekend_rate_{hours}_hours"] = float(form.get(f'weekendRate{hours}Hours') or 0)
+    except (TypeError, ValueError):
+        return None, "Enter valid room rates and discount values."
+
+    if not math.isfinite(weekday_rate) or weekday_rate <= 0:
+        return None, "Weekday rate must be greater than zero."
+    use_day_rates = day_rates_value in {'true', '1', 'on'}
+    if use_day_rates and (not weekend_rate_value or weekend_rate <= 0):
+        return None, "Weekend rate must be greater than zero when weekend/weekday rates are enabled."
+    if not math.isfinite(weekend_rate) or weekend_rate <= 0:
+        return None, "Weekend rate must be greater than zero."
+    if discount_type not in {'none', 'fixed', 'percentage'}:
+        return None, "Choose a valid owner discount type."
+    if not math.isfinite(discount_value) or discount_value < 0:
+        return None, "Discount must be zero or greater."
+    if discount_type == 'percentage' and discount_value > 100:
+        return None, "Percentage discount cannot exceed 100%."
+    if discount_type == 'none':
+        discount_value = 0
+    for field, rate in duration_rates.items():
+        if not math.isfinite(rate) or rate < 0:
+            return None, f"{field.replace('_', ' ').capitalize()} must be zero or greater."
+
+    return {
+        "weekday_rate": round(weekday_rate, 2),
+        "weekend_rate": round(weekend_rate, 2),
+        "use_day_rates": use_day_rates,
+        "owner_discount_type": discount_type,
+        "owner_discount_value": round(discount_value, 2),
+        **{field: round(rate, 2) for field, rate in duration_rates.items()},
+    }, None
+
+
+def _room_number_error(cur, hotel_id, room_number, exclude_room_id=None):
+    normalized_number = str(room_number or '').strip()
+    if not normalized_number:
+        return "Room number is required."
+    if len(normalized_number) > 20:
+        return "Room number cannot be longer than 20 characters."
+
+    cur.execute("SELECT pg_advisory_xact_lock(45781, %s)", (hotel_id,))
+    query = """
+        SELECT id FROM rooms
+        WHERE hotel_id = %s AND LOWER(BTRIM(room_number)) = LOWER(%s)
+    """
+    params = [hotel_id, normalized_number]
+    if exclude_room_id is not None:
+        query += " AND id <> %s"
+        params.append(exclude_room_id)
+    query += " LIMIT 1"
+    cur.execute(query, tuple(params))
+    return "A room with this number already exists in this hotel." if cur.fetchone() else None
+
+
+def _calculate_room_discount(base_amount, discount_type='none', discount_value=0):
+    base_amount = round(max(_to_float(base_amount, 0), 0), 2)
+    if discount_type == 'percentage':
+        discount = round(base_amount * min(max(_to_float(discount_value, 0), 0), 100) / 100, 2)
+    elif discount_type == 'fixed':
+        discount = min(base_amount, round(max(_to_float(discount_value, 0), 0), 2))
+    else:
+        discount = 0.0
+    return discount, round(max(base_amount - discount, 0), 2)
+
+
+def _room_duration_rate(room, duration_hours, booking_date):
+    day_rates_enabled = bool(room.get("use_day_rates"))
+    is_weekend = booking_date.weekday() >= 5
+    rate_prefix = "weekend_rate_" if day_rates_enabled and is_weekend else "rate_"
+    return _to_float(room.get(f"{rate_prefix}{duration_hours}_hours"), 0)
+
+
+def _calculate_room_stay_pricing(check_in, check_out, weekday_rate, weekend_rate, discount_type='none', discount_value=0, use_day_rates=True):
+    base_amount = 0.0
+    nightly_rates = []
+    current_date = check_in
+    while current_date < check_out:
+        is_weekend = current_date.weekday() >= 5
+        rate = round(_to_float(weekend_rate if use_day_rates and is_weekend else weekday_rate, 0), 2)
+        base_amount += rate
+        nightly_rates.append({
+            "date": current_date.isoformat(),
+            "dayType": ("weekend" if is_weekend else "weekday") if use_day_rates else "flat rate",
+            "rate": rate,
+        })
+        current_date += timedelta(days=1)
+    base_amount = round(base_amount, 2)
+    discount_amount, subtotal_amount = _calculate_room_discount(base_amount, discount_type, discount_value)
+    return {
+        "baseAmount": base_amount,
+        "discountAmount": discount_amount,
+        "subtotalAmount": subtotal_amount,
+        "nightlyRates": nightly_rates,
+    }
+
+
 @app.route('/api/manager/rooms/add', methods=['POST'])
 @app.route('/api/owner/rooms/add', methods=['POST'])
 def add_room():
@@ -9492,10 +9627,10 @@ def add_room():
         room_num = request.form.get('roomNumber')
         room_name = request.form.get('roomName', '')
         room_type = _normalize_room_type(request.form.get('roomType', 'Standard'))
-        price = float(request.form.get('price') or 0)
-        rate_3 = float(request.form.get('rate3Hours') or 0)
-        rate_6 = float(request.form.get('rate6Hours') or 0)
-        rate_12 = float(request.form.get('rate12Hours') or 0)
+        room_pricing, pricing_error = _room_pricing_form_values(request.form)
+        if pricing_error:
+            return jsonify({"error": pricing_error}), 400
+        price = room_pricing["weekday_rate"]
         desc = request.form.get('description', '')
         bed_type = request.form.get('bedType', '')
         adults = int(request.form.get('maxAdults') or 2)
@@ -9512,10 +9647,6 @@ def add_room():
         features_pg = _to_pg_array(features_list)
         highlights_pg = _to_pg_array(highlights_list)
 
-        # Save uploaded images
-        image_paths = _save_room_images(request.files.getlist('images'), hotel_id, room_num)
-        images_pg = _to_pg_array(image_paths)
-
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         _ensure_room_type_options(cur)
@@ -9525,6 +9656,11 @@ def add_room():
         guard, subscription = _owner_feature_guard(cur, owner_id, 'rooms', mutation=True)
         if guard:
             return guard
+        room_number_error = _room_number_error(cur, hotel_id, room_num)
+        if room_number_error:
+            return jsonify({"error": room_number_error, "field": "roomNumber"}), 409
+        image_paths = _save_room_images(request.files.getlist('images'), hotel_id, room_num)
+        images_pg = _to_pg_array(image_paths)
         room_limit = subscription.get("roomLimit")
         if room_limit:
             cur.execute("SELECT COUNT(*) AS total FROM rooms WHERE hotel_id = %s", (hotel_id,))
@@ -9533,11 +9669,16 @@ def add_room():
                 return _owner_room_limit_response(subscription)
         cur.execute("""
             INSERT INTO rooms (hotel_id, room_number, room_name, room_type, bed_type, price_per_night,
-                               rate_3_hours, rate_6_hours, rate_12_hours,
+                               weekend_rate, use_day_rates, owner_discount_type, owner_discount_value,
+                               rate_3_hours, rate_6_hours, rate_9_hours, rate_12_hours, rate_24_hours,
+                               weekend_rate_3_hours, weekend_rate_6_hours, weekend_rate_9_hours, weekend_rate_12_hours, weekend_rate_24_hours,
                                description, amenities, features, highlights, images, max_adults, max_children, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::text[], %s::text[], %s::text[], %s::text[], %s, %s, 'Available')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::text[], %s::text[], %s::text[], %s::text[], %s, %s, 'Available')
         """, (hotel_id, room_num, room_name, room_type, bed_type, price,
-               rate_3, rate_6, rate_12, desc, amenities_pg, features_pg, highlights_pg, images_pg, adults, children))
+               room_pricing["weekend_rate"], room_pricing["use_day_rates"], room_pricing["owner_discount_type"], room_pricing["owner_discount_value"],
+               room_pricing["rate_3_hours"], room_pricing["rate_6_hours"], room_pricing["rate_9_hours"], room_pricing["rate_12_hours"], room_pricing["rate_24_hours"],
+               room_pricing["weekend_rate_3_hours"], room_pricing["weekend_rate_6_hours"], room_pricing["weekend_rate_9_hours"], room_pricing["weekend_rate_12_hours"], room_pricing["weekend_rate_24_hours"],
+               desc, amenities_pg, features_pg, highlights_pg, images_pg, adults, children))
         conn.commit()
         return jsonify({"message": "Room added successfully!"}), 201
     except Exception as e:
@@ -9558,10 +9699,10 @@ def update_room(room_id):
         room_num = request.form.get('roomNumber')
         room_name = request.form.get('roomName', '')
         room_type = _normalize_room_type(request.form.get('roomType', 'Standard'))
-        price = float(request.form.get('price') or 0)
-        rate_3 = float(request.form.get('rate3Hours') or 0)
-        rate_6 = float(request.form.get('rate6Hours') or 0)
-        rate_12 = float(request.form.get('rate12Hours') or 0)
+        room_pricing, pricing_error = _room_pricing_form_values(request.form)
+        if pricing_error:
+            return jsonify({"error": pricing_error}), 400
+        price = room_pricing["weekday_rate"]
         desc = request.form.get('description', '')
         bed_type = request.form.get('bedType', '')
         adults = int(request.form.get('maxAdults') or 2)
@@ -9577,12 +9718,6 @@ def update_room(room_id):
         features_pg = _to_pg_array(features_list)
         highlights_pg = _to_pg_array(highlights_list)
 
-        # Keep existing images + add new uploads
-        existing = request.form.getlist('existing_images')
-        new_paths = _save_room_images(request.files.getlist('images'), hotel_id, room_num)
-        all_images = existing + new_paths
-        images_pg = _to_pg_array(all_images)
-
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         _ensure_room_type_options(cur)
@@ -9592,17 +9727,37 @@ def update_room(room_id):
         guard, _subscription = _owner_feature_guard(cur, owner_id, 'rooms', mutation=True)
         if guard:
             return guard
+        room_number_error = _room_number_error(cur, hotel_id, room_num, room_id)
+        if room_number_error:
+            return jsonify({"error": room_number_error, "field": "roomNumber"}), 409
+        existing = request.form.getlist('existing_images')
+        new_paths = _save_room_images(request.files.getlist('images'), hotel_id, room_num)
+        all_images = existing + new_paths
+        images_pg = _to_pg_array(all_images)
         cur.execute("""
             UPDATE rooms
             SET room_number = %s, room_name = %s, room_type = %s, bed_type = %s, price_per_night = %s,
-                rate_3_hours = %s, rate_6_hours = %s, rate_12_hours = %s,
+                weekend_rate = %s, use_day_rates = %s, owner_discount_type = %s, owner_discount_value = %s,
+                rate_3_hours = %s, rate_6_hours = %s, rate_9_hours = %s, rate_12_hours = %s, rate_24_hours = %s,
+                weekend_rate_3_hours = %s, weekend_rate_6_hours = %s, weekend_rate_9_hours = %s, weekend_rate_12_hours = %s, weekend_rate_24_hours = %s,
                 description = %s, amenities = %s::text[], features = %s::text[], highlights = %s::text[], images = %s::text[],
                 max_adults = %s, max_children = %s
             WHERE id = %s
-        """, (room_num, room_name, room_type, bed_type, price, rate_3, rate_6, rate_12, desc,
+            RETURNING id, owner_discount_type, owner_discount_value
+        """, (room_num, room_name, room_type, bed_type, price,
+               room_pricing["weekend_rate"], room_pricing["use_day_rates"], room_pricing["owner_discount_type"], room_pricing["owner_discount_value"],
+               room_pricing["rate_3_hours"], room_pricing["rate_6_hours"], room_pricing["rate_9_hours"], room_pricing["rate_12_hours"], room_pricing["rate_24_hours"],
+               room_pricing["weekend_rate_3_hours"], room_pricing["weekend_rate_6_hours"], room_pricing["weekend_rate_9_hours"], room_pricing["weekend_rate_12_hours"], room_pricing["weekend_rate_24_hours"], desc,
                amenities_pg, features_pg, highlights_pg, images_pg, adults, children, room_id))
+        updated_room = cur.fetchone()
+        if not updated_room:
+            return jsonify({"error": "Room not found."}), 404
         conn.commit()
-        return jsonify({"message": "Room updated successfully!"}), 200
+        return jsonify({
+            "message": "Room updated successfully!",
+            "ownerDiscountType": updated_room.get("owner_discount_type") or "none",
+            "ownerDiscountValue": float(updated_room.get("owner_discount_value") or 0),
+        }), 200
     except Exception as e:
         if conn:
             conn.rollback()
@@ -10236,8 +10391,8 @@ def create_reservation():
         check_in_time = (data.get('checkInTime') or '14:00').strip()[:5]   # HH:MM
         check_out_time = (data.get('checkOutTime') or '12:00').strip()[:5] # HH:MM
         duration_hours = _to_int(data.get('durationHours'), 0)
-        if duration_hours not in (0, 3, 6, 12):
-            return jsonify({'error': 'Duration must be overnight, 3, 6, or 12 hours.'}), 400
+        if duration_hours not in (0, 3, 6, 9, 12, 24):
+            return jsonify({'error': 'Duration must be overnight, 3, 6, 9, 12, or 24 hours.'}), 400
         adults = max(_to_int(data.get('adults'), 0), 0)
         children = max(_to_int(data.get('children'), 0), 0)
         guests = _to_int(data.get('guests'), adults + children or 1)
@@ -10260,7 +10415,7 @@ def create_reservation():
         _ensure_hourly_room_rate_columns(cur)
 
         # Get room details
-        cur.execute('SELECT id, price_per_night, rate_3_hours, rate_6_hours, rate_12_hours, hotel_id, room_number, room_name, max_adults, max_children, status FROM rooms WHERE id = %s', (room_id,))
+        cur.execute('SELECT id, price_per_night, weekend_rate, use_day_rates, owner_discount_type, owner_discount_value, rate_3_hours, rate_6_hours, rate_9_hours, rate_12_hours, rate_24_hours, weekend_rate_3_hours, weekend_rate_6_hours, weekend_rate_9_hours, weekend_rate_12_hours, weekend_rate_24_hours, hotel_id, room_number, room_name, max_adults, max_children, status FROM rooms WHERE id = %s', (room_id,))
         room = cur.fetchone()
         if not room:
             return jsonify({'error': 'Room not found'}), 404
@@ -10321,13 +10476,38 @@ def create_reservation():
 
         nights = (co - ci).days if not duration_hours else 1
         price = _to_float(room.get('price_per_night'), 0)
-        hourly_rates = {3: room.get('rate_3_hours'), 6: room.get('rate_6_hours'), 12: room.get('rate_12_hours')}
         rate_type = f'{duration_hours}_hours' if duration_hours else 'overnight'
-        price = _to_float(hourly_rates.get(duration_hours), 0) if duration_hours else price
+        price = _room_duration_rate(room, duration_hours, ci) if duration_hours else price
         if duration_hours and price <= 0:
             return jsonify({'error': f'The {duration_hours}-hour rate is not configured for this room.'}), 400
-        base_total = round(price, 2) if duration_hours else round(price * nights, 2)
-        pricing = _build_customer_booking_pricing(cur, customer_id, base_total, requested_points, use_all_points)
+        if duration_hours:
+            room_discount_amount, discounted_price = _calculate_room_discount(
+                price,
+                room.get("owner_discount_type") or "none",
+                _to_float(room.get("owner_discount_value"), 0),
+            )
+            stay_pricing = {
+                "baseAmount": round(price, 2),
+                "discountAmount": room_discount_amount,
+                "subtotalAmount": discounted_price,
+                "nightlyRates": [],
+            }
+            room_discount_type = room.get("owner_discount_type") or "none"
+        else:
+            stay_pricing = _calculate_room_stay_pricing(
+                ci,
+                co,
+                _to_float(room.get("price_per_night"), 0),
+                _to_float(room.get("weekend_rate"), _to_float(room.get("price_per_night"), 0)),
+                room.get("owner_discount_type") or "none",
+                _to_float(room.get("owner_discount_value"), 0),
+                use_day_rates,
+            )
+            room_discount_type = room.get("owner_discount_type") or "none"
+        base_total = stay_pricing["baseAmount"]
+        room_discount_amount = stay_pricing["discountAmount"]
+        pricing = _build_customer_booking_pricing(cur, customer_id, stay_pricing["subtotalAmount"], requested_points, use_all_points)
+        pricing["baseAmount"] = base_total
         total = pricing["totalAmount"]
         privilege = pricing.get("subscription") or {}
 
@@ -10350,14 +10530,16 @@ def create_reservation():
                check_in_time, check_out_time,
                total_nights, adults, children, stay_duration_hours, rate_type, total_amount, base_amount, privilege_discount_percent, privilege_discount_amount,
                subtotal_amount, vat_percent, vat_amount, tax_percent, tax_amount, points_redeemed,
-               applied_privilege_slug, applied_privilege_name, payment_method, special_requests, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               room_discount_type, room_discount_amount,
+                applied_privilege_slug, applied_privilege_name, payment_method, special_requests, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id, booking_number
         """, (booking_number, customer_id, room_id, room.get('hotel_id'),
-               check_in, check_out, check_in_time, check_out_time,
-               nights, adults, children, duration_hours or None, rate_type, total, pricing["baseAmount"], pricing["discountPercent"], pricing["discountAmount"],
-               pricing["subtotalAmount"], pricing["vatPercent"], pricing["vatAmount"], pricing["taxPercent"], pricing["taxAmount"], pricing["pointsRedeemed"],
-               privilege.get("packageSlug"), privilege.get("packageName"), payment_method, special_requests, 'PENDING'))
+                check_in, check_out, check_in_time, check_out_time,
+                nights, adults, children, duration_hours or None, rate_type, total, pricing["baseAmount"], pricing["discountPercent"], pricing["discountAmount"],
+                pricing["subtotalAmount"], pricing["vatPercent"], pricing["vatAmount"], pricing["taxPercent"], pricing["taxAmount"], pricing["pointsRedeemed"],
+                room_discount_type, room_discount_amount,
+                privilege.get("packageSlug"), privilege.get("packageName"), payment_method, special_requests, 'PENDING'))
         row = cur.fetchone()
         conn.commit()
 
@@ -10368,6 +10550,9 @@ def create_reservation():
             'totalNights': nights,
             'totalAmount': total,
             'baseAmount': pricing["baseAmount"],
+            'roomDiscountType': room_discount_type,
+            'roomDiscountAmount': room_discount_amount,
+            'nightlyRates': stay_pricing["nightlyRates"],
             'privilegeDiscountPercent': pricing["discountPercent"],
             'privilegeDiscountAmount': pricing["discountAmount"],
             'subtotalAmount': pricing["subtotalAmount"],
@@ -11380,6 +11565,8 @@ def get_rooms_catalog():
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_hourly_room_rate_columns(cur)
+        conn.commit()
         query = """
             SELECT r.*,
                 h.hotel_name,
@@ -11426,9 +11613,21 @@ def get_rooms_catalog():
                 "roomType": row.get('room_type') or "Suite",
                 "bedType": row.get('bed_type') or "",
                 "price": float(row.get('price_per_night') or 0),
+                "weekdayRate": float(row.get('price_per_night') or 0),
+                "weekendRate": float(row.get('weekend_rate') or row.get('price_per_night') or 0),
+                "useDayRates": bool(row.get('use_day_rates')),
+                "ownerDiscountType": row.get('owner_discount_type') or "none",
+                "ownerDiscountValue": float(row.get('owner_discount_value') or 0),
                 "rate3Hours": float(row.get('rate_3_hours') or 0),
                 "rate6Hours": float(row.get('rate_6_hours') or 0),
+                "rate9Hours": float(row.get('rate_9_hours') or 0),
                 "rate12Hours": float(row.get('rate_12_hours') or 0),
+                "rate24Hours": float(row.get('rate_24_hours') or 0),
+                "weekendRate3Hours": float(row.get('weekend_rate_3_hours') or 0),
+                "weekendRate6Hours": float(row.get('weekend_rate_6_hours') or 0),
+                "weekendRate9Hours": float(row.get('weekend_rate_9_hours') or 0),
+                "weekendRate12Hours": float(row.get('weekend_rate_12_hours') or 0),
+                "weekendRate24Hours": float(row.get('weekend_rate_24_hours') or 0),
                 "description": row.get('description') or '',
                 "images": images,
                 "amenities": amenities,
@@ -13026,9 +13225,96 @@ def _extract_chat_stay_dates(message, today=None):
     if re.search(r'\b(tomorrow|bukas)\b', text):
         check_in = today + timedelta(days=1)
         return check_in, check_in + timedelta(days=1)
-    if re.search(r'\b(today|tonight|ngayon)\b', text):
+    if re.search(r'\b(today|tonight|ngayon|ngayong gabi)\b', text):
         return today, today + timedelta(days=1)
+    weekdays = {
+        "monday": (0, "lunes"), "tuesday": (1, "martes"), "wednesday": (2, "miyerkules"),
+        "thursday": (3, "huwebes"), "friday": (4, "biyernes"),
+        "saturday": (5, "sabado"), "sunday": (6, "linggo"),
+    }
+    for english_name, (weekday, tagalog_name) in weekdays.items():
+        if re.search(rf"\b(?:next\s+{english_name}|{english_name}|sa susunod na {tagalog_name}|{tagalog_name})\b", text):
+            days_ahead = (weekday - today.weekday()) % 7
+            if days_ahead == 0:
+                days_ahead += 7
+            check_in = today + timedelta(days=days_ahead)
+            return check_in, check_in + timedelta(days=1)
     return None, None
+
+
+def _chat_uses_tagalog(message):
+    text = str(message or "").lower()
+    return bool(re.search(
+        r"\b(?:magkano|presyo|presyuhan|may|ba|paano|saan|nasaan|ano|ilan|"
+        r"puwede|pwede|pwedeng|tumatanggap|oras|tao|bisita|ngayon|anong|"
+        r"bukas|kuwarto|kwarto|silid|reserba|mag-book|magbook|"
+        r"pag-book|booking ko|reservation ko|salamat|po|sino|pangalan|"
+        r"kumusta|magandang umaga|magandang hapon|magandang gabi)\b",
+        text,
+    ))
+
+
+def _extract_chat_duration_hours(message):
+    text = str(message or "").lower()
+    match = re.search(r"\b(?P<hours>\d{1,2})[-\s]*(?:hours?|hrs?|h|oras)\b", text)
+    if match:
+        hours = int(match.group("hours"))
+        return hours if 1 <= hours <= 48 else None
+
+    number_words = {
+        "three": 3, "six": 6, "nine": 9, "twelve": 12,
+        "twenty four": 24,
+        "tatlo": 3, "anim": 6, "siyam": 9, "dose": 12,
+    }
+    for words, hours in number_words.items():
+        if re.search(rf"\b{words}[-\s]*(?:hours?|hrs?|h|oras)\b", text):
+            return hours
+    return None
+
+
+def _is_chat_booking_status_intent(message):
+    text = str(message or "").lower()
+    phrases = (
+        "booking status", "reservation status", "check my booking", "check my reservation",
+        "where is my booking", "where is my reservation", "where's my booking", "where's my reservation",
+        "track my booking", "track my reservation", "status of my booking", "status of my reservation",
+        "status ng booking", "status ng reservation", "status ng booking ko",
+        "status ng reservation ko", "kamusta booking ko", "kumusta booking ko",
+        "kumusta reservation ko", "na-confirm na ba", "confirmed na ba",
+        "tingnan ang booking", "tingnan booking ko", "booking ko", "reservation ko",
+    )
+    return any(phrase in text for phrase in phrases) or bool(
+        re.search(r"\bINV-[A-Z0-9]+\b", text, re.IGNORECASE)
+    )
+
+
+def _extract_chat_booking_reference(message):
+    match = re.search(r"\bINV-[A-Z0-9]+\b", str(message or ""), re.IGNORECASE)
+    return match.group(0).upper() if match else None
+
+
+def _is_nova_hotel_related(message):
+    text = str(message or "").lower()
+    hotel_terms = (
+        "hotel", "room", "suite", "booking", "reservation", "check-in", "check in",
+        "check-out", "check out", "guest", "stay", "rate", "price", "payment", "pay",
+        "amenity", "facility", "wifi", "aircon", "parking", "pet", "breakfast",
+        "restaurant", "pool", "gym", "luggage", "extra bed", "towel", "policy",
+        "cancel", "refund", "location", "address", "direction", "contact", "promo",
+        "offer", "discount", "privilege", "reward", "point", "tour", "available",
+        "wheelchair", "accessible", "accessibility", "smoking", "review", "rating",
+        "digital key", "qr key",
+        "magkano", "presyo", "kuwarto", "kwarto", "silid", "reserba", "mag-book",
+        "magbook", "mag-reserve", "magreserve", "bisita", "tuluyan", "bayad",
+        "amenities", "pasilidad", "parking", "aso", "pusa", "agahan", "hapunan",
+        "tanghalian", "kama", "tuwalya", "saan", "lokasyon", "direksyon",
+        "kamusta booking", "kumusta booking", "hello", "hi", "good morning",
+        "good afternoon", "good evening", "good day", "hey", "kumusta",
+        "magandang umaga", "magandang hapon", "magandang gabi", "thank you", "thanks",
+        "recommend", "recommendation", "suggest", "who are you",
+        "your name", "sino ka", "pangalan mo", "nova",
+    )
+    return bool(_extract_chat_booking_reference(text)) or any(term in text for term in hotel_terms)
 
 
 @app.route('/api/chatbot/rasa', methods=['POST'])
@@ -13052,16 +13338,44 @@ def chatbot_rasa_fallback():
             return jsonify({"error": "message is required"}), 400
 
         lower_msg = message.lower()
-        is_booking_status_intent = any(
-            phrase in lower_msg
-            for phrase in (
-                "booking status", "reservation status", "check my booking", "check my reservation",
-                "where is my booking", "where is my reservation", "where's my booking", "where's my reservation",
-                "track my booking", "track my reservation", "status of my booking", "status of my reservation",
+        is_tagalog = _chat_uses_tagalog(message)
+        is_booking_status_intent = _is_chat_booking_status_intent(message)
+        if not _is_nova_hotel_related(message):
+            return jsonify({
+                "messages": [
+                    "Pasensya na, nakatuon ako sa mga tanong tungkol sa hotel, kuwarto, booking, at guest services. Ano ang maitutulong ko sa iyong stay?"
+                    if is_tagalog else
+                    "Sorry, I'm focused on hotel stays, rooms, bookings, and guest services. What can I help you with for your stay?"
+                ],
+                "source": "innova-assistant",
+            }), 200
+        rasa_endpoint = (os.getenv("RASA_WEBHOOK_URL") or "").strip()
+        known_local_intent = any(
+            keyword in lower_msg
+            for keyword in (
+                "room", "suite", "available", "availability", "vacant", "rate", "price", "cost",
+                "amenit", "facility", "feature", "policy", "check-in", "check in", "check-out",
+                "check out", "cancel", "refund", "where", "location", "address", "contact",
+                "phone", "support", "hotel", "property", "promo", "offer", "discount", "deal",
+                "membership", "privilege", "reward", "point", "payment", "pay", "card", "gcash",
+                "maya", "qr", "book", "reserve", "reservation", "tour", "virtual", "magkano",
+                "presyo", "kuwarto", "kwarto", "silid", "bakante", "available ba", "may room",
+                "mayroon", "saan", "nasaan", "lokasyon", "oras ng check", "patakaran", "kansela",
+                "bayad", "tumatanggap", "mag-book", "magbook", "mag-reserve", "magreserve",
+                "paano", "pwede", "puwede", "parking", "pet", "aso", "pusa", "extra bed",
+                "dagdag na kama", "tuwalya", "extra towel", "folding bed", "wifi", "wi-fi",
+                "aircon", "included", "breakfast", "restaurant", "pool", "gym", "luggage",
+                "room service", "wheelchair", "accessible", "smoking", "salamat", "hello",
+                "spa", "review", "rating", "transportation", "airport", "shuttle",
+                "digital key", "qr key",
+                "hi", "good morning", "who are you",
+                "good afternoon", "good evening", "good day", "hey", "thanks", "thank you",
+                "magandang umaga", "magandang hapon", "magandang gabi", "kumusta",
+                "your name", "sino ka", "pangalan mo",
+                "good afternoon", "good evening",
             )
         )
-        rasa_endpoint = (os.getenv("RASA_WEBHOOK_URL") or "").strip()
-        if rasa_endpoint and not is_booking_status_intent:
+        if rasa_endpoint and not is_booking_status_intent and not known_local_intent:
             try:
                 rasa_response = requests.post(
                     rasa_endpoint,
@@ -13102,16 +13416,25 @@ def chatbot_rasa_fallback():
         if is_booking_status_intent:
             if not customer_id:
                 return jsonify({
-                    "messages": ["Please sign in to your guest account before I look up your reservation. Go to /login, then ask me again."],
+                    "messages": [
+                        "Mag-sign in muna sa guest account para matingnan ko ang reservation mo. Pumunta sa /login at itanong muli."
+                        if is_tagalog else
+                        "Please sign in to your guest account before I look up your reservation. Go to /login, then ask me again."
+                    ],
                     "source": "innova-assistant",
                 }), 200
-            cur.execute("""
+            booking_reference = _extract_chat_booking_reference(message)
+            status_query = """
                 SELECT id, booking_number, check_in_date, check_out_date, status
                 FROM reservations
                 WHERE customer_id=%s
-                ORDER BY created_at DESC, id DESC
-                LIMIT 5
-            """, (customer_id,))
+            """
+            status_params = [customer_id]
+            if booking_reference:
+                status_query += " AND UPPER(booking_number) = UPPER(%s)"
+                status_params.append(booking_reference)
+            status_query += " ORDER BY created_at DESC, id DESC LIMIT 5"
+            cur.execute(status_query, tuple(status_params))
             customer_reservations = cur.fetchall() or []
             if customer_reservations:
                 status_lines = []
@@ -13123,12 +13446,33 @@ def chatbot_rasa_fallback():
                         f"{_serialize_date(row.get('check_in_date')) or 'date not set'} to "
                         f"{_serialize_date(row.get('check_out_date')) or 'date not set'}."
                     )
+                reference_prompt = (
+                    " Para sa partikular na booking, ipadala ang reference code nito (hal. INV-XXXXXXXX)."
+                    if is_tagalog else
+                    " To check a specific booking, send its reference code (for example, INV-XXXXXXXX)."
+                )
                 return jsonify({
-                    "messages": ["Here are your latest reservations: " + " ".join(status_lines)],
+                    "messages": [
+                        ("Narito ang pinakabago mong reservation: " if is_tagalog else "Here are your latest reservations: ")
+                        + " ".join(status_lines)
+                        + reference_prompt
+                    ],
                     "source": "innova-assistant",
                 }), 200
             return jsonify({
-                "messages": ["I couldn't find a reservation on your account. You can start a booking from Vision Suites."],
+                "messages": [
+                    (
+                        f"Wala akong mahanap na reservation na may reference na {booking_reference} sa account mo."
+                        if booking_reference else
+                        "Wala akong mahanap na reservation sa account mo. Pumili ng kuwarto at mag-book sa /vision-suites."
+                    )
+                    if is_tagalog else
+                    (
+                        f"I couldn't find reservation {booking_reference} on your account."
+                        if booking_reference else
+                        "I couldn't find a reservation on your account. You can start a booking at /vision-suites."
+                    )
+                ],
                 "source": "innova-assistant",
             }), 200
 
@@ -13171,14 +13515,33 @@ def chatbot_rasa_fallback():
 
         room_rows = []
         room_type_match = None
-        known_room_types = []
+        room_match_field = "room_type"
         if _table_exists(cur, "rooms"):
-            cur.execute("SELECT DISTINCT COALESCE(room_type, '') AS room_type FROM rooms ORDER BY room_type ASC")
-            known_room_types = [str(row.get("room_type") or "").strip() for row in (cur.fetchall() or []) if str(row.get("room_type") or "").strip()]
-            room_type_match = next((room_type for room_type in known_room_types if room_type.lower() in lower_msg), None)
+            descriptor_fields = ["room_type", "room_name"]
+            if _table_has_column(cur, "rooms", "bed_type"):
+                descriptor_fields.append("bed_type")
+            descriptor_select = ", ".join(
+                f"COALESCE({field}, '') AS {field}" for field in descriptor_fields
+            )
+            cur.execute(f"SELECT DISTINCT {descriptor_select} FROM rooms ORDER BY room_type ASC")
+            room_descriptors = []
+            for room in cur.fetchall() or []:
+                for field in descriptor_fields:
+                    label = str(room.get(field) or "").strip()
+                    if label and label.lower() not in {item[0].lower() for item in room_descriptors}:
+                        room_descriptors.append((label, field))
+            descriptor_match = next(
+                (
+                    (label, field, label.lower() not in lower_msg)
+                    for label, field in sorted(room_descriptors, key=lambda item: len(item[0]), reverse=True)
+                    if label.lower() in lower_msg or label.lower().split()[0] in lower_msg.split()
+                ),
+                (None, "room_type", False),
+            )
+            room_type_match, room_match_field, partial_room_match = descriptor_match
 
             room_query = """
-                SELECT room_name, room_type, price_per_night, amenities, max_adults, max_children
+                SELECT r.*
                 FROM rooms r
                 WHERE LOWER(COALESCE(status, '')) = 'available'
             """
@@ -13190,8 +13553,9 @@ def chatbot_rasa_fallback():
                 room_query += " AND (COALESCE(max_adults, 0) + COALESCE(max_children, 0)) >= %s"
                 room_params.append(requested_guests)
             if room_type_match:
-                room_query += " AND LOWER(COALESCE(room_type, '')) = LOWER(%s)"
-                room_params.append(room_type_match)
+                operator = "LIKE" if partial_room_match else "="
+                room_query += f" AND LOWER(COALESCE({room_match_field}, '')) {operator} LOWER(%s)"
+                room_params.append(f"%{room_type_match.split()[0]}%" if partial_room_match else room_type_match)
             if from_date and to_date:
                 room_query += """
                     AND NOT EXISTS (
@@ -13208,18 +13572,153 @@ def chatbot_rasa_fallback():
             cur.execute(room_query, tuple(room_params))
             room_rows = cur.fetchall() or []
 
-        if room_type_match or requested_guests or from_date or any(keyword in lower_msg for keyword in ["available", "availability", "room", "suite", "vacant"]):
+        asks_room_types = any(
+            phrase in lower_msg
+            for phrase in ("room types", "types of room", "types of rooms", "what rooms", "anong room", "anong klaseng kuwarto", "uri ng kuwarto")
+        )
+        if asks_room_types and _table_exists(cur, "rooms"):
+            type_query = """
+                SELECT DISTINCT room_type
+                FROM rooms
+                WHERE LOWER(COALESCE(status, '')) = 'available'
+                  AND COALESCE(room_type, '') <> ''
+            """
+            type_params = []
+            if selected_hotel_id:
+                type_query += " AND hotel_id = %s"
+                type_params.append(selected_hotel_id)
+            type_query += " ORDER BY room_type"
+            cur.execute(type_query, tuple(type_params))
+            available_types = [str(row.get("room_type")) for row in cur.fetchall() or []]
+            if available_types:
+                replies.append(
+                    ("May available na room types na " if is_tagalog else "Available room types include ")
+                    + ", ".join(available_types) + "."
+                )
+            else:
+                replies.append(
+                    "Wala akong nakitang room type na available ngayon."
+                    if is_tagalog else
+                    "I couldn't find any available room types right now."
+                )
+
+        duration_hours = _extract_chat_duration_hours(message)
+        asks_rate = any(keyword in lower_msg for keyword in ("price", "rate", "rates", "budget", "cheap", "expensive", "cost", "magkano", "presyo"))
+        room_inquiry = room_type_match or requested_guests or from_date or any(
+            keyword in lower_msg
+            for keyword in ("room", "suite", "vacant", "kuwarto", "kwarto", "silid", "bakante")
+        )
+        if room_inquiry or asks_rate or duration_hours:
             if room_rows:
                 room_lines = []
+                asks_weekend_rate = any(keyword in lower_msg for keyword in ("weekend", "week-end", "saturday", "sunday", "sabado", "linggo"))
+                asks_weekday_rate = any(keyword in lower_msg for keyword in ("weekday", "week day", "monday", "tuesday", "wednesday", "thursday", "friday", "lunes", "martes", "miyerkules", "huwebes", "biyernes"))
                 for row in room_rows:
                     capacity = max(_to_int(row.get("max_adults"), 0) + _to_int(row.get("max_children"), 0), 1)
+                    if duration_hours:
+                        rate_column = f"rate_{duration_hours}_hours"
+                        weekend_column = f"weekend_rate_{duration_hours}_hours"
+                    else:
+                        rate_column = "price_per_night"
+                        weekend_column = "weekend_rate"
+                    weekday_rate = _to_float(row.get(rate_column), 0)
+                    weekend_rate = _to_float(row.get(weekend_column), 0)
+                    day_rates_enabled = bool(row.get("use_day_rates"))
+                    if not duration_hours:
+                        weekday_rate = _to_float(row.get("price_per_night"), 0)
+                        weekend_rate = _to_float(row.get("weekend_rate"), weekday_rate)
+
+                    if from_date:
+                        use_weekend = from_date.weekday() >= 5
+                    elif asks_weekend_rate:
+                        use_weekend = True
+                    elif asks_weekday_rate:
+                        use_weekend = False
+                    else:
+                        use_weekend = False
+
+                    if duration_hours and (weekday_rate <= 0 or (day_rates_enabled and weekend_rate <= 0)):
+                        price_description = (
+                            "walang nakasaad na rate para sa tagal na ito" if is_tagalog
+                            else "no rate is configured for this duration"
+                        )
+                    elif day_rates_enabled and not from_date and not asks_weekend_rate and not asks_weekday_rate:
+                        if is_tagalog:
+                            price_description = f"weekday PHP {weekday_rate:,.2f} / weekend PHP {weekend_rate:,.2f}"
+                        else:
+                            price_description = f"weekday PHP {weekday_rate:,.2f} / weekend PHP {weekend_rate:,.2f}"
+                        if row.get("owner_discount_type") and row.get("owner_discount_type") != "none":
+                            _, weekday_after_discount = _calculate_room_discount(
+                                weekday_rate, row.get("owner_discount_type"), row.get("owner_discount_value")
+                            )
+                            _, weekend_after_discount = _calculate_room_discount(
+                                weekend_rate, row.get("owner_discount_type"), row.get("owner_discount_value")
+                            )
+                            price_description += (
+                                f" (after discount: PHP {weekday_after_discount:,.2f} / PHP {weekend_after_discount:,.2f})"
+                            )
+                    elif not duration_hours and from_date and to_date:
+                        stay_pricing = _calculate_room_stay_pricing(
+                            from_date,
+                            to_date,
+                            _to_float(row.get("price_per_night"), 0),
+                            _to_float(row.get("weekend_rate"), _to_float(row.get("price_per_night"), 0)),
+                            row.get("owner_discount_type") or "none",
+                            _to_float(row.get("owner_discount_value"), 0),
+                            day_rates_enabled,
+                        )
+                        nights = max((to_date - from_date).days, 1)
+                        price_description = f"PHP {stay_pricing['subtotalAmount']:,.2f} total for {nights} night{'s' if nights != 1 else ''}"
+                        if stay_pricing["discountAmount"] > 0:
+                            price_description += f" (PHP {stay_pricing['discountAmount']:,.2f} room discount applied)"
+                    else:
+                        selected_rate = weekend_rate if day_rates_enabled and use_weekend else weekday_rate
+                        price_description = f"PHP {selected_rate:,.2f}"
+                        if row.get("owner_discount_type") and row.get("owner_discount_type") != "none":
+                            discount_amount, discounted_rate = _calculate_room_discount(
+                                selected_rate,
+                                row.get("owner_discount_type"),
+                                row.get("owner_discount_value"),
+                            )
+                            if discount_amount > 0:
+                                price_description += (
+                                    f" (PHP {discounted_rate:,.2f} pagkatapos ng room discount)"
+                                    if is_tagalog else
+                                    f" (PHP {discounted_rate:,.2f} after room discount)"
+                                )
+                    rate_unit = f"for {duration_hours} hours" if duration_hours else "per night"
+                    if not duration_hours and from_date and to_date:
+                        rate_unit = ""
+                    if is_tagalog:
+                        rate_unit = f"sa loob ng {duration_hours} oras" if duration_hours else "bawat gabi"
+                        if not duration_hours and from_date and to_date:
+                            rate_unit = ""
                     room_lines.append(
-                        f"{row.get('room_name') or row.get('room_type') or 'Suite'} - PHP {int(_to_float(row.get('price_per_night'), 0)):,}/night for up to {capacity} guest{'s' if capacity != 1 else ''}"
+                        f"{row.get('room_name') or row.get('room_type') or 'Suite'} - {price_description} {rate_unit}; "
+                        + (f"hanggang {capacity} bisita" if is_tagalog else f"up to {capacity} guest{'s' if capacity != 1 else ''}")
                     )
                 availability_context = f" from {from_date.isoformat()} to {to_date.isoformat()}" if from_date and to_date else ""
-                replies.append(f"Available room matches{availability_context}: " + "; ".join(room_lines))
-                if not (from_date and to_date):
-                    replies.append("Share your check-in and check-out dates if you want me to check availability for your exact stay.")
+                if asks_rate and not room_inquiry:
+                    prefix = "Mga rate ng kuwarto" if is_tagalog else "Room rates"
+                else:
+                    prefix = "Mga available na kuwarto" if is_tagalog else "Available room matches"
+                if is_tagalog:
+                    availability_context = f" mula {from_date.isoformat()} hanggang {to_date.isoformat()}" if from_date and to_date else ""
+                    replies.append(prefix + availability_context + ": " + "; ".join(room_lines))
+                else:
+                    replies.append(f"{prefix}{availability_context}: " + "; ".join(room_lines))
+                if asks_rate:
+                    replies.append(
+                        "Maaaring may buwis at eligible account discount pa sa final total; kumpirmahin ang eksaktong halaga sa booking page."
+                        if is_tagalog else
+                        "Taxes and eligible account discounts may affect the final total; confirm the exact amount on the booking page."
+                    )
+                if room_inquiry and not (from_date and to_date):
+                    replies.append(
+                        "Ibigay ang check-in at check-out dates para masuri ko ang availability sa eksaktong stay mo."
+                        if is_tagalog else
+                        "Share your check-in and check-out dates if you want me to check availability for your exact stay."
+                    )
             else:
                 filters = []
                 if room_type_match:
@@ -13229,59 +13728,88 @@ def chatbot_rasa_fallback():
                 if from_date and to_date:
                     filters.append(f"{from_date.isoformat()} to {to_date.isoformat()}")
                 request_details = f" for {' and '.join(filters)}" if filters else ""
-                replies.append(f"I couldn't find an available room{request_details}. Try different dates, fewer guests, or another room type.")
-
-        if any(keyword in lower_msg for keyword in ["price", "rate", "rates", "budget", "cheap", "expensive", "cost"]):
-            if room_rows:
-                cheapest = room_rows[0]
                 replies.append(
-                    f"The current starting rate is PHP {int(_to_float(cheapest.get('price_per_night'), 0)):,} per night for {cheapest.get('room_name') or cheapest.get('room_type') or 'an available room'}."
+                    f"Wala akong mahanap na available na kuwarto{request_details}. Subukan ang ibang petsa, mas kaunting bisita, o ibang uri ng kuwarto."
+                    if is_tagalog else
+                    f"I couldn't find an available room{request_details}. Try different dates, fewer guests, or another room type."
                 )
-            else:
-                replies.append("I cannot confirm a live room rate right now, but the booking page will still show the latest price before checkout.")
 
-        if any(keyword in lower_msg for keyword in ["amenity", "amenities", "facility", "facilities", "feature", "features"]):
+        if asks_rate and not room_rows:
+            replies.append(
+                "Hindi ko makumpirma ang kasalukuyang presyo ngayon. Ipapakita sa booking page ang pinakabagong rate bago magbayad."
+                if is_tagalog else
+                "I cannot confirm a live room rate right now, but the booking page will show the latest price before checkout."
+            )
+
+        if any(keyword in lower_msg for keyword in ["amenity", "amenities", "facility", "facilities", "feature", "features", "wifi", "wi-fi", "aircon", "air-conditioning", "libreng", "kasama ba", "included", "includes"]):
             amenity_labels = []
             for row in room_rows:
                 for amenity in (_parse_text_array(row.get("amenities")) or [])[:6]:
                     if amenity not in amenity_labels:
                         amenity_labels.append(amenity)
             if amenity_labels:
-                replies.append("Popular room amenities include " + ", ".join(amenity_labels[:6]) + ".")
+                replies.append(
+                    ("Kabilang sa mga amenity ng kuwarto ang " if is_tagalog else "Room amenities include ")
+                    + ", ".join(amenity_labels[:6]) + "."
+                )
             else:
-                replies.append("Amenities vary by room, and you can review each room card in Vision Suites for the latest inclusions.")
+                replies.append(
+                    "Nag-iiba ang amenities kada kuwarto. Tingnan ang detalye ng bawat room card sa Vision Suites."
+                    if is_tagalog else
+                    "Amenities vary by room. Review each room card in Vision Suites for the latest inclusions."
+                )
 
-        if any(keyword in lower_msg for keyword in ["policy", "check-in", "check in", "check-out", "check out", "cancel", "refund"]):
+        if any(keyword in lower_msg for keyword in ["policy", "check-in", "check in", "check-out", "check out", "cancel", "refund", "patakaran", "kansela", "oras ng check", "check in time", "check out time"]):
             policy_parts = []
             if hotel.get("check_in_policy"):
-                policy_parts.append(f"Check-in: {hotel.get('check_in_policy')}")
+                policy_parts.append(f"{'Pag-check-in' if is_tagalog else 'Check-in'}: {hotel.get('check_in_policy')}")
             if hotel.get("check_out_policy"):
-                policy_parts.append(f"Check-out: {hotel.get('check_out_policy')}")
+                policy_parts.append(f"{'Pag-check-out' if is_tagalog else 'Check-out'}: {hotel.get('check_out_policy')}")
             if hotel.get("cancellation_policy"):
-                policy_parts.append(f"Cancellation: {hotel.get('cancellation_policy')}")
+                policy_parts.append(f"{'Pagkansela' if is_tagalog else 'Cancellation'}: {hotel.get('cancellation_policy')}")
             if policy_parts:
-                replies.append("Hotel policies: " + " | ".join(policy_parts))
+                replies.append(("Mga patakaran ng hotel: " if is_tagalog else "Hotel policies: ") + " | ".join(policy_parts))
             else:
-                replies.append("Policy details are not fully configured yet, but the booking page will show the latest check-in, check-out, and cancellation rules.")
+                replies.append(
+                    "Hindi pa kumpleto ang nakatalang patakaran. Makikita sa booking page ang pinakabagong check-in, check-out, at cancellation rules."
+                    if is_tagalog else
+                    "Policy details are not fully configured yet, but the booking page will show the latest check-in, check-out, and cancellation rules."
+                )
 
-        if any(keyword in lower_msg for keyword in ["where", "location", "located", "address", "map", "direction", "directions"]):
+        if any(keyword in lower_msg for keyword in ["where", "location", "located", "address", "map", "direction", "directions", "saan", "nasaan", "lokasyon", "direksyon"]):
             hotel_name = hotel.get("hotel_name") or "the hotel"
             hotel_address = hotel.get("hotel_address") or "the property address is still being updated"
-            replies.append(f"{hotel_name} is located at {hotel_address}. You can also open Vision Suites for the live map and nearby landmarks.")
+            replies.append(
+                f"Matatagpuan ang {hotel_name} sa {hotel_address}. Buksan ang Vision Suites para makita ang mapa at mga kalapit na lugar."
+                if is_tagalog else
+                f"{hotel_name} is located at {hotel_address}. You can also open Vision Suites for the live map and nearby landmarks."
+            )
 
-        if any(keyword in lower_msg for keyword in ["contact", "phone", "call", "email", "support"]):
+        if any(keyword in lower_msg for keyword in ["contact", "phone", "call", "email", "support", "kontak", "tawagan", "numero"]):
             if hotel.get("contact_phone"):
-                replies.append(f"You can contact the hotel at {hotel.get('contact_phone')}.")
+                replies.append(
+                    f"Maaari mong tawagan ang hotel sa {hotel.get('contact_phone')}."
+                    if is_tagalog else
+                    f"You can contact the hotel at {hotel.get('contact_phone')}."
+                )
             else:
-                replies.append("Direct hotel contact details are still being updated in the system. You can continue through the booking page or ask for room guidance here.")
+                replies.append(
+                    "Ina-update pa ang direktang contact details ng hotel. Maaari kang magpatuloy sa booking page o magtanong sa akin tungkol sa mga kuwarto."
+                    if is_tagalog else
+                    "Direct hotel contact details are still being updated. You can continue through the booking page or ask me about rooms."
+                )
 
-        if any(keyword in lower_msg for keyword in ["about", "hotel", "property", "vision suites", "innova"]):
+        if any(keyword in lower_msg for keyword in ["about", "vision suites", "innova", "tungkol sa hotel", "ano ang hotel"]):
             hotel_name = hotel.get("hotel_name") or "Innova Vision Suites"
             hotel_desc = hotel.get("hotel_description") or "This property is part of the Innova HMS hospitality experience with live room browsing, booking, and guest support."
-            if not replies or "available room" not in " ".join(replies).lower():
-                replies.append(f"{hotel_name}: {hotel_desc}")
+            if not replies or "available room" not in " ".join(replies).lower() and "available na kuwarto" not in " ".join(replies).lower():
+                replies.append(
+                    f"{hotel_name}: {hotel_desc}"
+                    if not is_tagalog else
+                    f"{hotel_name}: {hotel_desc}"
+                )
 
-        if any(keyword in lower_msg for keyword in ["promo", "offer", "discount", "deal"]):
+        if any(keyword in lower_msg for keyword in ["promo", "offer", "discount", "deal", "promosyon", "diskwento", "promo ba"]):
             if _table_exists(cur, "guest_offers"):
                 cur.execute(
                     """
@@ -13302,34 +13830,162 @@ def chatbot_rasa_fallback():
                             offer_lines.append(
                                 f"{row.get('title') or 'Special Offer'} (PHP {int(_to_float(row.get('discounted_price'), 0)):,})"
                             )
-                    replies.append("Latest offers: " + "; ".join(offer_lines))
-            if not any("Latest offers:" in reply for reply in replies):
-                replies.append("Promo data is limited right now, but I can still help you compare rooms and rates.")
+                    replies.append(
+                        ("Mga kasalukuyang alok: " if is_tagalog else "Latest offers: ")
+                        + "; ".join(offer_lines)
+                    )
+            if not any("Latest offers:" in reply or "Mga kasalukuyang alok:" in reply for reply in replies):
+                replies.append(
+                    "Wala akong makita na kasalukuyang promo. Matutulungan pa rin kitang magkumpara ng mga kuwarto at presyo."
+                    if is_tagalog else
+                    "I can't find a current promotion right now, but I can help compare rooms and rates."
+                )
 
-        if any(keyword in lower_msg for keyword in ["membership", "privilege", "reward", "rewards", "points"]):
-            replies.append("Customer privilege plans add booking discounts, bonus points, and renewal tracking. You can open the Privileges page to compare active tiers.")
+        if any(keyword in lower_msg for keyword in ["membership", "privilege", "reward", "rewards", "points", "puntos", "gantimpala", "loyalty"]):
+            if any(keyword in lower_msg for keyword in ("my points", "my rewards", "points ko", "puntos ko", "ilan na ang points", "loyalty points", "tier ko")):
+                if not customer_id:
+                    replies.append(
+                        "Mag-sign in sa guest account para makita ang loyalty points at tier mo. Pumunta sa /login."
+                        if is_tagalog else
+                        "Sign in to your guest account to view your loyalty points and tier. Go to /login."
+                    )
+                else:
+                    summary = _build_customer_membership_summary(cur, customer_id)
+                    if summary:
+                        replies.append(
+                            f"Mayroon kang {summary['points']} loyalty points at {summary['tier']} tier."
+                            if is_tagalog else
+                            f"You have {summary['points']} loyalty points and are in the {summary['tier']} tier."
+                        )
+                    else:
+                        replies.append(
+                            "Wala akong mahanap na guest account para sa loyalty summary."
+                            if is_tagalog else
+                            "I couldn't find a guest account for that loyalty summary."
+                        )
+            else:
+                replies.append(
+                    "Nagbibigay ang customer privilege plans ng booking discounts at points ayon sa mga nakasaad na benepisyo. Buksan ang /privileges para ikumpara ang mga tier."
+                    if is_tagalog else
+                    "Customer privilege plans offer booking discounts and points according to their listed benefits. Open /privileges to compare the tiers."
+                )
 
-        if any(keyword in lower_msg for keyword in ["payment", "pay", "card", "gcash", "maya", "qr", "paymongo"]):
-            replies.append("Current booking payments support cash on arrival, QR Ph, and card checkout. Online payments run through the platform payment gateway when enabled.")
+        if any(keyword in lower_msg for keyword in ["payment", "pay", "card", "gcash", "maya", "qr", "paymongo", "bayad", "magbayad", "tumatanggap"]):
+            if any(keyword in lower_msg for keyword in ("gcash", "maya")):
+                replies.append(
+                    "Available sa booking options ang cash pagdating, QR Ph, at card checkout. Hindi ko makumpirma kung direktang available ang GCash o Maya; tingnan ang mga opsyon sa checkout."
+                    if is_tagalog else
+                    "Booking options include cash on arrival, QR Ph, and card checkout. I can't confirm direct GCash or Maya support; check the payment options shown at checkout."
+                )
+            else:
+                replies.append(
+                    "Batay sa kasalukuyang booking options, puwedeng magbayad ng cash pagdating, QR Ph, o card checkout. Ipapakita sa checkout kung available ang online payment."
+                    if is_tagalog else
+                    "Current booking options support cash on arrival, QR Ph, and card checkout. The checkout page shows whether online payment is enabled."
+                )
 
-        if any(keyword in lower_msg for keyword in ["360", "tour", "virtual"]):
-            replies.append("You can open a 360 tour from the Home room cards or from Vision Suites using the 'Explore 360' button.")
+        if any(keyword in lower_msg for keyword in ["360", "tour", "virtual", "libot"]):
+            replies.append(
+                "Makakakita ka ng 360 tour sa room cards sa Home o sa Vision Suites gamit ang 'Explore 360' button."
+                if is_tagalog else
+                "Open a 360 tour from the room cards on Home or in Vision Suites using the 'Explore 360' button."
+            )
 
-        if any(keyword in lower_msg for keyword in ["booking", "reserve", "reservation", "book now"]):
-            replies.append("To reserve, open any room card and click Reserve. The booking flow will calculate your room total, VAT, taxes, and any active privilege discount before payment.")
+        asks_cancel_booking = any(
+            keyword in lower_msg for keyword in ("cancel", "cancellation", "kansela", "kanselahin", "mag-cancel")
+        )
+        if asks_cancel_booking:
+            if customer_id:
+                replies.append(
+                    "Buksan ang /customer/bookings at tingnan ang booking details para sa cancellation options. Depende sa status ng reservation at patakaran ng hotel ang eligibility."
+                    if is_tagalog else
+                    "Open /customer/bookings and review your booking details for cancellation options. Eligibility depends on the reservation status and hotel policy."
+                )
+            else:
+                replies.append(
+                    "Mag-sign in sa /login, pagkatapos buksan ang My Bookings para makita ang cancellation options ng reservation mo."
+                    if is_tagalog else
+                    "Sign in at /login, then open My Bookings to review cancellation options for your reservation."
+                )
+
+        if not asks_cancel_booking and any(keyword in lower_msg for keyword in ["booking", "reserve", "reservation", "book now", "mag-book", "magbook", "mag-reserve", "magreserve", "paano mag-book", "paano mag reserve", "paano mag-reserve"]):
+            replies.append(
+                "Para mag-book: (1) buksan ang /vision-suites, (2) pumili ng kuwarto at petsa, (3) ilagay ang bilang ng bisita at detalye ng guest, at (4) repasuhin ang total bago kumpirmahin at magbayad."
+                if is_tagalog else
+                "To book: (1) open /vision-suites, (2) choose a room and dates, (3) enter the guest count and guest details, and (4) review the total before confirming and paying."
+            )
+
+        if any(phrase in lower_msg for phrase in ("who are you", "your name", "sino ka", "pangalan mo")):
+            replies.append(
+                "Ako si Nova, ang virtual assistant ng INNOVA-HMS. Matutulungan kita sa mga kuwarto, booking, presyo, amenities, at mga patakaran ng hotel."
+                if is_tagalog else
+                "I'm Nova, the INNOVA-HMS virtual assistant. I can help with rooms, bookings, rates, amenities, and hotel policies."
+            )
+
+        if any(phrase in lower_msg for phrase in ("thank you", "thanks", "salamat")):
+            replies.append(
+                "Walang anuman! Nandito lang ako kung may iba ka pang tanong tungkol sa stay mo."
+                if is_tagalog else
+                "You're welcome! I'm here if you have any other questions about your stay."
+            )
+
+        if any(keyword in lower_msg for keyword in ["parking", "pet", "pets", "dog", "cat", "aso", "pusa", "extra bed", "extra towel", "folding bed", "dagdag na kama", "tuwalya", "parking ba", "pet ba"]):
+            replies.append(
+                "Hindi kumpirmado sa system ang detalye tungkol sa parking, pets, extra bed, o dagdag na tuwalya. Makipag-ugnayan muna sa hotel bago mag-book para makumpirma ang availability at patakaran."
+                if is_tagalog else
+                "The system doesn't have confirmed details about parking, pets, extra beds, or extra towels. Please contact the hotel before booking to confirm availability and policy."
+            )
+
+        if any(keyword in lower_msg for keyword in ["breakfast", "restaurant", "pool", "spa", "gym", "luggage", "room service", "wheelchair", "accessible", "smoking", "airport", "shuttle", "transportation", "agahan", "hapunan", "tanghalian"]):
+            replies.append(
+                "Wala pang kumpirmadong detalye sa system tungkol sa breakfast, restaurant, pool, gym, accessibility, transportasyon, o serbisyong nabanggit. Makipag-ugnayan muna sa hotel para makumpirma."
+                if is_tagalog else
+                "The system doesn't have confirmed details about breakfast, restaurants, pools, gyms, accessibility, transportation, or the service you mentioned. Please contact the hotel to confirm."
+            )
+
+        if any(keyword in lower_msg for keyword in ["review", "reviews", "rating", "ratings", "feedback", "rating ninyo"]):
+            replies.append(
+                "Makikita ang reviews at ratings ng guest sa Reviews section ng Home page."
+                if is_tagalog else
+                "You can view guest reviews and ratings in the Reviews section on the Home page."
+            )
+
+        if any(keyword in lower_msg for keyword in ["feature", "features", "what can you do", "services"]):
+            replies.append(
+                "Sa INNOVA-HMS, maaari kang tumingin ng mga kuwarto, maghambing ng rates at amenities, mag-book, at mag-explore ng 360 tour kung available."
+                if is_tagalog else
+                "INNOVA-HMS lets you browse rooms, compare listed rates and amenities, make bookings, and explore 360 tours where available."
+            )
+
+        if any(keyword in lower_msg for keyword in ("digital key", "qr key")):
+            if not customer_id:
+                replies.append(
+                    "Mag-sign in sa /login at buksan ang Customer Dashboard para tingnan ang Digital Key card. Magiging available lang ito kapag may active at confirmed booking ka."
+                    if is_tagalog else
+                    "Sign in at /login and open your Customer Dashboard to check the Digital Key card. It becomes available when you have an active, confirmed booking."
+                )
+            else:
+                replies.append(
+                    "Buksan ang /customer/dashboard at tingnan ang Digital Key card. Kailangan ng active at confirmed booking; hindi ko ma-verify ang key activation mula sa chat na ito."
+                    if is_tagalog else
+                    "Open /customer/dashboard and check the Digital Key card. An active, confirmed booking is required; I can't verify key activation from this chat."
+                )
 
         if not replies:
-            greeting = "Hello"
-            if customer_id:
-                greeting = f"Hello guest #{customer_id}"
-            page_hint = " on Vision Suites" if "vision-suites" in context_path else ""
-            replies = [
-                f"{greeting}, I can help with hotel details, room availability, prices, amenities, policies, payments, and bookings{page_hint}. What would you like to know?"
-            ]
+            if is_tagalog:
+                page_hint = " dito sa Vision Suites" if "vision-suites" in context_path else ""
+                replies = [
+                    f"Kumusta! Ako si Nova, ang virtual assistant ng INNOVA-HMS. Matutulungan kita sa mga kuwarto, presyo, amenities, patakaran, bayad, at booking{page_hint}. Ano ang maitutulong ko?"
+                ]
+            else:
+                page_hint = " on Vision Suites" if "vision-suites" in context_path else ""
+                replies = [
+                    f"Hi! I'm Nova, the INNOVA-HMS virtual assistant. I can help with rooms, rates, amenities, hotel policies, payments, and bookings{page_hint}. What would you like to know?"
+                ]
 
         return jsonify({
             "messages": replies,
-            "source": "fallback",
+            "source": "innova-assistant",
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500

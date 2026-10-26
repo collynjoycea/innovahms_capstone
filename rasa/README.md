@@ -8,6 +8,8 @@ This folder contains the real Rasa chatbot project for the customer dashboard.
 - Smart reservation assistance before opening the booking form
 - NLU support for intent recognition and entity extraction
 - CRM/guest experience support through customer-aware custom actions
+- English, Tagalog, and Taglish concierge responses
+- Property-specific amenities, rates, and policies are never guessed when data is missing
 
 ## Main Intents
 
@@ -94,8 +96,17 @@ $env:RASA_WEBHOOK_URL="http://127.0.0.1:5005/webhooks/rest/webhook"
 
 ## Suggested Test Messages
 
-- `May pool ba kayo?`
+- `How much is a Queen room for 6 hours?`
+- `Magkano ang 3 oras na stay sa Single Bed room?`
+- `Do you have weekend rates for a Deluxe room?`
+- `May bakante pa bang room ngayong gabi?`
 - `How many rooms are available for 2 guests on 2026-03-25?`
-- `I want to book a deluxe room for 3 guests`
+- `Paano mag-book ng kuwarto?`
+- `Gusto ko sana i-check ang status ng booking ko.`
+- `What payment methods do you accept?`
+- `Anong oras ang check-in at check-out?`
+- `Do you allow pets inside the rooms?`
 - `How can I access my digital key?`
 - `How many loyalty points do I have?`
+
+Train the model after changing domain, rules, stories, or NLU examples with `rasa train`.

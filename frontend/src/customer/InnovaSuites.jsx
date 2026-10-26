@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, MessageCircle, X, Search, Sparkles, Send } from "lucide-react";
 import Marzipano from "marzipano";
 import resolveImg from "../utils/resolveImg";
+import RoomDiscountBadge from "../components/RoomDiscountBadge";
 
 const php = (value) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(
@@ -536,6 +537,11 @@ export default function InnovaSuites() {
                   <div className="absolute top-3 left-3 rounded-md bg-zinc-950/80 px-3 py-1 text-[10px] font-semibold text-zinc-300 uppercase tracking-wider backdrop-blur-md">
                     {room.viewPreference || room.type || "Suite"}
                   </div>
+                  <RoomDiscountBadge
+                    discountType={room.ownerDiscountType ?? room.owner_discount_type}
+                    discountValue={room.ownerDiscountValue ?? room.owner_discount_value}
+                    className="absolute right-3 top-3"
+                  />
                   <button
                     type="button"
                     onClick={() => openTour(room)}

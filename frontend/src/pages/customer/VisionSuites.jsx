@@ -19,6 +19,7 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import Marzipano from "marzipano";
 import resolveImg from "../../utils/resolveImg";
+import RoomDiscountBadge from "../../components/RoomDiscountBadge";
 import { extractCustomerSession } from "../../customer/customerHelpers";
 
 const php = (value) =>
@@ -1133,6 +1134,11 @@ export default function VisionSuites() {
                         alt={roomDisplayName}
                         onError={(e) => { e.currentTarget.src = "/images/deluxe-room.jpg"; }}
                         className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                      <RoomDiscountBadge
+                        discountType={room.ownerDiscountType ?? room.owner_discount_type}
+                        discountValue={room.ownerDiscountValue ?? room.owner_discount_value}
+                        className="absolute right-2 top-2"
                       />
                       <div className="absolute top-2 left-2 bg-[#1F6F5F] text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded shadow">
                         {room.hotelName || hotel?.name || "Vision Suite"}

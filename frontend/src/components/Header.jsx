@@ -15,6 +15,7 @@ import {
   User,
   X,
 } from "lucide-react";
+import { resolveImg } from "../utils/resolveImg";
 
 const NAV_LINKS = [
   { label: "Home", path: "/" },
@@ -113,6 +114,7 @@ export default function Header() {
           setUser({
             ...normalized,
             displayName: normalized.firstName || normalized.first_name || normalized.name || "Guest",
+            profileImage: normalized.profileImage || normalized.profile_image || normalized.picture || "",
             isStaff: false,
           });
           return;
@@ -292,7 +294,7 @@ export default function Header() {
                 >
                   <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-current/20 bg-white/20 shrink-0">
                     {user.profileImage
-                      ? <img src={user.profileImage} alt={user.displayName} className="h-full w-full object-cover" />
+                      ? <img src={resolveImg(user.profileImage)} alt={user.displayName} className="h-full w-full object-cover" />
                       : user.isStaff ? <Briefcase size={13} /> : <User size={13} />
                     }
                   </span>
