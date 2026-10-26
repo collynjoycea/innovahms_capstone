@@ -54,7 +54,6 @@ const HotelManagerSidebar = ({ isDarkMode }) => {
       title: "ADMINISTRATION",
       items: [
         { name: "Executive Reports", path: "/manager/reports", icon: <FileText /> },
-        { name: "Profile", path: "/manager/profile", icon: <UserRound /> }
       ]
     }
   ];

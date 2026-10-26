@@ -7651,8 +7651,21 @@ def _build_owner_analytics_payload(cur, owner_id, hotel, period):
 
     forecast = _build_forecast_payload(reservations, total_rooms, period)
     forecast_horizon = forecast.get("horizon", 0)
-    projected_revenue = forecast.get("revenueSeries", [0])[-1] if forecast.get("revenueSeries") else 0
-    projected_occupancy = forecast.get("occupancySeries", [0])[-1] if forecast.get("occupancySeries") else 0
+    _rev_series = forecast.get("revenueSeries") or []
+    _occ_series = forecast.get("occupancySeries") or []
+    _history_len = len(_default_owner_period_labels(period))
+    # Use the first projected point (next period) for the forecast signals
+    projected_revenue = _rev_series[_history_len] if len(_rev_series) > _history_len else (_rev_series[-1] if _rev_series else 0)
+    projected_occupancy = _occ_series[_history_len] if len(_occ_series) > _history_len else (_occ_series[-1] if _occ_series else 0)
+    # Trend direction: compare last history point vs next projected point
+    _last_rev = _rev_series[_history_len - 1] if _history_len > 0 and len(_rev_series) >= _history_len else 0
+    _last_occ = _occ_series[_history_len - 1] if _history_len > 0 and len(_occ_series) >= _history_len else 0
+    _rev_trend = "up" if projected_revenue > _last_rev else ("down" if projected_revenue < _last_rev else "flat")
+    _occ_trend = "up" if projected_occupancy > _last_occ else ("down" if projected_occupancy < _last_occ else "flat")
+    _demand_total = sum(booking_series)
+    _demand_recent = sum(booking_series[-3:]) if len(booking_series) >= 3 else sum(booking_series)
+    _demand_prior = sum(booking_series[-6:-3]) if len(booking_series) >= 6 else sum(booking_series[:max(1, len(booking_series) - 3)])
+    _demand_trend = "up" if _demand_recent > _demand_prior else ("down" if _demand_recent < _demand_prior else "flat")
 
     guest_rows = []
     for guest in guest_ledger.values():
@@ -7729,6 +7742,12 @@ def _build_owner_analytics_payload(cur, owner_id, hotel, period):
         "forecastedRevenuePhp": round(projected_revenue, 2),
         "forecastedOccupancyRate": round(projected_occupancy, 2),
         "forecastHorizon": forecast_horizon,
+        "revenueTrend": _rev_trend,
+        "occupancyTrend": _occ_trend,
+        "demandTotal": _demand_total,
+        "demandTrend": _demand_trend,
+        "lastRevenuePhp": round(_last_rev, 2),
+        "lastOccupancyRate": round(_last_occ, 2),
     }
 
     return {
@@ -7782,6 +7801,17 @@ def _build_owner_staff_payload(cur, owner_id, hotel):
     cur.execute(query, tuple(params))
     rows = cur.fetchall() or []
 
+    # Build a set of staff IDs that have timed-in today (clock_in present, no clock_out yet)
+    timed_in_today = set()
+    if _table_exists(cur, "attendance"):
+        from datetime import datetime as _dt
+        today_ph = _dt.now(PH_TZ).date()
+        cur.execute(
+            "SELECT staff_id FROM attendance WHERE date = %s AND clock_in IS NOT NULL AND clock_out IS NULL",
+            (today_ph,),
+        )
+        timed_in_today = {r["staff_id"] for r in (cur.fetchall() or [])}
+
     staff = []
     active_count = 0
     role_counter = Counter()
@@ -7791,8 +7821,7 @@ def _build_owner_staff_payload(cur, owner_id, hotel):
             or f"{row.get('first_name') or ''} {row.get('last_name') or ''}".strip()
             or (row.get("email") or "Staff").split("@")[0]
         )
-        status_raw = str(row.get("status") or "").strip().lower()
-        on_shift = _is_truthy(row.get("is_on_duty")) or status_raw in {"active", "on_shift", "on duty", "on_duty"}
+        on_shift = row.get("id") in timed_in_today
         if on_shift:
             active_count += 1
         role = row.get("role") or "Staff"
@@ -8677,7 +8706,7 @@ def manager_add_staff(owner_id):
 
 def _is_schedulable_staff_role(role):
     normalized_role = re.sub(r"[^a-z]", "", str(role or "").lower())
-    return "frontdesk" in normalized_role or "housekeeping" in normalized_role
+    return "frontdesk" in normalized_role or "housekeeping" in normalized_role or "manager" in normalized_role
 
 
 def _parse_duty_schedule_input(data):
@@ -8693,12 +8722,24 @@ def _parse_duty_schedule_input(data):
     if staff_id <= 0 or shift_date < date.today() or shift_start == shift_end or not task_description or len(task_description) > 500:
         return None
 
+    raw_days = data.get("repeatDays")
+    repeat_days = []
+    if isinstance(raw_days, list):
+        for d in raw_days:
+            try:
+                day_int = int(d)
+                if 0 <= day_int <= 6:
+                    repeat_days.append(day_int)
+            except (TypeError, ValueError):
+                pass
+
     return {
         "staff_id": staff_id,
         "shift_date": shift_date,
         "shift_start": shift_start,
         "shift_end": shift_end,
         "task_description": task_description,
+        "repeat_days": repeat_days,
     }
 
 
@@ -8744,25 +8785,52 @@ def manager_create_duty_schedule(manager_id):
         if not _is_schedulable_staff_role(staff.get("role")):
             return jsonify({"error": "Duty schedules can only be assigned to Front Desk or Housekeeping staff."}), 400
 
-        cur.execute(
-            """
-            INSERT INTO staff_duty_schedules
-                (hotel_id, staff_id, shift_date, shift_start, shift_end, task_description)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id
-            """,
-            (
-                hotel.get("id"), schedule["staff_id"], schedule["shift_date"],
-                schedule["shift_start"], schedule["shift_end"], schedule["task_description"],
-            ),
-        )
-        schedule_id = cur.fetchone()["id"]
+        # Build list of dates to insert: always include shift_date, plus any repeat_days
+        # within the same Mon-Sun week as shift_date.
+        from datetime import timedelta as _td
+        base_date = schedule["shift_date"]
+        week_monday = base_date - _td(days=base_date.weekday())
+        dates_to_insert = {base_date}
+        for day_num in schedule.get("repeat_days", []):
+            dates_to_insert.add(week_monday + _td(days=day_num))
+        dates_to_insert = sorted(d for d in dates_to_insert if d >= date.today())
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS staff_duty_schedules (
+                id SERIAL PRIMARY KEY,
+                hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+                staff_id INTEGER NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+                shift_date DATE NOT NULL,
+                shift_start TIME NOT NULL,
+                shift_end TIME NOT NULL,
+                task_description VARCHAR(500) NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CHECK (shift_start <> shift_end)
+            )
+        """)
+        inserted_ids = []
+        for duty_date in dates_to_insert:
+            cur.execute(
+                """
+                INSERT INTO staff_duty_schedules
+                    (hotel_id, staff_id, shift_date, shift_start, shift_end, task_description)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    hotel.get("id"), schedule["staff_id"], duty_date,
+                    schedule["shift_start"], schedule["shift_end"], schedule["task_description"],
+                ),
+            )
+            inserted_ids.append(cur.fetchone()["id"])
         conn.commit()
 
         notification_id = _notify_staff_of_duty_schedule(schedule["staff_id"], staff.get("role"), schedule)
         return jsonify({
             "message": "Duty schedule assigned.",
-            "scheduleId": schedule_id,
+            "scheduleId": inserted_ids[0] if inserted_ids else None,
+            "scheduledDates": [d.isoformat() for d in dates_to_insert],
             "notificationSent": notification_id is not None,
         }), 201
     except Exception as e:
@@ -8788,6 +8856,20 @@ def manager_update_duty_schedule(manager_id, schedule_id):
         error_response, hotel = _manager_staff_context(cur, manager_id, mutation=True)
         if error_response:
             return error_response
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS staff_duty_schedules (
+                id SERIAL PRIMARY KEY,
+                hotel_id INTEGER NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+                staff_id INTEGER NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+                shift_date DATE NOT NULL,
+                shift_start TIME NOT NULL,
+                shift_end TIME NOT NULL,
+                task_description VARCHAR(500) NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CHECK (shift_start <> shift_end)
+            )
+        """)
 
         cur.execute(
             """
@@ -14077,10 +14159,24 @@ def staff_checkout_queue():
             ORDER BY r.check_out_date ASC
         """, hotel_params)
         rows = cur.fetchall() or []
+        reservation_ids = [row['id'] for row in rows]
+        # Fetch pending request charges per reservation
+        charges_by_res = {}
+        if reservation_ids:
+            cur.execute("""
+                SELECT reservation_id, COALESCE(SUM(total_charge), 0) AS charges
+                FROM guest_requests
+                WHERE reservation_id = ANY(%s) AND status NOT IN ('CANCELLED')
+                  AND total_charge > 0
+                GROUP BY reservation_id
+            """, (reservation_ids,))
+            for cr in cur.fetchall() or []:
+                charges_by_res[cr['reservation_id']] = _to_float(cr['charges'], 0)
         guests = []
         for row in rows:
             total = _to_float(row.get('total_amount'), 0)
             deposit = _to_float(row.get('deposit_amount'), 0)
+            req_charges = charges_by_res.get(row['id'], 0.0)
             guests.append({
                 'id': row['id'],
                 'bookingNumber': row['booking_number'],
@@ -14098,7 +14194,8 @@ def staff_checkout_queue():
                 'checkOutTime': str(row.get('check_out_time') or '12:00')[:5],
                 'totalAmount': total,
                 'deposit': deposit,
-                'balance': max(0, total - deposit),
+                'requestCharges': req_charges,
+                'balance': max(0, total + req_charges - deposit),
                 'paymentMethod': row.get('payment_method') or 'cash',
             })
         return jsonify({'guests': guests, 'total': len(guests)}), 200
@@ -15463,13 +15560,13 @@ def inv_add_item():
         cur.execute("""
             INSERT INTO inventory_items
               (hotel_id,sku_id,item_name,description,category,unit,supplier,supplier_id,
-               stock_level,min_stock,max_stock,reorder_point,unit_cost)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id,sku_id
+               stock_level,min_stock,max_stock,reorder_point,unit_cost,unit_price)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id,sku_id
         """, (d.get('hotelId'), d.get('skuId'), d.get('name'), d.get('description',''),
                d.get('category','General'), d.get('unit','pcs'), supplier_name, supplier_id,
                _to_int(d.get('stockLevel'),0), _to_int(d.get('minStock'),10),
                _to_int(d.get('maxStock'),100), _to_int(d.get('reorderPoint'),10),
-               _to_float(d.get('unitCost'),0)))
+               _to_float(d.get('unitCost'),0), _to_float(d.get('unitPrice'),0)))
         row = cur.fetchone(); conn.commit()
         return jsonify({'message': 'Item added.', 'id': row['id'], 'skuId': row['sku_id']}), 201
     except Exception as e:
@@ -15817,6 +15914,10 @@ def inv_receive_po(po_id):
         if not items:
             return jsonify({'error': 'This purchase order has no saved line items.'}), 400
 
+        # Build payment map: itemId -> amountPaid from request body
+        item_payments = {_to_int(p.get('itemId'), 0): _to_float(p.get('amountPaid'), 0)
+                         for p in (d.get('itemPayments') or []) if p.get('itemId')}
+        poi_cols = _table_columns(cur, 'purchase_order_items')
         for item in items:
             cur.execute("""
                 UPDATE inventory_items
@@ -15836,6 +15937,12 @@ def inv_receive_po(po_id):
                 po['hotel_id'], item['item_id'], item['quantity'], item['unit_cost'],
                 po['supplier'], po['po_number'], d.get('receivedBy', 'Staff'),
             ))
+            paid = item_payments.get(item['item_id'])
+            if paid is not None and 'amount_paid' in poi_cols:
+                cur.execute(
+                    "UPDATE purchase_order_items SET amount_paid=%s WHERE po_id=%s AND item_id=%s",
+                    (paid, po_id, item['item_id'])
+                )
         received_column = "received_date" if "received_date" in po_cols else "received_at"
         cur.execute(
             f"UPDATE purchase_orders SET status='RECEIVED', {received_column}=NOW(), updated_at=NOW() WHERE id=%s",
@@ -15980,6 +16087,8 @@ def _guest_request_payload(row):
         'startedAt': _serialize_date(row.get('started_at')),
         'deliveredAt': _serialize_date(row.get('delivered_at')),
         'stockLeft': row.get('stock_left'),
+        'unitPrice': _to_float(row.get('unit_price'), 0),
+        'totalCharge': _to_float(row.get('total_charge'), 0),
     }
 
 
@@ -16007,7 +16116,7 @@ def staff_inventory_options():
         hotel_id = request.args.get('hotel_id', type=int)
         conn = get_db_connection(); cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("""
-            SELECT id, item_name, category, stock_level, max_stock, unit
+            SELECT id, item_name, category, stock_level, max_stock, unit, unit_price
             FROM inventory_items
             WHERE (%s IS NULL OR hotel_id = %s)
             ORDER BY category, item_name
@@ -16016,6 +16125,7 @@ def staff_inventory_options():
             'id': r['id'], 'item_name': r['item_name'], 'category': r.get('category') or 'Other',
             'current_qty': r.get('stock_level') or 0, 'max_qty': r.get('max_stock') or 0,
             'unit': r.get('unit') or 'pcs',
+            'unit_price': _to_float(r.get('unit_price'), 0),
         } for r in cur.fetchall() or []]}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -16054,25 +16164,44 @@ def staff_guest_requests():
         if not guest:
             return jsonify({'error': 'Guest is not currently checked in at this hotel.'}), 400
         inventory_id = _to_int(data.get('inventory_id'), 0) or None
+        unit_price = 0.0
         if inventory_id:
-            cur.execute("SELECT id, item_name, stock_level FROM inventory_items WHERE id = %s AND hotel_id = %s", (inventory_id, hotel_id))
+            cur.execute("SELECT id, item_name, stock_level, unit_price FROM inventory_items WHERE id = %s AND hotel_id = %s", (inventory_id, hotel_id))
             item = cur.fetchone()
             if not item:
                 return jsonify({'error': 'Inventory item not found.'}), 404
             if quantity > item['stock_level']:
                 return jsonify({'error': f"Only {item['stock_level']} available in stock."}), 409
+            unit_price = _to_float(item.get('unit_price'), 0)
+        total_charge = round(unit_price * quantity, 2)
         status = 'RELAYED' if data.get('relay') else 'RECEIVED'
-        cur.execute("""
-            INSERT INTO guest_requests
-              (hotel_id, reservation_id, guest_name, room_number, inventory_id, item_name,
-               quantity, priority, notes, status, requested_by, relayed_by, relayed_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s = 'RELAYED' THEN NOW() END)
-            RETURNING id, room_number, item_name, quantity
-        """, (hotel_id, reservation_id,
-              f"{guest.get('first_name') or ''} {guest.get('last_name') or ''}".strip(),
-              guest['room_number'], inventory_id, item_name, quantity,
-              data.get('priority') or 'NORMAL', data.get('notes') or '', status,
-              data.get('requested_by'), data.get('requested_by'), status))
+        gr_cols = _table_columns(cur, 'guest_requests')
+        if 'unit_price' in gr_cols and 'total_charge' in gr_cols:
+            cur.execute("""
+                INSERT INTO guest_requests
+                  (hotel_id, reservation_id, guest_name, room_number, inventory_id, item_name,
+                   quantity, priority, notes, status, requested_by, relayed_by, relayed_at,
+                   unit_price, total_charge)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s = 'RELAYED' THEN NOW() END,%s,%s)
+                RETURNING id, room_number, item_name, quantity
+            """, (hotel_id, reservation_id,
+                  f"{guest.get('first_name') or ''} {guest.get('last_name') or ''}".strip(),
+                  guest['room_number'], inventory_id, item_name, quantity,
+                  data.get('priority') or 'NORMAL', data.get('notes') or '', status,
+                  data.get('requested_by'), data.get('requested_by'), status,
+                  unit_price, total_charge))
+        else:
+            cur.execute("""
+                INSERT INTO guest_requests
+                  (hotel_id, reservation_id, guest_name, room_number, inventory_id, item_name,
+                   quantity, priority, notes, status, requested_by, relayed_by, relayed_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s = 'RELAYED' THEN NOW() END)
+                RETURNING id, room_number, item_name, quantity
+            """, (hotel_id, reservation_id,
+                  f"{guest.get('first_name') or ''} {guest.get('last_name') or ''}".strip(),
+                  guest['room_number'], inventory_id, item_name, quantity,
+                  data.get('priority') or 'NORMAL', data.get('notes') or '', status,
+                  data.get('requested_by'), data.get('requested_by'), status))
         request_row = cur.fetchone()
         request_id = request_row['id']
         assigned_staff_ids = []

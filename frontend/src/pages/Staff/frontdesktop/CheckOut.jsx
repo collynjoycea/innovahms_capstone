@@ -192,7 +192,7 @@ export default function CheckOut() {
  <Clock size={10} /> {g.checkOutTime || '12:00'}
  </div>
  </td>
- <td className={`px-8 py-5 text-[11px] font-black ${text}`}>₱{Number(g.totalAmount).toLocaleString()}</td>
+ <td className={`px-8 py-5 text-[11px] font-black ${text}`}><p>₱{Number(g.totalAmount).toLocaleString()}</p>{g.requestCharges > 0 && <p className="text-[10px] font-bold text-amber-500">+₱{Number(g.requestCharges).toLocaleString()} requests</p>}</td>
  <td className="px-8 py-5">
  <span className={`text-xs font-black ${g.balance > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
  ₱{Number(g.balance).toLocaleString()}
@@ -242,7 +242,8 @@ export default function CheckOut() {
  <p className={`text-xs font-black ${selected.balance > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
  Balance: ₱{Number(selected.balance).toLocaleString()}
  </p>
- <p className={`text-[9px] ${sub}`}>Total: ₱{Number(selected.totalAmount).toLocaleString()}</p>
+ <p className={`text-[9px] ${sub}`}>Room: ₱{Number(selected.totalAmount).toLocaleString()}</p>
+                      {selected.requestCharges > 0 && <p className="text-[9px] font-bold text-amber-500">Requests: +₱{Number(selected.requestCharges).toLocaleString()}</p>}
  </div>
  </div>
 

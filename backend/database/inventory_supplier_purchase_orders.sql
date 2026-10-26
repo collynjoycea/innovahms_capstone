@@ -27,3 +27,13 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
     unit_cost NUMERIC(10,2) NOT NULL DEFAULT 0,
     UNIQUE (po_id, item_id)
 );
+
+-- Pricing columns added for item guest charges and PO payment tracking
+ALTER TABLE inventory_items
+    ADD COLUMN IF NOT EXISTS unit_price NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_items
+    ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(10,2);
+ALTER TABLE guest_requests
+    ADD COLUMN IF NOT EXISTS unit_price NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE guest_requests
+    ADD COLUMN IF NOT EXISTS total_charge NUMERIC(10,2) NOT NULL DEFAULT 0;

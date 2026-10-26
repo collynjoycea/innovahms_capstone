@@ -40,6 +40,7 @@ const Inventory = () => {
     stock_level: "",
     max_stock: "",
     reorder_point: "10",
+    unit_price: "",
   });
 
   const refreshInventory = async () => {
@@ -103,6 +104,7 @@ const Inventory = () => {
           stockLevel: Number(formData.stock_level || 0),
           maxStock: Number(formData.max_stock || 0),
           reorderPoint: Number(formData.reorder_point || 0),
+          unitPrice: Number(formData.unit_price || 0),
         }),
       });
 
@@ -121,6 +123,7 @@ const Inventory = () => {
         stock_level: "",
         max_stock: "",
         reorder_point: "10",
+        unit_price: "",
       });
       setIsAddModalOpen(false);
       refreshInventory();
@@ -236,6 +239,7 @@ const Inventory = () => {
                     <th className="p-3.5 font-semibold">Item & Supplier</th>
                     <th className="p-3.5 font-semibold">SKU ID</th>
                     <th className="p-3.5 font-semibold">Category</th>
+                    <th className="p-3.5 font-semibold">Price</th>
                     <th className="p-3.5 font-semibold">Stock Level</th>
                     <th className="p-3.5 font-semibold">Status</th>
                     <th className="p-3.5 font-semibold text-right">Action</th>
@@ -255,6 +259,9 @@ const Inventory = () => {
                         </td>
                         <td className="p-3.5 text-slate-600 dark:text-slate-400">
                           {item.category || "General"}
+                        </td>
+                        <td className="p-3.5 font-bold text-emerald-700 dark:text-emerald-400">
+                          {item.unit_price > 0 ? `₱${Number(item.unit_price).toLocaleString()}` : <span className="text-slate-400 font-normal">Free</span>}
                         </td>
                         <td className="p-3.5 w-48">
                           <div className="flex items-center justify-between mb-1">
@@ -393,6 +400,20 @@ const Inventory = () => {
                     className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100 outline-none"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Guest Price (₱) <span className="font-normal text-slate-400">— 0 = free</span></label>
+                <input
+                  type="number"
+                  name="unit_price"
+                  min="0"
+                  step="0.01"
+                  value={formData.unit_price}
+                  onChange={handleInputChange}
+                  placeholder="0.00"
+                  className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100 outline-none"
+                />
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2">

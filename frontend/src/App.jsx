@@ -64,6 +64,7 @@ import ManagerReservations from "./pages/Maneger/Reservations";
 import ManagerCustomers from "./pages/Maneger/Customers";
 import ManagerInventory from "./pages/Maneger/Inventory";
 import ManagerProfile from "./pages/Maneger/Profile";
+import ManagerMyShift from "./pages/Maneger/ManagerMyShift";
 
 
 // --- INVENTORY MODULES ---
@@ -346,6 +347,7 @@ function App() {
           <Route path="pricing" element={<ManagerSectionPlaceholder title="Dynamic Pricing" />} />
           <Route path="promotions" element={<ManagerSectionPlaceholder title="Promotions & Offers" />} />
           <Route path="staff" element={<ManagerStaff />} />
+          <Route path="my-shift" element={<ManagerMyShift />} />
           <Route path="reviews" element={<ManagerReviews />} />
           <Route path="housekeeping" element={<ManagerHousekeeping />} />
           <Route path="suppliers" element={<SupplierPurchaseOrders audience="manager" />} />

@@ -299,6 +299,7 @@ export default function GuestRequests() {
                   </td>
                   <td className="px-6 py-5">
                     <p className={`text-[11px] font-black ${text}`}>{r.quantity} × {r.itemName}</p>
+                    {r.totalCharge > 0 && <p className="text-[10px] font-bold text-amber-500 mt-0.5">₱{Number(r.totalCharge).toLocaleString()} charge</p>}
                     {r.notes && <p className={`text-[9px] italic mt-0.5 max-w-[220px] truncate ${sub}`}>"{r.notes}"</p>}
                     {r.status === 'UNAVAILABLE' && r.hkNote && (
                       <p className="text-[9px] font-bold text-red-400 mt-0.5 flex items-center gap-1"><AlertTriangle size={10} /> HK: {r.hkNote}</p>
@@ -379,6 +380,12 @@ export default function GuestRequests() {
                   <p className={`mt-2 text-[10px] font-bold flex items-center gap-1.5 ${isLow(selectedItem) ? 'text-red-500' : 'text-emerald-500'}`}>
                     <Package size={12} /> {selectedItem.current_qty}/{selectedItem.max_qty} {selectedItem.unit} in stock{isLow(selectedItem) ? ' — low stock' : ''}
                   </p>
+                )}
+                {selectedItem && selectedItem.unit_price > 0 && (
+                  <p className="mt-1 text-[10px] font-bold text-amber-500">₱{Number(selectedItem.unit_price).toLocaleString()} / {selectedItem.unit || 'unit'} — charged to guest</p>
+                )}
+                {selectedItem && selectedItem.unit_price === 0 && (
+                  <p className="mt-1 text-[10px] font-bold text-emerald-500">Free item</p>
                 )}
               </div>
 

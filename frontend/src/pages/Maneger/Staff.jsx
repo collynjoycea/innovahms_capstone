@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, Timer, Star, Plus, Search, 
-  Filter, Download, AlertCircle, CheckCircle2, X, Upload, Briefcase, Mail, User, Trash2, Calendar, Pencil
+  Filter, Download, AlertCircle, CheckCircle2, X, Upload, Briefcase, Mail, User, Trash2, Calendar, Pencil, ChevronLeft, ChevronRight, Clock
 } from 'lucide-react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
@@ -14,8 +14,17 @@ const getLocalDateString = (value = new Date()) => {
 };
 const isSchedulableStaff = (staff) => {
   const role = String(staff.role || '').toLowerCase().replace(/[^a-z]/g, '');
-  return role.includes('frontdesk') || role.includes('housekeeping');
+  return role.includes('frontdesk') || role.includes('housekeeping') || role.includes('manager');
 };
+const WEEK_DAYS = [
+  { label: 'Mon', value: 0 },
+  { label: 'Tue', value: 1 },
+  { label: 'Wed', value: 2 },
+  { label: 'Thu', value: 3 },
+  { label: 'Fri', value: 4 },
+  { label: 'Sat', value: 5 },
+  { label: 'Sun', value: 6 },
+];
 const newDutySchedule = () => ({
   scheduleId: null,
   staffId: '',
@@ -23,7 +32,8 @@ const newDutySchedule = () => ({
   shiftPreset: 'morning',
   shiftStart: '06:00',
   shiftEnd: '14:00',
-  taskDescription: ''
+  taskDescription: '',
+  repeatDays: []
 });
 
 const Staff = () => {
@@ -42,6 +52,12 @@ const Staff = () => {
   const [staffLoadError, setStaffLoadError] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+    return new Date(d.setDate(diff));
+  });
 
   // Form State for Adding Staff
   const [newStaff, setNewStaff] = useState({
@@ -120,8 +136,8 @@ const Staff = () => {
         salary: newStaff.salary
       });
       Swal.fire({
-        title: 'Success!',
-        text: 'New staff member has been added.',
+        title: 'Tagumpay!',
+        text: 'Naidagdag na ang bagong staff member.',
         icon: 'success',
         confirmButtonColor: '#047857',
         customClass: { popup: 'rounded-lg' }
@@ -132,8 +148,8 @@ const Staff = () => {
     } catch (err) {
       console.error(err);
       Swal.fire({
-        title: 'Failed',
-        text: 'Unable to save staff member.',
+        title: 'Nabigo',
+        text: 'Hindi ma-save ang staff member.',
         icon: 'error',
         confirmButtonColor: '#047857',
         customClass: { popup: 'rounded-lg' }
@@ -149,16 +165,17 @@ const Staff = () => {
         shiftDate: assignDuty.shiftDate,
         shiftStart: assignDuty.shiftStart,
         shiftEnd: assignDuty.shiftEnd,
-        taskDescription: assignDuty.taskDescription
+        taskDescription: assignDuty.taskDescription,
+        repeatDays: assignDuty.repeatDays || []
       };
       const response = assignDuty.scheduleId
         ? await axios.put(`/api/manager/staff/${resolvedManagerId}/duty-schedules/${assignDuty.scheduleId}`, payload)
         : await axios.post(`/api/manager/staff/${resolvedManagerId}/duty-schedules`, payload);
       Swal.fire({
-        title: assignDuty.scheduleId ? 'Schedule Updated' : 'Schedule Assigned',
+        title: assignDuty.scheduleId ? 'Na-update ang Schedule' : 'Na-assign ang Schedule',
         text: response.data.notificationSent
-          ? 'The staff member has been notified.'
-          : 'The schedule was saved, but the notification could not be created.',
+          ? 'Naabisuhan na ang staff member.'
+          : 'Na-save ang schedule, ngunit may problema sa abiso.',
         icon: response.data.notificationSent ? 'success' : 'warning',
         confirmButtonColor: '#047857',
         customClass: { popup: 'rounded-lg' }
@@ -169,8 +186,8 @@ const Staff = () => {
     } catch (err) {
       console.error(err);
       Swal.fire({
-        title: 'Failed',
-        text: err.response?.data?.error || 'Unable to save duty schedule. Please try again.',
+        title: 'Nabigo',
+        text: err.response?.data?.error || 'Hindi ma-save ang duty schedule. Subukan muli.',
         icon: 'error',
         confirmButtonColor: '#047857',
         customClass: { popup: 'rounded-lg' }
@@ -186,21 +203,22 @@ const Staff = () => {
       shiftPreset: 'custom',
       shiftStart: schedule.shiftStart,
       shiftEnd: schedule.shiftEnd,
-      taskDescription: schedule.taskDescription
+      taskDescription: schedule.taskDescription,
+      repeatDays: []
     } : newDutySchedule());
     setIsAssignModalOpen(true);
   };
 
   const handleDeleteStaff = async (staffId, staffName) => {
     Swal.fire({
-      title: `Delete ${staffName}?`,
-      text: "This action cannot be undone. The staff member will be removed from the directory.",
+      title: `Tanggalin si ${staffName}?`,
+      text: "Hindi na ito maibabalik. Ang staff member ay aalisin sa direktoryo.",
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626',
       cancelButtonColor: '#64748b',
-      confirmButtonText: 'Yes, Delete',
-      cancelButtonText: 'Cancel',
+      confirmButtonText: 'Oo, Tanggalin',
+      cancelButtonText: 'Kanselahin',
       customClass: {
         popup: 'rounded-lg border border-slate-200 dark:border-slate-800 dark:bg-slate-900',
         title: 'font-bold text-slate-900 dark:text-white text-base',
@@ -212,8 +230,8 @@ const Staff = () => {
         try {
           await axios.delete(`/api/manager/staff/${resolvedOwnerId}/${staffId}`);
           Swal.fire({
-            title: 'Deleted!',
-            text: 'Staff member has been removed.',
+            title: 'Tanggal!',
+            text: 'Naalis na ang staff member.',
             icon: 'success',
             confirmButtonColor: '#047857',
             customClass: { popup: 'rounded-lg' }
@@ -222,8 +240,8 @@ const Staff = () => {
         } catch (err) {
           console.error(err);
           Swal.fire({
-            title: 'Failed',
-            text: 'Unable to delete staff member.',
+            title: 'Nabigo',
+            text: 'Hindi matanggal ang staff member.',
             icon: 'error',
             confirmButtonColor: '#047857',
             customClass: { popup: 'rounded-lg' }
@@ -238,6 +256,35 @@ const Staff = () => {
     staff.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     staff.role.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Helper para makuha ang 7 araw ng kasalukuyang linggo simula Lunes
+  const getWeekDaysArray = (startDate) => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      days.push({
+        dateString: getLocalDateString(d),
+        dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        formattedDate: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      });
+    }
+    return days;
+  };
+
+  const currentWeekDays = getWeekDaysArray(currentWeekStart);
+
+  const handlePrevWeek = () => {
+    const d = new Date(currentWeekStart);
+    d.setDate(d.getDate() - 7);
+    setCurrentWeekStart(d);
+  };
+
+  const handleNextWeek = () => {
+    const d = new Date(currentWeekStart);
+    d.setDate(d.getDate() + 7);
+    setCurrentWeekStart(d);
+  };
 
   if (loading) return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 dark:bg-slate-950">
@@ -362,34 +409,117 @@ const Staff = () => {
           </div>
         </div>
 
-        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm mb-6">
-          <div className="flex items-center justify-between mb-4 border-b border-slate-200 dark:border-slate-800 pb-3">
-            <h3 className="font-bold text-sm text-slate-900 dark:text-white">Upcoming Duty Schedules</h3>
-            <span className="text-[10px] font-semibold text-slate-500">{dutySchedules.length} scheduled</span>
-          </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-            {dutySchedules.length ? dutySchedules.map((schedule) => (
-              <div key={schedule.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
-                <div>
-                  <p className="text-xs font-bold text-slate-900 dark:text-white">
-                    {schedule.staffName} <span className="font-normal text-slate-500">· {schedule.staffRole}</span>
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
-                    {new Date(`${schedule.shiftDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                    {' · '}{schedule.shiftStart}–{schedule.shiftEnd}{' · '}{schedule.taskDescription}
-                  </p>
-                </div>
+        {/* --- MALAKING WEEKLY CALENDAR VIEW PARA SA UPCOMING DUTY SCHEDULES --- */}
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800 gap-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Calendar className="text-emerald-700 dark:text-emerald-400" size={20} /> Weekly Duty Schedule Calendar
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">Kitang-kita ang iskedyul ng bawat staff para sa linggong ito.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-emerald-800 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-3 py-1.5 rounded border border-emerald-200 dark:border-emerald-900">
+                {currentWeekDays[0].formattedDate} – {currentWeekDays[6].formattedDate}, {currentWeekStart.getFullYear()}
+              </span>
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded border border-slate-200 dark:border-slate-700">
                 <button
-                  type="button"
-                  onClick={() => openDutySchedule(schedule)}
-                  className="inline-flex items-center justify-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  onClick={handlePrevWeek}
+                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                  title="Nakaraang Linggo"
                 >
-                  <Pencil size={13} /> Edit
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() => setCurrentWeekStart(new Date())}
+                  className="px-2 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 rounded transition-colors cursor-pointer"
+                >
+                  Ngayon
+                </button>
+                <button
+                  onClick={handleNextWeek}
+                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                  title="Susunod na Linggo"
+                >
+                  <ChevronRight size={16} />
                 </button>
               </div>
-            )) : (
-              <p className="py-5 text-center text-xs text-slate-500">No upcoming duty schedules. Assign one to notify your staff.</p>
-            )}
+            </div>
+          </div>
+
+          {/* Calendar Grid - 7 Columns para sa Lunes hanggang Linggo */}
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+            {currentWeekDays.map(({ dayName, formattedDate, dateString }) => {
+              const daySchedules = dutySchedules.filter(s => s.shiftDate === dateString);
+              const isToday = dateString === getLocalDateString();
+
+              return (
+                <div 
+                  key={dateString}
+                  className={`rounded-lg border p-3 flex flex-col min-h-[220px] transition-all ${
+                    isToday 
+                      ? 'border-emerald-600 bg-emerald-50/20 dark:bg-emerald-950/20 ring-1 ring-emerald-600' 
+                      : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40'
+                  }`}
+                >
+                  {/* Day Header */}
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">{dayName}</span>
+                      <p className="text-[10px] font-mono text-slate-500">{formattedDate}</p>
+                    </div>
+                    {isToday && (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-800 text-white text-[9px] font-bold uppercase">Ngayon</span>
+                    )}
+                  </div>
+
+                  {/* Shifts Cards List sa bawat araw */}
+                  <div className="space-y-2 flex-1 overflow-y-auto">
+                    {daySchedules.length > 0 ? (
+                      daySchedules.map((schedule) => (
+                        <div 
+                          key={schedule.id}
+                          onClick={() => openDutySchedule(schedule)}
+                          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-2.5 shadow-xs hover:border-emerald-600 transition-all cursor-pointer group"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold text-slate-900 dark:text-white truncate" title={schedule.staffName}>
+                              {schedule.staffName}
+                            </span>
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                              {schedule.staffRole || 'Staff'}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 mb-1">
+                            <Clock size={12} /> {schedule.shiftStart} - {schedule.shiftEnd}
+                          </div>
+
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 bg-slate-50 dark:bg-slate-800 p-1 rounded">
+                            {schedule.taskDescription || 'Duty'}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="h-full flex items-center justify-center py-8 text-center">
+                        <span className="text-[11px] italic text-slate-400">Walang naka-schedule</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mabilis na button para magdagdag ng duty sa araw na ito */}
+                  <button
+                    onClick={() => {
+                      setAssignDuty({ ...newDutySchedule(), shiftDate: dateString });
+                      setIsAssignModalOpen(true);
+                    }}
+                    className="mt-3 w-full py-1.5 border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-600 text-slate-500 hover:text-emerald-700 dark:hover:text-emerald-400 rounded text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Plus size={13} /> Magdagdag
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </section>
 
@@ -598,6 +728,42 @@ const Staff = () => {
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded focus:outline-none"
                   />
                 </div>
+
+                {!assignDuty.scheduleId && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Repeat on days of the week</label>
+                    <div className="flex flex-wrap gap-2">
+                      {WEEK_DAYS.map(({ label, value }) => {
+                        const checked = (assignDuty.repeatDays || []).includes(value);
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => {
+                              const days = assignDuty.repeatDays || [];
+                              setAssignDuty({
+                                ...assignDuty,
+                                repeatDays: checked ? days.filter(d => d !== value) : [...days, value]
+                              });
+                            }}
+                            className={`px-3 py-1 rounded text-[11px] font-bold border transition-colors cursor-pointer ${
+                              checked
+                                ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200'
+                                : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {(assignDuty.repeatDays || []).length > 0 && (
+                      <p className="mt-1.5 text-[11px] text-slate-500">
+                        Will assign for the selected days within the same week as the chosen date.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <button
                   type="submit"

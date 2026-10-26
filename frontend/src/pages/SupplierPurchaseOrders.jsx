@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Archive, Plus, RefreshCw, Truck, ShoppingCart, PackagePlus, FileText, CheckCircle2 } from "lucide-react";
+import { Archive, Plus, RefreshCw, Truck, PackagePlus, FileText, CheckCircle2, Receipt, X } from "lucide-react";
 import useStaffSession from "../hooks/useStaffSession";
 
 const EMPTY_SUPPLIER = { name: "", contactPerson: "", email: "", phone: "", address: "", notes: "" };
@@ -192,21 +192,36 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
     }
   };
 
-  const receiveOrder = async (order) => {
-    if (!window.confirm(`Mark ${order.poNumber} as received and add its quantities to inventory?`)) return;
-    setError("");
-    setMessage("");
+  const [receiveModal, setReceiveModal] = useState(null);
+  const [itemPayments, setItemPayments] = useState({});
+  const [receiptModal, setReceiptModal] = useState(null);
+
+  const receiveOrder = (order) => {
+    const payments = {};
+    (order.items || []).forEach((item) => { payments[item.itemId] = String(item.unitCost * item.quantity); });
+    setItemPayments(payments);
+    setReceiveModal(order);
+  };
+
+  const confirmReceive = async () => {
+    if (!receiveModal) return;
+    setError(""); setMessage("");
     try {
-      const response = await fetch(`/api/inventory/purchase-orders/${order.id}/receive`, {
+      const response = await fetch(`/api/inventory/purchase-orders/${receiveModal.id}/receive`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           receivedBy: createdBy,
+          itemPayments: (receiveModal.items || []).map((item) => ({
+            itemId: item.itemId,
+            amountPaid: Number(itemPayments[item.itemId] || 0),
+          })),
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not receive purchase order.");
-      setMessage(data.message || `${order.poNumber} received.`);
+      setMessage(data.message || `${receiveModal.poNumber} received.`);
+      setReceiveModal(null);
       await refresh();
     } catch (requestError) {
       setError(requestError.message || "Could not receive purchase order.");
@@ -433,9 +448,14 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
                             Receive & Sync Stock
                           </button>
                         ) : (
-                          <span className="text-[11px] text-slate-400 italic flex items-center justify-end gap-1">
-                            <CheckCircle2 size={13} className="text-emerald-600" /> {order.receivedDate ? `Received ${order.receivedDate}` : "Completed"}
-                          </span>
+                          <div className="flex flex-col items-end gap-1.5">
+                            <span className="text-[11px] text-slate-400 italic flex items-center gap-1">
+                              <CheckCircle2 size={13} className="text-emerald-600" /> {order.receivedDate ? `Received ${order.receivedDate}` : "Completed"}
+                            </span>
+                            <button type="button" onClick={() => setReceiptModal(order)} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer">
+                              <Receipt size={13} /> View Receipt
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -447,6 +467,76 @@ export default function SupplierPurchaseOrders({ audience = "staff" }) {
         </div>
 
       </div>
+
+      {/* Receive Modal */}
+      {receiveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Receive {receiveModal.poNumber}</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">Enter the actual amount paid per item.</p>
+              </div>
+              <button type="button" onClick={() => setReceiveModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={18} /></button>
+            </div>
+            <div className="space-y-3 max-h-72 overflow-y-auto">
+              {(receiveModal.items || []).map((item) => (
+                <div key={item.itemId} className="flex items-center gap-3">
+                  <div className="flex-1 text-xs">
+                    <p className="font-bold text-slate-800 dark:text-white">{item.name}</p>
+                    <p className="text-slate-500">{item.quantity} {item.unit || 'units'} × ₱{Number(item.unitCost).toLocaleString()} ordered</p>
+                  </div>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 shrink-0">
+                    Amount Paid (₱)
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={itemPayments[item.itemId] ?? ''}
+                      onChange={(e) => setItemPayments((p) => ({ ...p, [item.itemId]: e.target.value }))}
+                      className="mt-1 block w-32 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100 outline-none focus:border-emerald-600"
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800 mt-4">
+              <button type="button" onClick={() => setReceiveModal(null)} className="px-4 py-2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700">Cancel</button>
+              <button type="button" onClick={confirmReceive} className="px-4 py-2 rounded bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold">Confirm Receive & Sync Stock</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Modal */}
+      {receiptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2"><Receipt size={15} className="text-emerald-600" /> Purchase Receipt</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">{receiptModal.poNumber} — {receiptModal.supplier}</p>
+              </div>
+              <button type="button" onClick={() => setReceiptModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={18} /></button>
+            </div>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between text-slate-500">
+                <span>Received Date</span><span className="font-semibold text-slate-700 dark:text-slate-300">{receiptModal.receivedDate || '—'}</span>
+              </div>
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-2 space-y-1.5">
+                {(receiptModal.items || []).map((item) => (
+                  <div key={item.itemId} className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-400">{item.quantity} × {item.name}</span>
+                    <span className="font-bold text-slate-800 dark:text-white">₱{Number(item.unitCost * item.quantity).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex justify-between font-bold">
+                <span className="text-slate-700 dark:text-slate-300">Total Ordered Amount</span>
+                <span className="text-emerald-700 dark:text-emerald-400">₱{Number(receiptModal.totalAmount || 0).toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
