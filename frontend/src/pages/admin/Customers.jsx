@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Users, UserCheck, Award, Search, Download, Trash2, Mail, Phone } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination';
+import { confirmAdminAction, showAdminResult } from '../../utils/adminDialogs';
 
 export default function Customers() {
   const { isDarkMode } = useOutletContext();
@@ -31,9 +32,28 @@ export default function Customers() {
   useEffect(() => { load(); }, []);
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this customer?')) return;
-    await fetch(`/api/admin/customers/${id}`, { method: 'DELETE' });
-    load();
+    const confirmation = await confirmAdminAction({
+      title: 'Delete this customer?',
+      text: 'This action cannot be undone.',
+      confirmButtonText: 'Delete customer',
+    });
+    if (!confirmation.isConfirmed) return;
+    try {
+      const response = await fetch(`/api/admin/customers/${id}`, { method: 'DELETE' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to delete customer.');
+      load();
+      await showAdminResult({
+        title: 'Customer deleted',
+        text: data.message || 'The customer record was deleted.',
+      });
+    } catch (error) {
+      await showAdminResult({
+        title: 'Unable to delete customer',
+        text: error.message || 'Please try again.',
+        icon: 'error',
+      });
+    }
   };
 
   const filtered = customers.filter(c =>

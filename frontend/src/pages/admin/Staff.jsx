@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Users, CheckSquare, Building2, Search, Trash2, Tag, X, Plus } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination';
+import { confirmAdminAction, showAdminResult } from '../../utils/adminDialogs';
 
 const STAFF_ROLES = [
   'Front Desk Operations',
@@ -41,9 +42,28 @@ export default function Staff() {
   useEffect(() => { load(); }, []);
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Remove this staff member?')) return;
-    await fetch(`/api/admin/staff/${id}`, { method: 'DELETE' });
-    load();
+    const confirmation = await confirmAdminAction({
+      title: 'Remove this staff member?',
+      text: 'The staff member will be removed from the database.',
+      confirmButtonText: 'Remove staff',
+    });
+    if (!confirmation.isConfirmed) return;
+    try {
+      const response = await fetch(`/api/admin/staff/${id}`, { method: 'DELETE' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to remove staff member.');
+      load();
+      await showAdminResult({
+        title: 'Staff member removed',
+        text: data.message || 'The staff record was removed.',
+      });
+    } catch (error) {
+      await showAdminResult({
+        title: 'Unable to remove staff member',
+        text: error.message || 'Please try again.',
+        icon: 'error',
+      });
+    }
   };
 
   const switchView = (mode) => {

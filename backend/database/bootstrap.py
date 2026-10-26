@@ -373,6 +373,30 @@ def ensure_membership_tables(cur):
     for statement in membership_package_alters:
         _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="membership_package_alter")
 
+    cur.execute(
+        """
+        SELECT data_type, udt_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'membership_packages'
+          AND column_name = 'features'
+        LIMIT 1
+        """
+    )
+    features_column = cur.fetchone() or {}
+    features_data_type = str((features_column.get('data_type') if hasattr(features_column, 'get') else features_column[0]) or '').upper()
+    features_udt_name = str((features_column.get('udt_name') if hasattr(features_column, 'get') else features_column[1]) or '')
+    if features_data_type == 'ARRAY' or features_udt_name.startswith('_'):
+        cur.execute("ALTER TABLE membership_packages ALTER COLUMN features DROP DEFAULT")
+        cur.execute(
+            """
+            ALTER TABLE membership_packages
+            ALTER COLUMN features TYPE JSONB
+            USING COALESCE(to_jsonb(features), '[]'::jsonb)
+            """
+        )
+        cur.execute("ALTER TABLE membership_packages ALTER COLUMN features SET DEFAULT '[]'::jsonb")
+
     cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_membership_packages_slug ON membership_packages(slug)")
 
     cur.execute(
@@ -732,31 +756,32 @@ def ensure_about_page_table(cur, about_page_default):
 
 def ensure_profile_media_columns(cur):
     statements = [
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS profile_image TEXT",
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS business_permit_path TEXT",
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS bir_certificate_path TEXT",
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS fire_safety_certificate_path TEXT",
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS valid_id_path TEXT",
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS bank_name TEXT",
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS bank_account_name TEXT",
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS bank_account_number TEXT",
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20)",
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS review_notes TEXT",
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP",
-        "ALTER TABLE owners ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP",
-        "ALTER TABLE customers ADD COLUMN IF NOT EXISTS profile_image TEXT",
-        "ALTER TABLE staff ADD COLUMN IF NOT EXISTS profile_image TEXT",
-        "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_logo TEXT",
-        "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_building_image TEXT",
-        "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_description TEXT",
-        "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_highlights TEXT[] DEFAULT '{}'::text[]",
-        "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS contact_phone TEXT",
-        "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS check_in_policy TEXT",
-        "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS check_out_policy TEXT",
-        "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS cancellation_policy TEXT",
+        ("owners", "profile_image", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS profile_image TEXT"),
+        ("owners", "business_permit_path", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS business_permit_path TEXT"),
+        ("owners", "bir_certificate_path", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS bir_certificate_path TEXT"),
+        ("owners", "fire_safety_certificate_path", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS fire_safety_certificate_path TEXT"),
+        ("owners", "valid_id_path", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS valid_id_path TEXT"),
+        ("owners", "bank_name", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS bank_name TEXT"),
+        ("owners", "bank_account_name", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS bank_account_name TEXT"),
+        ("owners", "bank_account_number", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS bank_account_number TEXT"),
+        ("owners", "approval_status", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20)"),
+        ("owners", "review_notes", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS review_notes TEXT"),
+        ("owners", "reviewed_at", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP"),
+        ("owners", "approved_at", "ALTER TABLE owners ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP"),
+        ("customers", "profile_image", "ALTER TABLE customers ADD COLUMN IF NOT EXISTS profile_image TEXT"),
+        ("staff", "profile_image", "ALTER TABLE staff ADD COLUMN IF NOT EXISTS profile_image TEXT"),
+        ("hotels", "hotel_logo", "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_logo TEXT"),
+        ("hotels", "hotel_building_image", "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_building_image TEXT"),
+        ("hotels", "hotel_description", "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_description TEXT"),
+        ("hotels", "hotel_highlights", "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS hotel_highlights TEXT[] DEFAULT '{}'::text[]"),
+        ("hotels", "contact_phone", "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS contact_phone TEXT"),
+        ("hotels", "check_in_policy", "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS check_in_policy TEXT"),
+        ("hotels", "check_out_policy", "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS check_out_policy TEXT"),
+        ("hotels", "cancellation_policy", "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS cancellation_policy TEXT"),
     ]
-    for statement in statements:
-        _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="profile_media_alter")
+    for table_name, column_name, statement in statements:
+        if not _table_has_column(cur, table_name, column_name):
+            _execute_in_savepoint(cur, statement, ignore_errors=True, prefix="profile_media_alter")
 
     if _table_has_column(cur, "owners", "approval_status"):
         _execute_in_savepoint(

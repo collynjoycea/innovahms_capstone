@@ -53,8 +53,6 @@ import HKSettings from "./pages/Staff/housekeepingmainte/HKSettings";
 import HKGuestRequests from "./pages/Staff/housekeepingmainte/HKGuestRequests";
 
 import HotelManagerDashboard from "./pages/Maneger/manegerDashboard";
-import ManagerLogin from "./pages/Maneger/ManagerLogin";
-import ManagerSignUp from "./pages/Maneger/ManagerSignUp";
 import ManagerStaff from "./pages/Maneger/Staff";
 import ManagerReviews from "./pages/Maneger/Reviews";
 import ManagerHousekeeping from "./pages/Maneger/Housekeeping";
@@ -163,7 +161,7 @@ const ProtectedManager = ({ children }) => {
   }
   return session?.id && session?.ownerId
     ? children
-    : <Navigate to="/manager/login" replace />;
+    : <Navigate to="/staff/login" replace />;
 };
 
 const ProtectedCustomer = ({ children }) => {
@@ -253,8 +251,8 @@ function App() {
         <Route element={<RegistrationLayout />}>
           <Route path="/hotelier" element={<HotelierHome />} />
           <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/manager/login" element={<ManagerLogin />} />
-          <Route path="/manager/signup" element={<ManagerSignUp />} />
+          <Route path="/manager/login" element={<Navigate to="/staff/login" replace />} />
+          <Route path="/manager/signup" element={<Navigate to="/staff/login" replace />} />
           <Route path="/staff/login" element={<StaffLogin />} />
           <Route path="/owner/login" element={<OwnerLogin />} />
           <Route path="/staff/signup" element={<StaffSignUp />} />

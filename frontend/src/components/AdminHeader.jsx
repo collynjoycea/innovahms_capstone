@@ -11,15 +11,18 @@ const AdminHeader = ({ isDarkMode, toggleTheme, isSidebarOpen, toggleSidebar }) 
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [notificationError, setNotificationError] = useState('');
   const dropdownRef = useRef(null);
 
   const fetchNotifications = async () => {
     try {
       const res = await fetch('/api/admin/notifications');
       const data = await res.json().catch(() => ({}));
-      if (res.ok) setNotifications(data.notifications || []);
-    } catch {
-      // silent fail — bell just shows whatever it last had
+      if (!res.ok) throw new Error(data.error || 'Unable to load notifications.');
+      setNotifications(data.notifications || []);
+      setNotificationError('');
+    } catch (error) {
+      setNotificationError(error.message || 'Unable to load notifications.');
     } finally {
       setLoading(false);
     }
@@ -86,6 +89,11 @@ const AdminHeader = ({ isDarkMode, toggleTheme, isSidebarOpen, toggleSidebar }) 
                 )}
               </div>
               <div className="max-h-80 overflow-y-auto">
+                {notificationError && (
+                  <p role="alert" className="px-4 py-3 text-[10px] font-bold text-red-500">
+                    {notificationError}
+                  </p>
+                )}
                 {loading && recent.length === 0 ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="w-6 h-6 border-2 border-[#2FA084] border-t-transparent rounded-full animate-spin" />

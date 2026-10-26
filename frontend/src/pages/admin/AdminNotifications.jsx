@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Bell, Search, Send, Users, CheckCircle, XCircle, Clock, AlertTriangle, X } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination';
+import { confirmAdminAction, showAdminResult } from '../../utils/adminDialogs';
 
 export default function AdminNotifications() {
   const { isDarkMode } = useOutletContext();
@@ -13,6 +14,9 @@ export default function AdminNotifications() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [recipients, setRecipients] = useState([]);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [newNotification, setNewNotification] = useState({
     user_type: 'owner',
     user_id: '',
@@ -44,6 +48,7 @@ export default function AdminNotifications() {
 
   const fetchRecipients = async (userType) => {
     setLoadingRecipients(true);
+    setFormError('');
     setNewNotification((prev) => ({ ...prev, user_id: '' }));
     try {
       const endpointByType = {
@@ -57,6 +62,7 @@ export default function AdminNotifications() {
 
       const response = await fetch(endpoint);
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to load recipients.');
       const list = data[listKeyByType[userType]] || [];
       setRecipients(list.map(p => ({
         id: p.id,
@@ -65,6 +71,7 @@ export default function AdminNotifications() {
     } catch (error) {
       console.error('Error fetching recipients:', error);
       setRecipients([]);
+      setFormError(error.message || 'Unable to load recipients.');
     } finally {
       setLoadingRecipients(false);
     }
@@ -73,12 +80,13 @@ export default function AdminNotifications() {
   const fetchNotifications = async () => {
     try {
       const response = await fetch('/api/admin/notifications');
-      const data = await response.json();
-      if (response.ok) {
-        setNotifications(data.notifications || []);
-      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to load notifications.');
+      setNotifications(data.notifications || []);
+      setError('');
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      setError(error.message || 'Unable to load notifications.');
     } finally {
       setLoading(false);
     }
@@ -87,45 +95,65 @@ export default function AdminNotifications() {
   const fetchTypes = async () => {
     try {
       const response = await fetch('/api/admin/notifications/types');
-      const data = await response.json();
-      if (response.ok) {
-        setTypes(data.types || []);
-      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to load notification types.');
+      setTypes(data.types || []);
     } catch (error) {
       console.error('Error fetching types:', error);
+      setError(error.message || 'Unable to load notification types.');
     }
   };
 
   const createNotification = async () => {
     if (!newNotification.user_id) {
-      alert('Please select a recipient.');
+      setFormError('Please select a recipient.');
       return;
     }
     if (!newNotification.type_key) {
-      alert('Please select a notification type.');
+      setFormError('Please select a notification type.');
       return;
     }
     if (!newNotification.title.trim() || !newNotification.message.trim()) {
-      alert('Please fill in the title and message.');
+      setFormError('Please fill in the title and message.');
       return;
     }
+
+    const confirmation = await confirmAdminAction({
+      title: 'Send this notification?',
+      text: `This will send a notification to the selected ${newNotification.user_type}.`,
+      icon: 'question',
+      confirmButtonText: 'Send notification',
+    });
+    if (!confirmation.isConfirmed) return;
+
+    setSending(true);
+    setFormError('');
     try {
       const response = await fetch('/api/admin/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newNotification)
       });
-      const data = await response.json();
-      if (response.ok) {
-        setShowCreateForm(false);
-        setNewNotification({ user_type: 'owner', user_id: '', type_key: '', title: '', message: '' });
-        fetchNotifications();
-      } else {
-        alert(data.error || 'Failed to create notification');
-      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to create notification.');
+      setShowCreateForm(false);
+      setNewNotification({ user_type: 'owner', user_id: '', type_key: '', title: '', message: '' });
+      await fetchNotifications();
+      await showAdminResult({
+        title: 'Notification saved',
+        text: data.message || 'The notification was saved and queued for delivery.',
+        icon: 'success',
+      });
     } catch (error) {
       console.error('Error creating notification:', error);
-      alert('Failed to create notification');
+      setFormError(error.message || 'Failed to create notification.');
+      await showAdminResult({
+        title: 'Unable to send notification',
+        text: error.message || 'Please try again.',
+        icon: 'error',
+      });
+    } finally {
+      setSending(false);
     }
   };
 
@@ -184,6 +212,12 @@ export default function AdminNotifications() {
           <Send size={14} strokeWidth={3} /> Send Notification
         </button>
       </div>
+
+      {error && (
+        <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-500">
+          {error}
+        </div>
+      )}
 
       {/* STATS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -306,6 +340,11 @@ export default function AdminNotifications() {
             </div>
 
             <div className="space-y-4">
+              {formError && (
+                <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[10px] font-bold text-red-500">
+                  {formError}
+                </div>
+              )}
               <div>
                 <label className={`block text-[9px] font-black uppercase tracking-widest mb-1.5 ${theme.textSub}`}>User Type</label>
                 <select
@@ -377,15 +416,17 @@ export default function AdminNotifications() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowCreateForm(false)}
+                disabled={sending}
                 className={`flex-1 px-4 py-2.5 rounded-lg border ${theme.border} ${theme.textSub} text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all`}
               >
                 Cancel
               </button>
               <button
                 onClick={createNotification}
-                className="flex-1 px-4 py-2.5 rounded-lg bg-[#2FA084] text-white text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all"
+                disabled={sending || loadingRecipients}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-[#2FA084] text-white text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Send
+                {sending ? 'Sending...' : 'Send'}
               </button>
             </div>
           </div>

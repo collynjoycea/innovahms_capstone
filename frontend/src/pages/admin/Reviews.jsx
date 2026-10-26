@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Star, Trash2, Flag, Eye, EyeOff, Users, Building2 } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination';
+import { confirmAdminAction, showAdminResult } from '../../utils/adminDialogs';
 
 export default function Reviews() {
   const { isDarkMode } = useOutletContext();
@@ -196,9 +197,28 @@ function GuestRatings({ theme, isDarkMode }) {
   };
 
   const deleteReview = async (id) => {
-    if (!window.confirm('Delete this review?')) return;
-    await fetch(`/api/admin/reviews/${id}`, { method: 'DELETE' });
-    load();
+    const confirmation = await confirmAdminAction({
+      title: 'Delete this review?',
+      text: 'This action cannot be undone.',
+      confirmButtonText: 'Delete review',
+    });
+    if (!confirmation.isConfirmed) return;
+    try {
+      const response = await fetch(`/api/admin/reviews/${id}`, { method: 'DELETE' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to delete review.');
+      load();
+      await showAdminResult({
+        title: 'Review deleted',
+        text: data.message || 'The review was deleted.',
+      });
+    } catch (error) {
+      await showAdminResult({
+        title: 'Unable to delete review',
+        text: error.message || 'Please try again.',
+        icon: 'error',
+      });
+    }
   };
 
   const filtered = reviews.filter(r => {

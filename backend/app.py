@@ -264,6 +264,85 @@ def _parse_text_array(value):
     return []
 
 
+def _normalize_features_payload(value):
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        value = value.get('features') or value.get('items') or []
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+        return _parse_text_array(raw)
+    if isinstance(value, (list, tuple, set)):
+        normalized = []
+        for item in value:
+            if item is None:
+                continue
+            text = str(item).strip()
+            if text:
+                normalized.append(text)
+        return normalized
+    return []
+
+
+def _coerce_membership_package_features_jsonb(cur):
+    cur.execute(
+        """
+        SELECT data_type, udt_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'membership_packages'
+          AND column_name = 'features'
+        LIMIT 1
+        """
+    )
+    column = cur.fetchone() or {}
+    data_type = str((column.get('data_type') if hasattr(column, 'get') else column[0]) or '').upper()
+    udt_name = str((column.get('udt_name') if hasattr(column, 'get') else column[1]) or '')
+    if data_type in {'JSON', 'JSONB'} or udt_name.lower() in {'json', 'jsonb'}:
+        return
+    if data_type == 'ARRAY' or udt_name.startswith('_'):
+        cur.execute("ALTER TABLE membership_packages ALTER COLUMN features DROP DEFAULT")
+        cur.execute(
+            """
+            ALTER TABLE membership_packages
+            ALTER COLUMN features TYPE JSONB
+            USING COALESCE(to_jsonb(features), '[]'::jsonb)
+            """
+        )
+        cur.execute("ALTER TABLE membership_packages ALTER COLUMN features SET DEFAULT '[]'::jsonb")
+
+
+def _membership_package_features_value(cur, features):
+    _coerce_membership_package_features_jsonb(cur)
+    cur.execute(
+        """
+        SELECT data_type, udt_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'membership_packages'
+          AND column_name = 'features'
+        LIMIT 1
+        """
+    )
+    column = cur.fetchone() or {}
+    data_type = str((column.get('data_type') if hasattr(column, 'get') else column[0]) or '').upper()
+    udt_name = str((column.get('udt_name') if hasattr(column, 'get') else column[1]) or '')
+    normalized = _normalize_features_payload(features)
+    if data_type in {'JSON', 'JSONB'} or udt_name.lower() in {'json', 'jsonb'}:
+        return Json(normalized)
+    if data_type == 'ARRAY' or udt_name.startswith('_'):
+        return normalized
+    return Json(normalized)
+
+
 GENERIC_TOUR_IMAGE_PATHS = {
     "/images/my-room-360.jpg",
     "/images/standard-room.jpg",
@@ -1252,12 +1331,28 @@ def _country_lat_lng(label):
 
 
 def _period_bucket_key(day_value, period):
+    period = _normalize_owner_forecast_period(period)
     if period == "daily":
         return day_value.isoformat()
+    if period == "quarterly":
+        quarter = ((day_value.month - 1) // 3) + 1
+        return f"{day_value.year}-Q{quarter}"
+    if period == "yearly":
+        return str(day_value.year)
     return f"{day_value.year}-{str(day_value.month).zfill(2)}"
 
 
+def _normalize_owner_forecast_period(period):
+    normalized = str(period or "monthly").strip().lower()
+    if normalized == "today":
+        return "daily"
+    if normalized in {"daily", "monthly", "quarterly", "yearly"}:
+        return normalized
+    return "monthly"
+
+
 def _next_period_label(last_label, period, step):
+    period = _normalize_owner_forecast_period(period)
     if period == "daily":
         try:
             base = _parse_iso_date(last_label)
@@ -1267,10 +1362,27 @@ def _next_period_label(last_label, period, step):
             base = _utc_now().date()
         return (base + timedelta(days=step)).isoformat()
 
-    # monthly
+    if period == "yearly":
+        try:
+            year = int(str(last_label))
+        except (TypeError, ValueError):
+            year = _utc_now().year
+        return str(year + step)
+
+    if period == "quarterly":
+        match = re.fullmatch(r"(\d{4})-Q([1-4])", str(last_label))
+        if match:
+            year, quarter = int(match.group(1)), int(match.group(2))
+        else:
+            now = _utc_now()
+            year, quarter = now.year, ((now.month - 1) // 3) + 1
+        quarter_index = (year * 4) + (quarter - 1) + step
+        next_year, next_quarter_index = divmod(quarter_index, 4)
+        return f"{next_year}-Q{next_quarter_index + 1}"
+
     try:
         year, month = [int(part) for part in str(last_label).split("-")[:2]]
-    except Exception:
+    except (TypeError, ValueError):
         now = _utc_now()
         year, month = now.year, now.month
 
@@ -1297,25 +1409,45 @@ def _linear_project(values, horizon):
 
 def _prophet_project(labels, values, period, horizon):
     """Forecast a numeric series with Prophet when the optional ML stack is installed."""
+    period = _normalize_owner_forecast_period(period)
     if not PROPHET_AVAILABLE or len(labels) < 2:
         return None
 
     try:
-        dates = [
-            datetime.strptime(str(label), "%Y-%m-%d" if period == "daily" else "%Y-%m")
-            for label in labels
-        ]
+        if period == "daily":
+            dates = [datetime.strptime(str(label), "%Y-%m-%d") for label in labels]
+            frequency = "D"
+        elif period == "quarterly":
+            dates = []
+            for label in labels:
+                match = re.fullmatch(r"(\d{4})-Q([1-4])", str(label))
+                if not match:
+                    return None
+                month = ((int(match.group(2)) - 1) * 3) + 1
+                dates.append(datetime(int(match.group(1)), month, 1))
+            frequency = "QS"
+        elif period == "yearly":
+            dates = [datetime.strptime(str(label), "%Y") for label in labels]
+            frequency = "YS"
+        else:
+            dates = [datetime.strptime(str(label), "%Y-%m") for label in labels]
+            frequency = "MS"
         frame = pd.DataFrame({"ds": dates, "y": [float(value or 0) for value in values]})
         model = Prophet(
             daily_seasonality=False,
             weekly_seasonality=period == "daily",
-            yearly_seasonality=len(frame) >= (14 if period == "daily" else 24),
+            yearly_seasonality=(
+                (period == "daily" and len(frame) >= 365)
+                or (period == "monthly" and len(frame) >= 24)
+                or (period == "quarterly" and len(frame) >= 8)
+            ),
         )
         model.fit(frame)
-        future = model.make_future_dataframe(periods=horizon, freq="D" if period == "daily" else "MS")
+        future = model.make_future_dataframe(periods=horizon, freq=frequency)
         forecast = model.predict(future).tail(horizon)
         return [max(0.0, float(value)) for value in forecast["yhat"].tolist()]
-    except Exception:
+    except Exception as exc:
+        print(f"Prophet forecast failed for {period} period: {exc}")
         return None
 
 
@@ -1561,7 +1693,7 @@ def _seed_membership_packages(cur):
     _ensure_membership_tables(cur)
     cur.execute(
         """
-        SELECT data_type
+        SELECT data_type, udt_name
         FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name = 'membership_packages'
@@ -1570,10 +1702,11 @@ def _seed_membership_packages(cur):
         """
     )
     feature_column = cur.fetchone() or {}
-    features_are_json = feature_column.get("data_type") == "jsonb"
+    features_are_json = str((feature_column.get("data_type") if hasattr(feature_column, "get") else feature_column[0]) or "").upper() in {"JSON", "JSONB"}
     features_placeholder = "%s::jsonb" if features_are_json else "%s"
 
     for package in OWNER_PLAN_DEFINITIONS.values():
+        features_value = _normalize_features_payload(package.get("features"))
         cur.execute(
             f"""
             INSERT INTO membership_packages (
@@ -1581,17 +1714,7 @@ def _seed_membership_packages(cur):
                 max_rooms, features, is_popular, is_active, display_order
             )
             VALUES (%s, %s, %s, %s, %s, %s, {features_placeholder}, %s, TRUE, %s)
-            ON CONFLICT (slug) DO UPDATE SET
-                name = EXCLUDED.name,
-                description = EXCLUDED.description,
-                monthly_price = EXCLUDED.monthly_price,
-                annual_price = EXCLUDED.annual_price,
-                max_rooms = EXCLUDED.max_rooms,
-                features = EXCLUDED.features,
-                is_popular = EXCLUDED.is_popular,
-                is_active = TRUE,
-                display_order = EXCLUDED.display_order,
-                updated_at = NOW()
+            ON CONFLICT (slug) DO NOTHING
             """,
             (
                 package["name"],
@@ -1600,7 +1723,7 @@ def _seed_membership_packages(cur):
                 package["monthly_price"],
                 package["annual_price"],
                 package["max_rooms"],
-                Json(package["features"]) if features_are_json else package["features"],
+                Json(features_value) if features_are_json else features_value,
                 package["is_popular"],
                 package["display_order"],
             ),
@@ -2254,7 +2377,10 @@ def _get_owner_subscription(cur, owner_id):
         LEFT JOIN hotels h ON h.id = s.hotel_id
         WHERE s.owner_id = %s
            OR (s.owner_id IS NULL AND h.owner_id = %s)
-        ORDER BY s.updated_at DESC NULLS LAST, s.id DESC
+        ORDER BY
+            CASE WHEN UPPER(COALESCE(s.status, '')) = 'ACTIVE' THEN 0 ELSE 1 END,
+            s.updated_at DESC NULLS LAST,
+            s.id DESC
         LIMIT 1
         """,
         (owner_id, owner_id),
@@ -3392,6 +3518,7 @@ def _get_notification_preferences(user_id, user_type):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         _ensure_notification_tables(cur)
+        conn.commit()
 
         cur.execute("""
             SELECT nt.type_key, nt.name, nt.description, nt.category,
@@ -3817,7 +3944,7 @@ def admin_packages():
                 'monthlyPrice': _to_float(row.get('monthly_price'), 0),
                 'annualPrice': _to_float(row.get('annual_price'), 0),
                 'maxRooms': row.get('max_rooms'),
-                'features': row.get('features') or [],
+                'features': _normalize_features_payload(row.get('features')),
                 'isPopular': bool(row.get('is_popular')),
                 'isActive': bool(row.get('is_active')),
                 'displayOrder': _to_int(row.get('display_order'), 0),
@@ -3829,6 +3956,7 @@ def admin_packages():
             """
             SELECT
                 s.id,
+                s.owner_id,
                 s.hotel_id,
                 s.package_id,
                 s.billing_cycle,
@@ -3845,10 +3973,10 @@ def admin_packages():
                 p.name AS package_name,
                 p.slug AS package_slug
             FROM hotel_package_subscriptions s
-            JOIN hotels h ON h.id = s.hotel_id
-            LEFT JOIN owners o ON o.id = h.owner_id
+            LEFT JOIN hotels h ON h.id = s.hotel_id
+            LEFT JOIN owners o ON o.id = COALESCE(s.owner_id, h.owner_id)
             JOIN membership_packages p ON p.id = s.package_id
-            ORDER BY COALESCE(s.renewal_date, CURRENT_DATE) ASC, h.hotel_name ASC
+            ORDER BY COALESCE(s.renewal_date, CURRENT_DATE) ASC, h.hotel_name ASC NULLS LAST, s.id DESC
             """
         )
         subscription_rows = cur.fetchall() or []
@@ -3868,9 +3996,10 @@ def admin_packages():
 
             subscriptions.append({
                 'id': row.get('id'),
+                'ownerId': row.get('owner_id'),
                 'hotelId': row.get('hotel_id'),
                 'packageId': row.get('package_id'),
-                'hotelName': row.get('hotel_name') or 'Unnamed Hotel',
+                'hotelName': row.get('hotel_name') or 'No hotel linked yet',
                 'hotelCode': row.get('hotel_code') or '',
                 'ownerName': f"{row.get('first_name') or ''} {row.get('last_name') or ''}".strip() or 'Unassigned Owner',
                 'ownerEmail': row.get('owner_email') or '',
@@ -3942,7 +4071,10 @@ def admin_create_package():
         annual_price = _to_float(data.get('annualPrice'), 0)
         max_rooms = data.get('maxRooms')
         display_order = _to_int(data.get('displayOrder'), 0)
-        features = data.get('features') or []
+        features = _normalize_features_payload(data.get('features'))
+        if any(not isinstance(feature, str) for feature in features):
+            return jsonify({'error': 'Features must be a list of text values.'}), 400
+        features = [feature.strip() for feature in features if feature.strip()]
         is_popular = bool(data.get('isPopular'))
         is_active = bool(data.get('isActive'))
 
@@ -3950,6 +4082,7 @@ def admin_create_package():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         _ensure_membership_tables(cur)
 
+        feature_value = _membership_package_features_value(cur, features)
         cur.execute(
             """
             INSERT INTO membership_packages (
@@ -3959,7 +4092,10 @@ def admin_create_package():
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
             RETURNING id, name, slug
             """,
-            (name, slug, description, monthly_price, annual_price, max_rooms, features, is_popular, is_active, display_order),
+            (
+                name, slug, description, monthly_price, annual_price, max_rooms,
+                feature_value, is_popular, is_active, display_order,
+            ),
         )
         row = cur.fetchone()
         conn.commit()
@@ -3987,13 +4123,17 @@ def admin_update_package(package_id):
         annual_price = _to_float(data.get('annualPrice'), 0)
         max_rooms = data.get('maxRooms')
         display_order = _to_int(data.get('displayOrder'), 0)
-        features = data.get('features') or []
+        features = _normalize_features_payload(data.get('features'))
+        if any(not isinstance(feature, str) for feature in features):
+            return jsonify({'error': 'Features must be a list of text values.'}), 400
+        features = [feature.strip() for feature in features if feature.strip()]
         is_popular = bool(data.get('isPopular'))
         is_active = bool(data.get('isActive'))
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         _ensure_membership_tables(cur)
+        feature_value = _membership_package_features_value(cur, features)
         cur.execute(
             """
             UPDATE membership_packages
@@ -4011,7 +4151,10 @@ def admin_update_package(package_id):
             WHERE id = %s
             RETURNING id, name, slug, description, monthly_price, annual_price, max_rooms, features, is_popular, is_active, display_order
             """,
-            (name, slug, description, monthly_price, annual_price, max_rooms, features, is_popular, is_active, display_order, package_id),
+            (
+                name, slug, description, monthly_price, annual_price, max_rooms,
+                feature_value, is_popular, is_active, display_order, package_id,
+            ),
         )
         row = cur.fetchone()
         if not row:
@@ -4633,6 +4776,8 @@ def admin_get_notifications():
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             _ensure_notification_tables(cur)
+            _seed_notification_types(cur)
+            conn.commit()
 
             cur.execute("""
                 SELECT n.*, nt.name as type_name, nt.category, nt.priority,
@@ -4655,8 +4800,9 @@ def admin_get_notifications():
             notifications = [_serialize_notification_row(notification) for notification in (cur.fetchall() or [])]
 
         except Exception as e:
-            print(f"Error getting all notifications: {e}")
-            notifications = []
+            if conn:
+                conn.rollback()
+            return jsonify({'error': str(e)}), 500
         finally:
             _safe_close(conn, cur)
 
@@ -4666,24 +4812,50 @@ def admin_get_notifications():
 @app.route('/api/admin/notifications', methods=['POST'])
 def admin_create_notification():
     """Admin: Create a notification for a user"""
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
 
-    user_id = data.get('user_id')
-    user_type = data.get('user_type')
-    notification_type_key = data.get('type_key')
-    title = data.get('title')
-    message = data.get('message')
+    user_id = _to_int(data.get('user_id'), 0)
+    user_type = str(data.get('user_type') or '').strip().lower()
+    notification_type_key = str(data.get('type_key') or '').strip()
+    title = str(data.get('title') or '').strip()
+    message = str(data.get('message') or '').strip()
     notification_data = data.get('data')
 
-    if not all([user_id, user_type, notification_type_key, title, message]):
-        return jsonify({'error': 'Missing required fields'}), 400
+    if not user_id or user_type not in {'admin', 'owner', 'customer', 'staff'}:
+        return jsonify({'error': 'A valid recipient and user type are required.'}), 400
+    if not notification_type_key or not title or not message:
+        return jsonify({'error': 'Notification type, title, and message are required.'}), 400
+
+    recipient_tables = {
+        'admin': 'admins',
+        'owner': 'owners',
+        'customer': 'customers',
+        'staff': 'staff',
+    }
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        _ensure_notification_tables(cur)
+        cur.execute(
+            f"SELECT 1 FROM {recipient_tables[user_type]} WHERE id = %s LIMIT 1",
+            (user_id,),
+        )
+        if not cur.fetchone():
+            return jsonify({'error': 'The selected notification recipient does not exist.'}), 404
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
 
     notification_id = _create_notification(user_id, user_type, notification_type_key, title, message, notification_data)
 
     if notification_id:
         return jsonify({'message': 'Notification created successfully', 'id': notification_id}), 201
-    else:
-        return jsonify({'error': 'Failed to create notification'}), 500
+    return jsonify({'error': 'Failed to save the notification. Check the notification type and database connection.'}), 500
 
 
 @app.route('/api/admin/notifications/system-maintenance', methods=['POST'])
@@ -4755,6 +4927,8 @@ def admin_get_notification_types():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         _ensure_notification_tables(cur)
+        _seed_notification_types(cur)
+        conn.commit()
 
         cur.execute("""
             SELECT * FROM notification_types
@@ -4766,6 +4940,8 @@ def admin_get_notification_types():
         return jsonify({'types': types}), 200
 
     except Exception as e:
+        if conn:
+            conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)
@@ -6591,6 +6767,12 @@ def owner_create_subscription_payment_link():
     conn = None
     cur = None
     try:
+        if not _is_integration_enabled("paymongo", default=True):
+            return _integration_disabled_error(
+                "paymongo",
+                "PayMongo payments are temporarily disabled by the admin.",
+            )
+
         data = request.get_json(silent=True) or {}
         owner_id = _to_int(data.get("ownerId"), 0)
         package_id = _to_int(data.get("packageId"), 0)
@@ -6612,9 +6794,9 @@ def owner_create_subscription_payment_link():
 
         cur.execute(
             """
-            SELECT id, name, slug, monthly_price, annual_price
+            SELECT id, name, slug, monthly_price, annual_price, is_active
             FROM membership_packages
-            WHERE id = %s
+            WHERE id = %s AND COALESCE(is_active, TRUE) = TRUE
             LIMIT 1
             """,
             (package_id,),
@@ -6630,33 +6812,118 @@ def owner_create_subscription_payment_link():
         frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
         success_url = f'{frontend_url}/owner/subscription?payment=success&ownerId={owner_id}'
         failed_url = f'{frontend_url}/owner/subscription?payment=failed&ownerId={owner_id}'
+        simulation_mode = _owner_subscription_simulation_enabled()
+        if simulation_mode:
+            link_id = _owner_subscription_simulated_link_id(owner_id, package_id, billing_cycle)
+            checkout_url = _owner_subscription_checkout_url(frontend_url, 'success', simulated=True)
+        else:
+            paymongo_key = os.getenv('PAYMONGO_SECRET_KEY', '')
+            if not paymongo_key or 'your_' in paymongo_key.lower():
+                return jsonify({"error": "PayMongo API key not configured."}), 503
 
-        subscription_row = _activate_owner_subscription(cur, owner_id, package_row, billing_cycle)
-        conn.commit()
-        cur.execute(
-            """
-            SELECT o.*, h.hotel_name, h.id as hotel_id, h.hotel_address, h.latitude, h.longitude
-            FROM owners o
-            LEFT JOIN hotels h ON o.id = h.owner_id
-            WHERE o.id = %s
-            LIMIT 1
-            """,
-            (owner_id,),
+            payload = {
+                'data': {
+                    'attributes': {
+                        'amount': int(round(amount * 100)),
+                        'currency': 'PHP',
+                        'description': f'Innova HMS Owner Subscription {package_row.get("name")}',
+                        'remarks': f'Owner #{owner_id} {billing_cycle.lower()} subscription',
+                        'checkout_success_url': success_url,
+                        'checkout_failed_url': failed_url,
+                    }
+                }
+            }
+            response = requests.post(
+                'https://api.paymongo.com/v1/links',
+                json=payload,
+                headers=_paymongo_headers(),
+                timeout=15,
+            )
+            result = response.json()
+            if not response.ok:
+                errors = result.get('errors', [{}])
+                message = errors[0].get('detail', 'PayMongo error') if errors else 'PayMongo error'
+                return jsonify({'error': message}), 400
+            link_data = result.get('data', {})
+            attrs = link_data.get('attributes', {})
+            checkout_url = attrs.get('checkout_url', '')
+            link_id = link_data.get('id', '')
+            if not checkout_url or not link_id:
+                return jsonify({'error': 'PayMongo did not return a valid checkout link.'}), 502
+
+        current_subscription = _get_owner_subscription(cur, owner_id)
+        hotel_id = (
+            (current_subscription or {}).get('hotel_id')
+            or _resolve_owner_primary_hotel_id(cur, owner_id)
         )
-        owner = cur.fetchone()
-        serialized_subscription = _serialize_owner_subscription(subscription_row)
+        if (
+            current_subscription
+            and current_subscription.get('id')
+            and str(current_subscription.get('status') or '').upper() == 'ACTIVE'
+        ):
+            cur.execute(
+                """
+                INSERT INTO hotel_package_subscriptions (
+                    owner_id, hotel_id, package_id, billing_cycle, amount,
+                    status, payment_status, paymongo_payment_id, starts_at, updated_at
+                )
+                VALUES (%s, NULL, %s, %s, %s, 'PENDING', 'PENDING', %s, CURRENT_DATE, NOW())
+                RETURNING *
+                """,
+                (owner_id, package_id, billing_cycle, amount, link_id),
+            )
+        elif current_subscription and current_subscription.get('id'):
+            cur.execute(
+                """
+                UPDATE hotel_package_subscriptions
+                SET
+                    owner_id = %s,
+                    hotel_id = %s,
+                    package_id = %s,
+                    billing_cycle = %s,
+                    amount = %s,
+                    status = 'PENDING',
+                    payment_status = 'PENDING',
+                    paymongo_payment_id = %s,
+                    updated_at = NOW()
+                WHERE id = %s
+                RETURNING *
+                """,
+                (
+                    owner_id,
+                    hotel_id,
+                    package_id,
+                    billing_cycle,
+                    amount,
+                    link_id,
+                    current_subscription.get('id'),
+                ),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO hotel_package_subscriptions (
+                    owner_id, hotel_id, package_id, billing_cycle, amount,
+                    status, payment_status, paymongo_payment_id, starts_at, updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, 'PENDING', 'PENDING', %s, CURRENT_DATE, NOW())
+                RETURNING *
+                """,
+                (owner_id, hotel_id, package_id, billing_cycle, amount, link_id),
+            )
+        subscription_row = cur.fetchone()
+        if not subscription_row:
+            raise RuntimeError("Unable to save the pending subscription payment.")
+        conn.commit()
         return jsonify({
-            "message": f"{package_row.get('name')} {billing_cycle.lower()} subscription activated immediately.",
+            "message": "Complete checkout to activate your subscription.",
             "subscriptionId": (subscription_row or {}).get("id"),
             "amount": amount,
             "packageName": package_row.get("name"),
             "billingCycle": billing_cycle,
-            "subscription": serialized_subscription,
-            "session": _owner_session_payload(cur, owner) if owner else None,
-            "checkoutUrl": None,
-            "linkId": None,
-            "isSimulated": True,
-            "autoActivated": True,
+            "checkoutUrl": checkout_url,
+            "linkId": link_id,
+            "isSimulated": simulation_mode,
         }), 200
     except requests.exceptions.Timeout:
         if conn:
@@ -6732,7 +6999,6 @@ def owner_verify_subscription_payment(link_id):
                 FROM hotel_package_subscriptions
                 WHERE owner_id = %s
                   AND paymongo_payment_id IS NOT NULL
-                  AND COALESCE(payment_status, 'UNPAID') <> 'PAID'
                 ORDER BY updated_at DESC NULLS LAST, id DESC
                 LIMIT 1
                 """,
@@ -6777,17 +7043,48 @@ def owner_verify_subscription_payment(link_id):
                 return jsonify({'error': 'Failed to verify payment'}), 400
 
             attrs = result.get('data', {}).get('attributes', {})
-            status = attrs.get('status', 'unpaid')
-            amount = attrs.get('amount', 0) / 100
+            status = str(attrs.get('status') or 'unpaid').lower()
+            currency = str(attrs.get('currency') or '').upper()
+            amount_in_cents = _to_int(attrs.get('amount'), 0)
+            amount = amount_in_cents / 100
+            expected_amount = _to_float(subscription.get('amount'), 0)
+            expected_amount_in_cents = int(round(expected_amount * 100))
+            if (
+                currency != 'PHP'
+                or amount_in_cents <= 0
+                or amount_in_cents != expected_amount_in_cents
+            ):
+                return jsonify({'error': 'PayMongo payment amount or currency does not match the subscription.'}), 400
             is_paid = status == 'paid'
 
         if is_paid:
+            current_subscription = _get_owner_subscription(cur, owner_id)
+            hotel_id = (
+                subscription.get('hotel_id')
+                or (current_subscription or {}).get('hotel_id')
+                or _resolve_owner_primary_hotel_id(cur, owner_id)
+            )
+            if (
+                current_subscription
+                and current_subscription.get('id') != subscription.get('id')
+                and str(current_subscription.get('status') or '').upper() == 'ACTIVE'
+            ):
+                cur.execute(
+                    """
+                    UPDATE hotel_package_subscriptions
+                    SET status = 'CANCELLED', hotel_id = NULL, updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (current_subscription.get('id'),),
+                )
+
             starts_at, next_renewal = _subscription_cycle_dates(subscription, carry_requires_payment_proof=True)
 
             cur.execute(
                 """
                 UPDATE hotel_package_subscriptions
                 SET
+                    hotel_id = %s,
                     status = 'ACTIVE',
                     payment_status = 'PAID',
                     starts_at = %s,
@@ -6797,7 +7094,7 @@ def owner_verify_subscription_payment(link_id):
                 WHERE id = %s
                 RETURNING *
                 """,
-                (starts_at, next_renewal, subscription.get("id")),
+                (hotel_id, starts_at, next_renewal, subscription.get("id")),
             )
             cur.fetchone()
 
@@ -7008,6 +7305,7 @@ def _resolve_owner_hotel(cur, owner_id):
 
 
 def _build_forecast_payload(reservation_rows, total_rooms, period):
+    period = _normalize_owner_forecast_period(period)
     grouped_revenue = defaultdict(float)
     grouped_occ = defaultdict(float)
 
@@ -7019,14 +7317,7 @@ def _build_forecast_payload(reservation_rows, total_rooms, period):
         if status_text in {"checked_in", "occupied", "paid", "confirmed", "completed"}:
             grouped_occ[key] += 1
 
-    labels = sorted(grouped_revenue.keys() or grouped_occ.keys())
-    if not labels:
-        today = datetime.utcnow().date()
-        steps = 6 if period == "monthly" else 10
-        labels = []
-        for idx in range(steps):
-            base = today - timedelta(days=(steps - idx - 1))
-            labels.append(_period_bucket_key(base, period))
+    labels = _default_owner_period_labels(period)
 
     revenue_history = [round(grouped_revenue.get(label, 0.0), 2) for label in labels]
     occ_history = []
@@ -7037,7 +7328,12 @@ def _build_forecast_payload(reservation_rows, total_rooms, period):
         else:
             occ_history.append(0.0)
 
-    horizon = 4 if period == "monthly" else 7
+    horizon = {
+        "daily": 7,
+        "monthly": 6,
+        "quarterly": 4,
+        "yearly": 3,
+    }[period]
     revenue_projection = _prophet_project(labels, revenue_history, period, horizon)
     occ_projection = _prophet_project(labels, occ_history, period, horizon)
     engine_mode = "prophet"
@@ -7063,6 +7359,7 @@ def _build_forecast_payload(reservation_rows, total_rooms, period):
 
     return {
         "period": period,
+        "horizon": horizon,
         "labels": extended_labels,
         "revenueSeries": revenue_series,
         "occupancySeries": occupancy_series,
@@ -7115,17 +7412,28 @@ def _percent(part, whole):
 
 
 def _default_owner_period_labels(period):
+    period = _normalize_owner_forecast_period(period)
     today = datetime.utcnow().date()
-    steps = 7 if period == "daily" else 6
+    history_steps = {
+        "daily": 30,
+        "monthly": 24,
+        "quarterly": 12,
+        "yearly": 5,
+    }[period]
     labels = []
-    for idx in range(steps):
+    for offset in range(history_steps - 1, -1, -1):
         if period == "daily":
-            day_value = today - timedelta(days=(steps - idx - 1))
+            day_value = today - timedelta(days=offset)
+        elif period == "monthly":
+            month_index = (today.year * 12) + (today.month - 1) - offset
+            year, month_index = divmod(month_index, 12)
+            day_value = datetime(year, month_index + 1, 1).date()
+        elif period == "quarterly":
+            quarter_index = (today.year * 4) + ((today.month - 1) // 3) - offset
+            year, quarter_index = divmod(quarter_index, 4)
+            day_value = datetime(year, quarter_index * 3 + 1, 1).date()
         else:
-            month_index = today.month - 1 - (steps - idx - 1)
-            year = today.year + (month_index // 12)
-            month = (month_index % 12) + 1
-            day_value = datetime(year, month, 1).date()
+            day_value = datetime(today.year - offset, 1, 1).date()
         labels.append(_period_bucket_key(day_value, period))
     return labels
 
@@ -7287,6 +7595,7 @@ def _owner_recommendation_cards(hotel, analytics_summary, room_mix, guest_rows):
 
 
 def _build_owner_analytics_payload(cur, owner_id, hotel, period):
+    period = _normalize_owner_forecast_period(period)
     hotel_id = hotel.get("id")
     room_rows = _fetch_owner_room_rows(cur, hotel_id)
     reservations = _fetch_owner_reservation_rows(cur, hotel_id)
@@ -7387,7 +7696,7 @@ def _build_owner_analytics_payload(cur, owner_id, hotel, period):
     ]
 
     forecast = _build_forecast_payload(reservations, total_rooms, period)
-    forecast_horizon = max(len(forecast.get("labels", [])) - len(labels), 0)
+    forecast_horizon = forecast.get("horizon", 0)
     projected_revenue = forecast.get("revenueSeries", [0])[-1] if forecast.get("revenueSeries") else 0
     projected_occupancy = forecast.get("occupancySeries", [0])[-1] if forecast.get("occupancySeries") else 0
 
@@ -7571,9 +7880,7 @@ def owner_dashboard(owner_id):
     conn = None
     cur = None
     try:
-        period = (request.args.get("period") or "monthly").strip().lower()
-        if period not in {"daily", "monthly"}:
-            period = "monthly"
+        period = _normalize_owner_forecast_period(request.args.get("period"))
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -7742,9 +8049,7 @@ def owner_forecast(owner_id):
     conn = None
     cur = None
     try:
-        period = (request.args.get("period") or "monthly").strip().lower()
-        if period not in {"daily", "monthly"}:
-            period = "monthly"
+        period = _normalize_owner_forecast_period(request.args.get("period"))
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -7792,9 +8097,7 @@ def owner_analytics(owner_id):
     conn = None
     cur = None
     try:
-        period = (request.args.get("period") or "monthly").strip().lower()
-        if period not in {"daily", "monthly"}:
-            period = "monthly"
+        period = _normalize_owner_forecast_period(request.args.get("period"))
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)

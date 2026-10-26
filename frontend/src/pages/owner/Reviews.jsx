@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Star, TrendingUp, MessageSquare, Download } from 'lucide-react';
+import { Star, TrendingUp, MessageSquare, Download, Calendar, FileText } from 'lucide-react';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 export default function Reviews() {
   const [reviews, setReviews] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+
+  // Date Filter States
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
   useEffect(() => {
     const raw = localStorage.getItem('ownerSession');
@@ -19,20 +25,83 @@ export default function Reviews() {
       .catch(() => setLoading(false));
   }, []);
 
+  // Filter Logic: Rating Tab + Date Range (From - To)
   const filtered = reviews.filter(r => {
-    if (filter === '5') return r.rating === 5;
-    if (filter === 'low') return r.rating <= 2;
+    // Rating Filter
+    if (filter === '5' && r.rating !== 5) return false;
+    if (filter === 'low' && r.rating > 2) return false;
+
+    // Date Range Filter
+    if (r.createdAt) {
+      const reviewDate = new Date(r.createdAt).setHours(0,0,0,0);
+      if (fromDate) {
+        const start = new Date(fromDate).setHours(0,0,0,0);
+        if (reviewDate < start) return false;
+      }
+      if (toDate) {
+        const end = new Date(toDate).setHours(23,59,59,999);
+        if (reviewDate > end) return false;
+      }
+    }
+
     return true;
   });
 
+  // Export CSV Function
   const exportCSV = () => {
-    const rows = [['Guest', 'Room', 'Hotel', 'Rating', 'Title', 'Comment', 'Date']];
-    reviews.forEach(r => rows.push([r.guestName, r.roomName, r.hotelName, r.rating, r.title, r.comment, r.createdAt]));
+    const rows = [['Guest', 'Room / Hotel', 'Rating', 'Title', 'Comment', 'Date']];
+    filtered.forEach(r => rows.push([
+      r.guestName, 
+      r.roomName || r.hotelName || 'Innova HMS Property', 
+      r.rating, 
+      r.title || '', 
+      r.comment || '', 
+      r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-PH') : ''
+    ]));
+    
     const csv = rows.map(r => r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = `reviews_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `reviews_report_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+  };
+
+  // Working PDF Export Function using jspdf-autotable
+  const exportPDF = () => {
+    const doc = new jsPDF();
+    
+    // Header Title
+    doc.setFontSize(16);
+    doc.setTextColor(4, 120, 87); // Emerald color
+    doc.text('Guest Reputation & Reviews Report', 14, 15);
+
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    const dateRangeText = `Date Range: ${fromDate || 'All'} to ${toDate || 'All'}`;
+    doc.text(`Generated on: ${new Date().toLocaleDateString('en-PH')} | ${dateRangeText}`, 14, 22);
+
+    // Table Columns & Rows
+    const tableColumns = ['Guest', 'Property/Room', 'Rating', 'Title & Comment', 'Date'];
+    const tableRows = filtered.map(r => [
+      r.guestName || 'Guest',
+      r.roomName || r.hotelName || 'Innova HMS',
+      `${r.rating} Stars`,
+      `${r.title ? `[${r.title}] ` : ''}${r.comment || ''}`,
+      r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-PH') : '—'
+    ]);
+
+    doc.autoTable({
+      startY: 28,
+      head: [tableColumns],
+      body: tableRows,
+      headStyles: { fillColor: [4, 120, 87], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 3 },
+      columnStyles: {
+        3: { cellWidth: 80 } // Give more space for comments
+      }
+    });
+
+    doc.save(`reviews_report_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   return (
@@ -44,51 +113,108 @@ export default function Reviews() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Reputation Management</h1>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Monitor and analyze guest satisfaction for your hotel property.</p>
         </div>
-        <button 
-          onClick={exportCSV}
-          className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
-        >
-          <Download className="w-4 h-4" /> Export CSV
-        </button>
+        
+        {/* Export Buttons */}
+        <div className="flex gap-2">
+          <button 
+            onClick={exportCSV}
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button 
+            onClick={exportPDF}
+            className="px-3.5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
+          >
+            <FileText className="w-4 h-4" /> Export PDF
+          </button>
+        </div>
       </div>
 
-      {/* STATS CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {[
-          { label: 'Total Reviews', val: stats.total ?? 0, icon: <MessageSquare size={16} /> },
-          { label: 'Avg Rating', val: `${stats.avgRating ?? 0} ★`, icon: <Star size={16} /> },
-          { label: '5-Star', val: reviews.filter(r => r.rating === 5).length, icon: <TrendingUp size={16} /> },
-          { label: 'This Month', val: reviews.filter(r => r.createdAt && new Date(r.createdAt).getMonth() === new Date().getMonth()).length, icon: <TrendingUp size={16} /> },
-        ].map((s, i) => (
-          <div key={i} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center gap-2 mb-2 text-emerald-700 dark:text-emerald-400">{s.icon}</div>
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{s.label}</p>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white">{s.val}</h2>
+      {/* STATS & DATE RANGE FILTER CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+        
+        {/* Total Reviews */}
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-2 mb-2 text-emerald-700 dark:text-emerald-400">
+            <MessageSquare size={16} />
           </div>
-        ))}
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Total Reviews</p>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">{stats.total ?? 0}</h2>
+        </div>
+
+        {/* 5-Star Reviews */}
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-2 mb-2 text-emerald-700 dark:text-emerald-400">
+            <TrendingUp size={16} />
+          </div>
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">5-Star Ratings</p>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">{reviews.filter(r => r.rating === 5).length}</h2>
+        </div>
+
+        {/* FROM - TO Date Filter Box */}
+        <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-center">
+          <div className="flex items-center gap-1.5 mb-2 text-emerald-700 dark:text-emerald-400">
+            <Calendar size={15} />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Filter Date Range</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[9px] font-semibold text-slate-500 mb-0.5">From</label>
+              <input 
+                type="date" 
+                value={fromDate} 
+                onChange={e => setFromDate(e.target.value)} 
+                className="w-full text-xs p-1 border border-slate-200 rounded dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] font-semibold text-slate-500 mb-0.5">To</label>
+              <input 
+                type="date" 
+                value={toDate} 
+                onChange={e => setToDate(e.target.value)} 
+                className="w-full text-xs p-1 border border-slate-200 rounded dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              />
+            </div>
+          </div>
+        </div>
+
       </div>
 
       {/* FILTER TABS */}
-      <div className="flex gap-2 mb-6">
-        {[['all', 'All Reviews'], ['5', '5 Star Ratings'], ['low', 'Low Ratings (≤2)']].map(([val, label]) => (
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex gap-2">
+          {[['all', 'All Reviews'], ['5', '5 Star Ratings'], ['low', 'Low Ratings (≤2)']].map(([val, label]) => (
+            <button 
+              key={val} 
+              onClick={() => setFilter(val)}
+              className={`px-3.5 py-1.5 rounded text-xs font-semibold transition-all ${
+                filter === val 
+                  ? 'bg-emerald-800 text-white shadow-sm dark:bg-emerald-700' 
+                  : 'bg-white border border-slate-200 text-slate-600 hover:border-emerald-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {(fromDate || toDate) && (
           <button 
-            key={val} 
-            onClick={() => setFilter(val)}
-            className={`px-3.5 py-1.5 rounded text-xs font-semibold transition-all ${
-              filter === val 
-                ? 'bg-emerald-800 text-white shadow-sm dark:bg-emerald-700' 
-                : 'bg-white border border-slate-200 text-slate-600 hover:border-emerald-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'
-            }`}
+            onClick={() => { setFromDate(''); setToDate(''); }} 
+            className="text-xs text-red-600 hover:underline font-semibold"
           >
-            {label}
+            Clear Date Filter
           </button>
-        ))}
+        )}
       </div>
 
       {/* REVIEWS LIST CONTAINER */}
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-        <div className="border-b border-slate-200 p-4 dark:border-slate-800">
+        <div className="border-b border-slate-200 p-4 dark:border-slate-800 flex justify-between items-center">
           <h2 className="text-sm font-bold text-slate-900 dark:text-white">Guest Feedback Records</h2>
+          <span className="text-xs text-slate-500 font-mono">Showing {filtered.length} record(s)</span>
         </div>
 
         {loading ? (

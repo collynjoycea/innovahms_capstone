@@ -54,7 +54,7 @@ export default function ManagerProfile() {
 
   useEffect(() => {
     if (!managerId) {
-      navigate("/manager/login", { replace: true });
+      navigate("/staff/login", { replace: true });
       return;
     }
     let active = true;

@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import ForgotPasswordModal from "../../components/ForgotPasswordModal";
 import { isValidEmail, isValidHotelCode, normalizeEmail } from "../../utils/authValidation";
+import { persistManagerSession } from "../Maneger/managerSession";
 
 const StaffLogin = () => {
   const navigate = useNavigate();
@@ -133,21 +134,45 @@ const StaffLogin = () => {
         const rawRole = result.staff.role;
         const role = rawRole.toLowerCase();
 
-        localStorage.setItem("staffSession", "true");
-        localStorage.setItem("staffUser", JSON.stringify(result.staff));
-        window.dispatchEvent(new Event('staffSessionChanged'));
-
         if (role.includes("manager")) {
+          const managerResponse = await fetch("/api/manager/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: normalizeEmail(formData.email),
+              password: formData.password,
+              hotelCode: formData.hotelCode
+            }),
+          });
+          const managerResult = await managerResponse.json();
+          if (!managerResponse.ok) {
+            setError(managerResult.error || "Manager login failed.");
+            return;
+          }
+
+          localStorage.removeItem("staffSession");
+          localStorage.removeItem("staffUser");
+          persistManagerSession({
+            ...(managerResult.manager || {}),
+            loginTime: new Date().toISOString()
+          }, { merge: false });
           navigate("/manager/dashboard");
-        } else if (role.includes("inventory")) {
-          navigate("/inventory/dashboard");
-        } else if (role.includes("housekeeping") || role.includes("maintenance")) {
-          navigate("/housekeeping/dashboard");
-        } else if (role.includes("hr") || role.includes("payroll")) {
-          localStorage.setItem("hrSession", "true");
-          navigate("/hr/dashboard");
         } else {
-          navigate("/staff/dashboard");
+          localStorage.removeItem("managerSession");
+          localStorage.setItem("staffSession", "true");
+          localStorage.setItem("staffUser", JSON.stringify(result.staff));
+          window.dispatchEvent(new Event('staffSessionChanged'));
+
+          if (role.includes("inventory")) {
+            navigate("/inventory/dashboard");
+          } else if (role.includes("housekeeping") || role.includes("maintenance")) {
+            navigate("/housekeeping/dashboard");
+          } else if (role.includes("hr") || role.includes("payroll")) {
+            localStorage.setItem("hrSession", "true");
+            navigate("/hr/dashboard");
+          } else {
+            navigate("/staff/dashboard");
+          }
         }
       } else {
         setError(result.error || "Login failed");

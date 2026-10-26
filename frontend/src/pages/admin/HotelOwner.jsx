@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Building2, CheckSquare, Search, Download, Mail, Phone, Eye, BadgeCheck, X } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination';
+import { confirmAdminAction, showAdminResult } from '../../utils/adminDialogs';
 
 export default function HotelOwners() {
   const { isDarkMode } = useOutletContext();
@@ -52,6 +53,14 @@ export default function HotelOwners() {
   const { paged, page, totalPages, setPage } = usePagination(filtered);
 
   const approveOwner = async (ownerId) => {
+    const confirmation = await confirmAdminAction({
+      title: 'Approve this owner?',
+      text: 'The owner will be able to access their hotel account.',
+      confirmButtonText: 'Approve owner',
+      icon: 'question',
+    });
+    if (!confirmation.isConfirmed) return;
+
     setActionLoading(String(ownerId));
     try {
       const response = await fetch(`/api/admin/owners/${ownerId}/approval`, {
@@ -65,8 +74,16 @@ export default function HotelOwners() {
       if (selectedOwner?.id === ownerId) {
         setSelectedOwner((current) => current ? { ...current, approvalStatus: 'APPROVED' } : current);
       }
+      await showAdminResult({
+        title: 'Owner approved',
+        text: data.message || 'The owner was approved successfully.',
+      });
     } catch (error) {
-      window.alert(error.message || 'Unable to approve owner.');
+      await showAdminResult({
+        title: 'Unable to approve owner',
+        text: error.message || 'Please try again.',
+        icon: 'error',
+      });
     } finally {
       setActionLoading('');
     }
@@ -89,7 +106,11 @@ export default function HotelOwners() {
 
   const handleExport = () => {
     if (filtered.length === 0) {
-      window.alert('No owners to export.');
+      showAdminResult({
+        title: 'No owners to export',
+        text: 'There are no owner records matching the current search.',
+        icon: 'info',
+      });
       return;
     }
 

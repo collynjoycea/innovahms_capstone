@@ -165,7 +165,7 @@ const HotelManagerSidebar = ({ isDarkMode }) => {
           <button 
             onClick={() => {
               clearManagerSession();
-              navigate('/manager/login');
+              navigate('/staff/login');
             }}
             className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-all font-black text-[10px] uppercase tracking-[0.1em] border ${
               isDarkMode ? 'bg-transparent text-gray-500 border-white/5 hover:text-red-500 hover:bg-red-500/10' : 'bg-transparent text-gray-500 border-gray-200 hover:text-red-600 hover:bg-red-50'

@@ -13,6 +13,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination';
+import { confirmAdminAction, showAdminResult } from '../../utils/adminDialogs';
 
 const currencyFormatter = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -150,6 +151,14 @@ const MemPackage = () => {
 
   const submitPackage = async (event) => {
     event.preventDefault();
+    const confirmation = await confirmAdminAction({
+      title: 'Save package changes?',
+      text: `The ${packageForm.name.trim()} package will be updated in the database.`,
+      icon: 'question',
+      confirmButtonText: 'Save changes',
+    });
+    if (!confirmation.isConfirmed) return;
+
     setSaving(true);
     setError('');
     setNotice('');
@@ -177,14 +186,32 @@ const MemPackage = () => {
       closePackageModal();
       setNotice(data.message || 'Package saved successfully.');
       await loadData();
+      await showAdminResult({
+        title: 'Package saved',
+        text: 'Your package changes are now saved in the database.',
+        icon: 'success',
+      });
     } catch (err) {
       setError(err.message || 'Unable to save package.');
+      await showAdminResult({
+        title: 'Unable to save package',
+        text: err.message || 'Please try again.',
+        icon: 'error',
+      });
     } finally {
       setSaving(false);
     }
   };
 
   const renewSubscription = async (subscriptionId) => {
+    const confirmation = await confirmAdminAction({
+      title: 'Renew this subscription?',
+      text: 'This will mark the subscription as paid and extend its renewal date.',
+      icon: 'warning',
+      confirmButtonText: 'Renew subscription',
+    });
+    if (!confirmation.isConfirmed) return;
+
     setSaving(true);
     setError('');
     setNotice('');
@@ -194,8 +221,18 @@ const MemPackage = () => {
       if (!response.ok) throw new Error(data.error || 'Unable to renew subscription.');
       setNotice(data.message || 'Subscription renewed successfully.');
       await loadData();
+      await showAdminResult({
+        title: 'Subscription renewed',
+        text: data.message || 'Subscription renewed successfully.',
+        icon: 'success',
+      });
     } catch (err) {
       setError(err.message || 'Unable to renew subscription.');
+      await showAdminResult({
+        title: 'Unable to renew subscription',
+        text: err.message || 'Please try again.',
+        icon: 'error',
+      });
     } finally {
       setSaving(false);
     }

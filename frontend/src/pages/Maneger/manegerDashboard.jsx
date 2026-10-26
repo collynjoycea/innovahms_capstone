@@ -32,7 +32,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const raw = localStorage.getItem(MANAGER_SESSION_KEY);
-    if (!raw) return navigate("/manager/login", { replace: true });
+    if (!raw) return navigate("/staff/login", { replace: true });
 
     let ownerId = null;
     try {
@@ -42,7 +42,7 @@ export default function Dashboard() {
     }
     if (!ownerId) {
       localStorage.removeItem(MANAGER_SESSION_KEY);
-      return navigate("/manager/login", { replace: true });
+      return navigate("/staff/login", { replace: true });
     }
 
     const controller = new AbortController();

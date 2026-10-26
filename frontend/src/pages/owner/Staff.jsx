@@ -333,9 +333,6 @@ const Staff = () => {
         {/* Analytics Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard label="Active Staff Today" val={`${analytics.activeCount} / ${analytics.totalCount}`} sub="Attendance" badgeColor="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" />
-          <StatCard label="Avg Cleaning Speed" val={analytics.avgCleaningSpeed || '0m'} sub="Efficiency" badgeColor="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" />
-          <StatCard label="Guest Rating Avg" val={`${analytics.avgRating?.toFixed(1) || '0.0'} / 5.0`} sub="Performance" badgeColor="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" />
-          <StatCard label="Payroll Projection" val={`PHP ${analytics.payrollProjection?.toLocaleString() || '0'}`} sub="Current Cycle" badgeColor="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300" borderLeft />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -415,40 +412,7 @@ const Staff = () => {
               <ShiftBlock label="Night Shift" time="22:00 - 06:00" count={analytics.nightShiftCount || 0} active={new Date().getHours() >= 22 || new Date().getHours() < 6} />
             </div>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Cleaning Progress */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
-            <div className="flex justify-between items-center mb-5 border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white">Cleaning Operations Progress</h3>
-              <span className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Live Tracking</span>
-            </div>
-            <div className="space-y-4">
-              {analytics.cleaningProgress?.length > 0 ? analytics.cleaningProgress.map((wing, idx) => (
-                <ProgressBar key={idx} label={wing.name} progress={wing.percentage} />
-              )) : (
-                <div className="py-8 text-center text-xs italic text-slate-500 border border-dashed border-slate-200 dark:border-slate-800 rounded">Waiting for real-time task data...</div>
-              )}
-            </div>
-          </div>
-
-          {/* Financial & Payroll Summary */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
-            <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-5 border-b border-slate-200 dark:border-slate-800 pb-3">Financial & Payroll Summary</h3>
-            <div className="space-y-3 mb-5">
-              <AlertItem icon={<AlertCircle className="text-red-600" size={15}/>} label={`${analytics.tardinessCount || 0} Tardiness Recorded`} action="Review" color="bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300" />
-              <AlertItem icon={<Timer className="text-amber-600" size={15}/>} label={`${analytics.overtimeHours || 0}h Overtime Logged`} action="Details" color="bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300" />
-            </div>
-            <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-4 mb-5">
-              <div className="flex justify-between text-xs"><span className="text-slate-500">Base Salary:</span><span className="font-bold text-slate-700 dark:text-slate-300">PHP {analytics.baseSalary?.toLocaleString() || '0.00'}</span></div>
-              <div className="flex items-center justify-between pt-1"><span className="text-sm font-bold text-slate-900 dark:text-white">Estimated Total:</span><span className="text-lg font-bold text-emerald-800 dark:text-emerald-400">PHP {analytics.payrollProjection?.toLocaleString() || '0.00'}</span></div>
-            </div>
-            <button onClick={handleGeneratePayslips} className="w-full bg-emerald-800 hover:bg-emerald-900 text-white py-2.5 rounded font-bold text-xs shadow-sm transition-colors">
-              Generate Current Cycle Payslips
-            </button>
-          </div>
-        </div>
+        </div>        
 
         {/* --- ADD STAFF MODAL (3 steps) --- */}
         {isAddModalOpen && (

@@ -103,6 +103,11 @@ export default function OwnerSubscription() {
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || 'Unable to verify subscription payment.');
         if (cancelled) return;
+        if (data.status !== 'paid') {
+          setError('Payment is still pending. Your subscription will activate after PayMongo confirms it.');
+          navigate('/owner/subscription', { replace: true });
+          return;
+        }
         if (data.session) persistSession(data.session);
         setSubscription(data.subscription || null);
         setMessage('Payment confirmed. Your owner subscription is now active.');
