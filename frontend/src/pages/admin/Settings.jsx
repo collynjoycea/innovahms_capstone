@@ -29,11 +29,11 @@ const Settings = () => {
   const [errors, setErrors] = useState({});
   const [maintenanceSchedule, setMaintenanceSchedule] = useState("");
 
-  const bgMain = isDarkMode ? 'bg-[#09090b]' : 'bg-[#F4F5F7]';
-  const cardBg = isDarkMode ? 'bg-[#111111]' : 'bg-white';
-  const borderColor = isDarkMode ? 'border-white/10' : 'border-gray-200';
+  const bgMain = isDarkMode ? 'bg-[#0f1117]' : 'bg-slate-50';
+  const cardBg = isDarkMode ? 'bg-[#121824]' : 'bg-white';
+  const borderColor = isDarkMode ? 'border-white/10' : 'border-black/5';
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
-  const inputBg = isDarkMode ? 'bg-black/40' : 'bg-gray-50';
+  const inputBg = isDarkMode ? 'bg-white/5' : 'bg-slate-50';
 
   const triggerToast = (msg, isError = false) => {
     setToastMsg(msg);
@@ -217,7 +217,7 @@ const Settings = () => {
               <Shield size={16} className="text-[#2FA084]" />
               <h2 className={`text-xs font-black uppercase tracking-widest ${textColor}`}>Security & Access Control</h2>
             </div>
-            <div className="space-y-0 divide-y divide-white/5">
+            <div className={`space-y-0 divide-y ${isDarkMode ? 'divide-white/5' : 'divide-black/5'}`}>
               {renderToggle('Two-Factor Authentication (2FA) for Admins', 'twoFactor')}
               {renderToggle('Strict Session Timeout (30 mins)', 'sessionTimeout')}
               {renderToggle('IP Whitelisting for System Admin', 'ipWhitelisting')}
@@ -241,11 +241,11 @@ const Settings = () => {
               <Cpu size={16} className="text-[#2FA084]" />
               <h2 className={`text-xs font-black uppercase tracking-widest ${textColor}`}>AI & API Integration Gateways</h2>
             </div>
-            <div className="space-y-0 divide-y divide-white/5">
+            <div className={`space-y-0 divide-y ${isDarkMode ? 'divide-white/5' : 'divide-black/5'}`}>
               {renderToggle('Python Prophet Forecasting Auto-Sync', 'prophetAutoSync')}
               {renderToggle('PayMongo Gateway Live Mode (Online Payments)', 'paymongoLiveMode')}
             </div>
-            <div className="p-3 rounded-lg bg-black/20 border border-white/5 flex items-center justify-between">
+            <div className={`p-3 rounded-lg border flex items-center justify-between ${isDarkMode ? 'bg-black/20 border-white/5' : 'bg-slate-50 border-black/5'}`}>
               <div className="flex items-center gap-2">
                 <Mail size={14} className="text-[#2FA084]" />
                 <span className={`text-[10px] font-bold ${textColor}`}>Gmail SMTP Status</span>
@@ -259,7 +259,7 @@ const Settings = () => {
               <Database size={16} className="text-[#2FA084]" />
               <h2 className={`text-xs font-black uppercase tracking-widest ${textColor}`}>Database & Audit Backups</h2>
             </div>
-            <div className="p-4 rounded-lg bg-black/30 border border-white/5 space-y-2">
+            <div className={`p-4 rounded-lg border space-y-2 ${isDarkMode ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-black/5'}`}>
               <p className="text-[9px] font-bold text-gray-500 uppercase">PostgreSQL Audit Logs & Records</p>
               <div className="flex items-center justify-between">
                 <span className={`text-[11px] font-bold ${textColor}`}>Automated Daily Backup</span>
@@ -267,7 +267,7 @@ const Settings = () => {
               </div>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => triggerToast('Initiating system-wide database backup...')} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-[#2FA084] text-black font-black text-[9px] uppercase hover:brightness-110 active:scale-95 transition-all">
+              <button onClick={() => triggerToast('Initiating system-wide database backup...')} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-[#2FA084] text-white font-black text-[9px] uppercase hover:brightness-110 active:scale-95 transition-all">
                 <Database size={14}/> Backup Now
               </button>
               <button onClick={() => triggerToast('Restoration protocol verified.')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border ${borderColor} ${textColor} text-[9px] font-black uppercase hover:bg-white/5 active:scale-95 transition-all`}>
@@ -280,7 +280,7 @@ const Settings = () => {
               <Bell size={16} className="text-[#2FA084]" />
               <h2 className={`text-xs font-black uppercase tracking-widest ${textColor}`}>Notification Settings</h2>
             </div>
-            <div className="space-y-0 divide-y divide-white/5">
+            <div className={`space-y-0 divide-y ${isDarkMode ? 'divide-white/5' : 'divide-black/5'}`}>
               {renderToggle('Email alerts for new hotel signups', 'emailAlerts')}
               {renderToggle('SMS on payment failures', 'smsFailures')}
               {renderToggle('Error log digest (daily)', 'errorLogDigest')}

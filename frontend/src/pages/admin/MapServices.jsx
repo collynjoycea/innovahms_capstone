@@ -61,11 +61,11 @@ const MapServices = () => {
   }, []);
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#F4F5F7]',
-    card: isDarkMode ? 'bg-[#111111]/80' : 'bg-white',
+    bg: isDarkMode ? 'bg-[#0f1117]' : 'bg-slate-50',
+    card: isDarkMode ? 'bg-[#121824]/80' : 'bg-white',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
-    textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
-    border: isDarkMode ? 'border-white/10' : 'border-gray-300',
+    textSub: isDarkMode ? 'text-slate-400' : 'text-slate-500',
+    border: isDarkMode ? 'border-white/10' : 'border-black/5',
   };
 
   return (

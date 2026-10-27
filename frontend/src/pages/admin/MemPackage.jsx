@@ -34,17 +34,17 @@ const emptyPackageForm = {
 };
 
 const packageTheme = (slug) => {
-  if (slug === 'enterprise') return { icon: Crown, accent: 'text-purple-400', pill: 'bg-purple-500/15 text-purple-400' };
-  if (slug === 'pro') return { icon: Zap, accent: 'text-[#2FA084]', pill: 'bg-[#2FA084]/15 text-[#2FA084]' };
-  return { icon: Sprout, accent: 'text-green-400', pill: 'bg-emerald-500/15 text-emerald-400' };
+  if (slug === 'enterprise') return { icon: Crown, accent: 'text-purple-700 dark:text-purple-400', pill: 'text-purple-800 bg-purple-50 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/50' };
+  if (slug === 'pro') return { icon: Zap, accent: 'text-emerald-700 dark:text-emerald-400', pill: 'text-emerald-800 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50' };
+  return { icon: Sprout, accent: 'text-emerald-700 dark:text-emerald-400', pill: 'text-emerald-800 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50' };
 };
 
 const formatPhp = (amount) => currencyFormatter.format(Number(amount || 0));
 
 const formatDate = (value) => {
-  if (!value) return '-';
+  if (!value) return '—';
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? '-' : parsed.toLocaleDateString();
+  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleDateString();
 };
 
 const normalizeFeatures = (rawValue) =>
@@ -54,16 +54,19 @@ const normalizeFeatures = (rawValue) =>
     .filter(Boolean);
 
 const ModalShell = ({ children, onClose, isDarkMode }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-    <div className={`w-full max-w-2xl rounded-3xl border ${isDarkMode ? 'border-white/10 bg-[#111111]' : 'border-gray-200 bg-white'} shadow-2xl max-h-[90vh] overflow-y-auto`}>
-      <div className={`flex items-center justify-between border-b px-6 py-4 ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
-        <p className="text-[9px] font-black uppercase tracking-[0.24em] text-gray-500">Package Management</p>
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="w-full max-w-2xl rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl max-h-[90vh] overflow-y-auto">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-4">
+        <div>
+          <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">Package Management</span>
+          <h3 className="text-base font-bold text-slate-900 dark:text-white mt-0.5">Edit Package Settings</h3>
+        </div>
         <button
           type="button"
           onClick={onClose}
-          className={`rounded-xl border p-2 transition-colors ${isDarkMode ? 'border-white/10 text-gray-400 hover:bg-white/5 hover:text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}
+          className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
         >
-          <X size={16} />
+          <X size={18} />
         </button>
       </div>
       {children}
@@ -72,7 +75,7 @@ const ModalShell = ({ children, onClose, isDarkMode }) => (
 );
 
 const MemPackage = () => {
-  const { isDarkMode } = useOutletContext();
+  const { isDarkMode = false } = useOutletContext() || {};
   const [packages, setPackages] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [hotels, setHotels] = useState([]);
@@ -86,16 +89,6 @@ const MemPackage = () => {
   const [packageForm, setPackageForm] = useState(emptyPackageForm);
   const [editingPackage, setEditingPackage] = useState(null);
   const [showPackageModal, setShowPackageModal] = useState(false);
-
-  const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#EEEEEE]',
-    card: isDarkMode ? 'bg-[#111111]/80 backdrop-blur-md' : 'bg-white',
-    textMain: isDarkMode ? 'text-white' : 'text-gray-900',
-    textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
-    border: isDarkMode ? 'border-white/10' : 'border-gray-300',
-    inputBg: isDarkMode ? 'bg-white/5' : 'bg-gray-50',
-    shadow: isDarkMode ? 'shadow-2xl shadow-black/40' : 'shadow-[0_15px_40px_rgba(0,0,0,0.08)]',
-  };
 
   const loadData = async () => {
     setLoading(true);
@@ -239,111 +232,124 @@ const MemPackage = () => {
   };
 
   return (
-    <div className={`min-h-screen space-y-8 p-6 transition-all duration-500 ${theme.bg}`}>
-      <div className={`flex flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between ${theme.border}`}>
-        <div>
-          <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
-            Membership <span className="text-[#2FA084]">Packages</span>
-          </h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
+    <div className="min-h-screen bg-slate-100 text-slate-800 p-4 sm:p-6 lg:p-8 font-sans dark:bg-slate-950 dark:text-slate-100 space-y-6">
+      
+      {/* HEADER */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">Admin Control Panel</span>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Membership Packages & Subscriptions</h1>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+              Manage subscription tiers, pricing, features, and active hotel billing schedules.
+            </p>
+          </div>
           <button
             type="button"
             onClick={loadData}
-            className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-[10px] font-black uppercase transition-all ${saving ? 'cursor-not-allowed opacity-60' : `${theme.border} ${theme.card} ${theme.textMain} hover:border-[#2FA084]`}`}
+            disabled={saving}
+            className="self-start sm:self-auto px-4 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            Refresh
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Data
           </button>
         </div>
       </div>
 
       {(error || notice) && (
-        <div className={`rounded-2xl border px-4 py-3 text-[11px] font-bold ${error ? 'border-red-500/20 bg-red-500/10 text-red-400' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'}`}>
+        <div className={`rounded-lg border px-4 py-3 text-xs font-bold ${error ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300' : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300'}`}>
           {error || notice}
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+      {/* STATS CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
           { label: 'Package Count', value: stats.totalPackages ?? packages.length },
           { label: 'Active Hotels', value: stats.activeSubscriptions ?? 0 },
           { label: 'Pending Hotels', value: stats.pendingSubscriptions ?? 0 },
           { label: 'Projected MRR', value: formatPhp(stats.monthlyRecurringRevenue ?? 0) },
         ].map((card) => (
-          <div key={card.label} className={`rounded-2xl border p-6 ${theme.border} ${theme.card} ${theme.shadow}`}>
-            <div className={`mb-4 inline-flex rounded-xl border p-2.5 text-[#2FA084] ${isDarkMode ? 'border-white/10 bg-white/5' : 'border-gray-200 bg-gray-50'}`}>
-              <ShieldCheck size={18} />
+          <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400">
+                <ShieldCheck size={18} />
+              </div>
+              <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Live</span>
             </div>
-            <p className={`mb-1 text-[9px] font-black uppercase tracking-[0.18em] ${theme.textSub}`}>{card.label}</p>
-            <h2 className={`text-3xl font-black tracking-tighter ${theme.textMain}`}>{card.value}</h2>
+            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">{card.label}</p>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{card.value}</h2>
           </div>
         ))}
       </div>
 
-      {/* EDITABLE PACKAGE CARDS GRID (TINANGGAL ANG DELETE BUTTON) */}
+      {/* EDITABLE PACKAGE CARDS GRID */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {loading ? (
           <div className="col-span-full flex items-center justify-center py-16">
-            <Loader2 className="animate-spin text-[#2FA084]" size={28} />
+            <Loader2 className="animate-spin text-emerald-700 dark:text-emerald-400" size={28} />
           </div>
         ) : (
           packages.map((pkg) => {
             const meta = packageTheme(pkg.slug);
             const Icon = meta.icon;
             return (
-              <div key={pkg.id} className={`relative rounded-2xl border p-8 transition-all duration-300 ${theme.border} ${theme.card} ${theme.shadow} ${pkg.isPopular ? 'ring-1 ring-[#2FA084]/50' : ''}`}>
+              <div key={pkg.id} className={`relative bg-white dark:bg-slate-900 border rounded-lg p-6 shadow-sm flex flex-col justify-between transition-all ${pkg.isPopular ? 'border-emerald-600 dark:border-emerald-500 ring-1 ring-emerald-600/30' : 'border-slate-200 dark:border-slate-800'}`}>
                 {pkg.isPopular && (
-                  <span className="absolute right-6 top-[-12px] rounded-full bg-[#2FA084] px-3 py-1 text-[8px] font-black uppercase tracking-widest text-black">
+                  <span className="absolute right-6 top-[-10px] rounded-full bg-emerald-700 px-3 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-sm">
                     Most Popular
                   </span>
                 )}
-                <div className="flex items-start justify-between">
-                  <div className={`mb-6 inline-flex rounded-xl p-3 ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'} ${meta.accent}`}>
-                    <Icon size={28} />
+                <div>
+                  <div className="flex items-start justify-between mb-4">
+                    <div className={`p-2.5 rounded border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 ${meta.accent}`}>
+                      <Icon size={20} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${pkg.isActive ? 'text-emerald-800 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50' : 'text-slate-700 bg-slate-100 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'}`}>
+                        {pkg.isActive ? 'Live' : 'Paused'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => openEditPackageModal(pkg)}
+                        className="p-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                        title="Edit Package"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openEditPackageModal(pkg)}
-                      className={`rounded-lg border p-2 transition-colors ${theme.border} ${theme.textMain} hover:border-[#2FA084]`}
-                      title="Edit Package"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex items-start justify-between gap-4">
+
                   <div>
-                    <h3 className={`text-xl font-black ${theme.textMain}`}>{pkg.name}</h3>
-                    <p className={`mt-1 text-[10px] font-bold uppercase tracking-widest ${theme.textSub}`}>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">{pkg.name}</h3>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-0.5">
                       {pkg.maxRooms ? `Up to ${pkg.maxRooms} rooms` : 'Unlimited rooms'}
                     </p>
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-widest ${meta.pill}`}>
-                    {pkg.isActive ? 'Live' : 'Paused'}
-                  </span>
+
+                  <div className="mt-4 flex items-baseline gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-4">
+                    <span className="text-2xl font-bold text-slate-900 dark:text-white">{formatPhp(pkg.monthlyPrice)}</span>
+                    <span className="text-[10px] font-mono uppercase text-slate-400 font-bold">/ month</span>
+                  </div>
+
+                  <p className="mt-3 text-xs text-slate-600 dark:text-slate-400 min-h-[36px] leading-relaxed">{pkg.description || 'No package description yet.'}</p>
+
+                  <ul className="my-5 space-y-2.5">
+                    {(pkg.features || []).map((feature) => (
+                      <li key={feature} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-medium">
+                        <CheckCircle2 size={14} className="text-emerald-700 dark:text-emerald-400 shrink-0" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                    {(!pkg.features || pkg.features.length === 0) && (
+                      <li className="text-xs text-slate-400 italic">No features listed.</li>
+                    )}
+                  </ul>
                 </div>
-                <div className="mt-4 flex items-baseline gap-2">
-                  <span className={`text-3xl font-black ${theme.textMain}`}>{formatPhp(pkg.monthlyPrice)}</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">/ month</span>
-                </div>
-                <p className={`mt-2 min-h-[36px] text-sm leading-relaxed ${theme.textSub}`}>{pkg.description || 'No package description yet.'}</p>
-                <ul className={`mb-8 mt-6 space-y-3 border-t pt-6 ${theme.border}`}>
-                  {(pkg.features || []).map((feature) => (
-                    <li key={feature} className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-tight text-gray-500">
-                      <CheckCircle2 size={14} className="text-[#2FA084]" />
-                      {feature}
-                    </li>
-                  ))}
-                  {(!pkg.features || pkg.features.length === 0) && (
-                    <li className={`text-[10px] font-bold uppercase tracking-tight ${theme.textSub}`}>No features listed.</li>
-                  )}
-                </ul>
+
                 <button
                   type="button"
                   onClick={() => openEditPackageModal(pkg)}
-                  className="w-full rounded-xl border border-[#2FA084]/40 bg-[#2FA084]/10 py-3 text-center text-[10px] font-black uppercase tracking-widest text-[#2FA084] transition-all hover:bg-[#2FA084] hover:text-black"
+                  className="w-full mt-2 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                 >
                   Edit Price & Features
                 </button>
@@ -354,89 +360,90 @@ const MemPackage = () => {
       </div>
 
       {/* SUBSCRIPTION TABLE */}
-      <div className={`overflow-hidden rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow}`}>
-        <div className={`flex flex-col gap-4 border-b p-5 ${theme.border} ${isDarkMode ? 'bg-white/[0.01]' : 'bg-gray-50/60'}`}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="text-[#2FA084]" size={18} />
-              <div>
-                <h2 className={`text-[11px] font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Hotel Subscriptions</h2>
-                <p className={`text-[10px] ${theme.textSub}`}>{filteredSubscriptions.length} matching hotels</p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 md:flex-row">
-              <div className={`flex items-center gap-3 rounded-xl border px-4 py-2 ${theme.border} ${theme.inputBg}`}>
-                <Search size={14} className="text-gray-500" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search hotel, owner..."
-                  className={`w-full bg-transparent text-[10px] font-bold uppercase outline-none placeholder:text-gray-500 ${theme.textMain}`}
-                />
-              </div>
-              <select
-                value={planFilter}
-                onChange={(event) => setPlanFilter(event.target.value)}
-                className={`rounded-xl border px-4 py-2 text-[10px] font-black uppercase outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
-              >
-                <option value="all">All Plans</option>
-                {packages.map((pkg) => <option key={pkg.id} value={pkg.slug}>{pkg.name}</option>)}
-              </select>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
+        
+        {/* Table Header Controls */}
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/50">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="text-emerald-700 dark:text-emerald-400" size={18} />
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">Hotel Subscriptions</h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{filteredSubscriptions.length} matching hotels</p>
             </div>
           </div>
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+              <input
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search hotel, owner..."
+                className="w-full pl-9 pr-3 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs rounded focus:outline-none text-slate-900 dark:text-slate-100"
+              />
+            </div>
+            <select
+              value={planFilter}
+              onChange={(event) => setPlanFilter(event.target.value)}
+              className="w-full sm:w-auto px-3 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold uppercase rounded outline-none cursor-pointer text-slate-700 dark:text-slate-200"
+            >
+              <option value="all">All Plans</option>
+              {packages.map((pkg) => <option key={pkg.id} value={pkg.slug}>{pkg.name}</option>)}
+            </select>
+          </div>
         </div>
+
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="animate-spin text-[#2FA084]" size={28} />
+            <Loader2 className="animate-spin text-emerald-700 dark:text-emerald-400" size={28} />
           </div>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className={`${isDarkMode ? 'bg-white/[0.02]' : 'bg-gray-50'} border-b ${theme.border}`}>
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
                   <tr>
                     {['Hotel', 'Plan', 'Billing Cycle', 'Amount', 'Next Renewal', 'Status', 'Action'].map((heading) => (
-                      <th key={heading} className={`px-6 py-4 text-[9px] font-black uppercase tracking-widest ${theme.textSub}`}>{heading}</th>
+                      <th key={heading} className="px-6 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">{heading}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className={`divide-y ${theme.border}`}>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                   {paged.map((subscription) => {
                     const meta = packageTheme(subscription.planSlug);
                     return (
-                      <tr key={subscription.id} className="transition-colors hover:bg-[#2FA084]/5">
-                        <td className="px-6 py-4">
+                      <tr key={subscription.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="px-6 py-3.5">
                           <div className="flex flex-col">
-                            <span className={`text-[11px] font-black ${theme.textMain}`}>{subscription.hotelName}</span>
-                            <span className={`text-[10px] font-bold ${theme.textSub}`}>
+                            <span className="font-bold text-slate-900 dark:text-white">{subscription.hotelName}</span>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                               {subscription.ownerName}
                               {subscription.hotelCode ? ` | ${subscription.hotelCode}` : ''}
                             </span>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <span className={`rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-widest ${meta.pill}`}>{subscription.plan}</span>
+                        <td className="px-6 py-3.5">
+                          <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded border ${meta.pill}`}>{subscription.plan}</span>
                         </td>
-                        <td className={`px-6 py-4 text-[10px] font-bold uppercase ${theme.textSub}`}>{subscription.cycle}</td>
-                        <td className={`px-6 py-4 text-[11px] font-black ${theme.textMain}`}>{formatPhp(subscription.amount)}</td>
-                        <td className={`px-6 py-4 text-[10px] font-bold ${theme.textSub}`}>{formatDate(subscription.renewal)}</td>
-                        <td className="px-6 py-4">
-                          <span className={`rounded-full border px-3 py-1 text-[8px] font-black uppercase tracking-widest ${
+                        <td className="px-6 py-3.5 font-mono uppercase text-slate-600 dark:text-slate-400">{subscription.cycle}</td>
+                        <td className="px-6 py-3.5 font-bold text-slate-900 dark:text-white">{formatPhp(subscription.amount)}</td>
+                        <td className="px-6 py-3.5 font-mono text-[11px] text-slate-500">{formatDate(subscription.renewal)}</td>
+                        <td className="px-6 py-3.5">
+                          <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded border ${
                             subscription.status === 'ACTIVE'
-                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                              ? 'text-emerald-800 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50'
                               : subscription.status === 'PENDING'
-                                ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
-                                : 'border-gray-500/20 bg-gray-500/10 text-gray-400'
+                                ? 'text-amber-800 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50'
+                                : 'text-slate-700 bg-slate-100 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
                           }`}>
                             {subscription.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-3.5">
                           <button
                             type="button"
                             onClick={() => renewSubscription(subscription.id)}
-                            className={`rounded-lg border p-2 transition-all ${theme.border} ${theme.textMain} hover:bg-[#2FA084] hover:text-black`}
+                            className="p-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all cursor-pointer"
                             title="Renew subscription"
                           >
                             <RefreshCw size={14} />
@@ -447,7 +454,7 @@ const MemPackage = () => {
                   })}
                   {filteredSubscriptions.length === 0 && (
                     <tr>
-                      <td colSpan={7} className={`px-6 py-10 text-center text-[11px] ${theme.textSub}`}>
+                      <td colSpan={7} className="px-6 py-12 text-center text-xs font-mono uppercase tracking-widest text-slate-400">
                         No subscriptions found.
                       </td>
                     </tr>
@@ -463,73 +470,69 @@ const MemPackage = () => {
       {/* PACKAGE EDIT MODAL */}
       {showPackageModal && (
         <ModalShell onClose={closePackageModal} isDarkMode={isDarkMode}>
-          <form onSubmit={submitPackage} className="space-y-5 p-6">
-            <h2 className={`text-lg font-black uppercase tracking-wider ${theme.textMain}`}>
-              Edit Package
-            </h2>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <form onSubmit={submitPackage} className="space-y-4 p-6 text-xs">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
-                <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>Package Name</label>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Package Name *</label>
                 <input
                   type="text"
                   required
                   value={packageForm.name}
                   onChange={(e) => setPackageForm({ ...packageForm, name: e.target.value })}
                   placeholder="e.g. Pro Hotelier"
-                  className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+                  className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 text-slate-900 dark:text-slate-100 outline-none"
                 />
               </div>
               <div>
-                <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>Max Rooms (Leave blank for unlimited)</label>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Max Rooms (Blank for unlimited)</label>
                 <input
                   type="number"
                   value={packageForm.maxRooms}
                   onChange={(e) => setPackageForm({ ...packageForm, maxRooms: e.target.value })}
                   placeholder="e.g. 50"
-                  className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+                  className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 text-slate-900 dark:text-slate-100 outline-none"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
-                <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>Monthly Price (PHP)</label>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Monthly Price (PHP) *</label>
                 <input
                   type="number"
                   required
                   value={packageForm.monthlyPrice}
                   onChange={(e) => setPackageForm({ ...packageForm, monthlyPrice: e.target.value })}
                   placeholder="e.g. 2500"
-                  className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+                  className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 text-slate-900 dark:text-slate-100 outline-none"
                 />
               </div>
               <div>
-                <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>Annual Price (PHP)</label>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Annual Price (PHP) *</label>
                 <input
                   type="number"
                   required
                   value={packageForm.annualPrice}
                   onChange={(e) => setPackageForm({ ...packageForm, annualPrice: e.target.value })}
                   placeholder="e.g. 25000"
-                  className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+                  className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 text-slate-900 dark:text-slate-100 outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>Description</label>
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Description</label>
               <textarea
                 rows={2}
                 value={packageForm.description}
                 onChange={(e) => setPackageForm({ ...packageForm, description: e.target.value })}
                 placeholder="Short description..."
-                className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+                className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 text-slate-900 dark:text-slate-100 outline-none resize-none"
               />
             </div>
 
             <div>
-              <label className={`block text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Features (Type each feature on a new line or separate by commas)
               </label>
               <textarea
@@ -537,43 +540,43 @@ const MemPackage = () => {
                 value={packageForm.featuresText}
                 onChange={(e) => setPackageForm({ ...packageForm, featuresText: e.target.value })}
                 placeholder="24/7 Support&#10;Advanced Analytics&#10;Unlimited Bookings"
-                className={`w-full rounded-xl border p-3 text-xs font-bold outline-none ${theme.border} ${theme.inputBg} ${theme.textMain}`}
+                className="w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 text-slate-900 dark:text-slate-100 outline-none"
               />
             </div>
 
             <div className="flex items-center gap-6 pt-2">
-              <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+              <label className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={packageForm.isPopular}
                   onChange={(e) => setPackageForm({ ...packageForm, isPopular: e.target.checked })}
-                  className="rounded border-gray-300 text-[#2FA084] focus:ring-[#2FA084]"
+                  className="rounded border-slate-300 accent-emerald-600 h-4 w-4 cursor-pointer"
                 />
-                <span className={theme.textMain}>Mark as 'Most Popular'</span>
+                <span>Mark as 'Most Popular'</span>
               </label>
-              <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+              <label className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={packageForm.isActive}
                   onChange={(e) => setPackageForm({ ...packageForm, isActive: e.target.checked })}
-                  className="rounded border-gray-300 text-[#2FA084] focus:ring-[#2FA084]"
+                  className="rounded border-slate-300 accent-emerald-600 h-4 w-4 cursor-pointer"
                 />
-                <span className={theme.textMain}>Active (Live)</span>
+                <span>Active (Live)</span>
               </label>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-white/10">
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
                 onClick={closePackageModal}
-                className="rounded-xl border border-gray-300 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-100 dark:border-white/10 dark:hover:bg-white/5"
+                className="px-4 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="flex items-center gap-2 rounded-xl bg-[#2FA084] px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-black shadow-lg transition-all hover:scale-105 disabled:opacity-50"
+                className="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-bold flex items-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {saving && <Loader2 size={14} className="animate-spin" />}
                 Save Package

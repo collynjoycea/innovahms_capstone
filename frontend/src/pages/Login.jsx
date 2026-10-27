@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Facebook, AlertCircle } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from "lucide-react";
 import { GoogleLogin } from "@react-oauth/google";
-import FacebookLogin from "react-facebook-login/dist/facebook-login-render-props";
+// import FacebookLogin from "react-facebook-login/dist/facebook-login-render-props"; // Nakatago muna pansamantala
 import ForgotPasswordModal from "../components/ForgotPasswordModal";
 import { isValidEmail } from "../utils/authValidation";
 
@@ -149,29 +149,6 @@ export default function Login() {
     }
   };
 
-  const responseFacebook = async (response) => {
-    if (!response.accessToken) return;
-    setServerError("");
-    try {
-      const res = await fetch("/api/facebook-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessToken: response.accessToken }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem("user", JSON.stringify(data.user));
-        localStorage.setItem("customerSession", JSON.stringify(data.user));
-        window.dispatchEvent(new Event("userUpdated"));
-        navigate(getPostLoginRedirect());
-      } else {
-        setServerError(data.error || "Facebook sign-in failed.");
-      }
-    } catch {
-      setServerError("Server connection error during Facebook login.");
-    }
-  };
-
   return (
     <div className="min-h-[calc(100vh-80px)] w-full flex items-center justify-center bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 p-4 sm:p-6 lg:p-8 font-sans">
       <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 p-8 sm:p-10">
@@ -289,7 +266,7 @@ export default function Login() {
           </div>
         </div>
 
-        {/* SOCIAL LOGINS */}
+        {/* SOCIAL LOGINS (Facebook hidden temporarily) */}
         <div className="space-y-2.5 flex flex-col items-center">
           <div className="w-[352px] flex justify-center">
             <GoogleLogin
@@ -300,22 +277,6 @@ export default function Login() {
               width="352"
             />
           </div>
-
-          <FacebookLogin
-            appId="1986409515302523"
-            autoLoad={false}
-            callback={responseFacebook}
-            render={(renderProps) => (
-              <button
-                type="button"
-                onClick={renderProps.onClick}
-                className="flex items-center justify-center gap-2 w-[352px] h-[40px] rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium transition-colors shadow-xs"
-              >
-                <Facebook size={15} className="text-[#1877F2] fill-[#1877F2]" />
-                <span>Facebook</span>
-              </button>
-            )}
-          />
         </div>
 
         {/* FOOTER LINK */}

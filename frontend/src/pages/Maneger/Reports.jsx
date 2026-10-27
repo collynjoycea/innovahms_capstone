@@ -1,12 +1,17 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
+  AlertCircle,
+  CalendarDays,
+  Download,
+  FileText,
+  Package,
+  RefreshCw,
   TrendingUp,
-  Download, RefreshCw, AlertTriangle, Search, FileText, CheckCircle2, ArrowLeft, Filter
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { readManagerSession } from './managerSession';
 
 const pesoFormatter = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -15,445 +20,439 @@ const pesoFormatter = new Intl.NumberFormat('en-PH', {
 });
 
 const formatPeso = (value) => {
-  if (value === null || value === undefined || value === '') return '--';
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? pesoFormatter.format(numericValue) : '--';
+  if (value === null || value === undefined || value === '') return null;
+  const amount = Number(value);
+  return Number.isFinite(amount) ? pesoFormatter.format(amount) : null;
 };
 
-const toSearchable = (value) => String(value ?? '').toLowerCase();
+const formatDate = (value) => {
+  if (!value) return null;
+  const datePart = String(value).slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+  if (!match) return String(value);
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
 
-const Reports = () => {
-  const managerSession = (() => {
-    try {
-      return JSON.parse(localStorage.getItem('managerSession') || '{}');
-    } catch {
-      return {};
+const formatTime = (value) => {
+  if (!value) return null;
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(String(value));
+  if (!match) return String(value);
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return String(value);
+
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const displayHour = hours % 12 || 12;
+  return `${displayHour}:${match[2]} ${period}`;
+};
+
+const formatSchedule = (date, time) => {
+  const formattedDate = formatDate(date);
+  if (!formattedDate) return null;
+  return `${formattedDate} · ${formatTime(time) || 'Time not recorded'}`;
+};
+
+const getLocalDate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const reportDefinitions = [
+  {
+    key: 'revenue',
+    title: 'Revenue and Reservations',
+    description: 'Revenue derived from reservation payments and downpayments recorded within the selected period.',
+    columns: [
+      { key: 'bookingNumber', label: 'Booking No.' },
+      { key: 'guestName', label: 'Guest Name' },
+      { key: 'recordDate', label: 'Booking Date', value: (row) => formatDate(row.recordDate) },
+      { key: 'checkInDate', label: 'Check-in Date & Time', value: (row) => formatSchedule(row.checkInDate, row.checkInTime) },
+      { key: 'checkOutDate', label: 'Check-out Date & Time', value: (row) => formatSchedule(row.checkOutDate, row.checkOutTime) },
+      { key: 'reservationStatus', label: 'Booking Status' },
+      { key: 'paymentStatus', label: 'Payment Status' },
+      { key: 'totalAmount', label: 'Total Amount', value: (row) => formatPeso(row.totalAmount) },
+      { key: 'depositAmount', label: 'Downpayment', value: (row) => formatPeso(row.depositAmount) },
+      { key: 'amountReceived', label: 'Collected Revenue', value: (row) => formatPeso(row.amountReceived) },
+    ],
+  },
+  {
+    key: 'inventory',
+    title: 'Current Supply Inventory',
+    description: 'Snapshot of stock levels at the time of loading; not restricted by the selected date range.',
+    columns: [
+      { key: 'sku', label: 'SKU' },
+      { key: 'itemName', label: 'Item Name' },
+      { key: 'category', label: 'Category' },
+      { key: 'stockLevel', label: 'In Stock' },
+      { key: 'unit', label: 'Unit' },
+      { key: 'reorderPoint', label: 'Reorder Point' },
+      { key: 'unitCost', label: 'Unit Cost', value: (row) => formatPeso(row.unitCost) },
+      { key: 'supplier', label: 'Supplier' },
+      { key: 'status', label: 'Status' },
+      { key: 'createdAt', label: 'Date Created' },
+      { key: 'updatedAt', label: 'Last Updated' },
+      { key: 'lastMovementAt', label: 'Last Stock Movement' },
+    ],
+  },
+  {
+    key: 'stockMovements',
+    title: 'Stock Movements',
+    description: 'Actual IN, OUT, and ADJUST movements recorded within the selected period.',
+    columns: [
+      { key: 'recordDate', label: 'Movement Date' },
+      { key: 'itemName', label: 'Item' },
+      { key: 'sku', label: 'SKU' },
+      { key: 'movementType', label: 'Type' },
+      { key: 'quantity', label: 'Quantity' },
+      { key: 'unitCost', label: 'Unit Cost', value: (row) => formatPeso(row.unitCost) },
+      { key: 'department', label: 'Department' },
+      { key: 'reason', label: 'Reason' },
+      { key: 'supplier', label: 'Supplier' },
+      { key: 'purchaseOrderNumber', label: 'Purchase Order No.' },
+      { key: 'notes', label: 'Notes' },
+      { key: 'performedBy', label: 'Performed By' },
+    ],
+  },
+  {
+    key: 'purchaseOrders',
+    title: 'Purchase Orders',
+    description: 'Purchase orders created within the selected period, including expected and received dates.',
+    columns: [
+      { key: 'purchaseOrderNumber', label: 'Purchase Order No.' },
+      { key: 'supplier', label: 'Supplier' },
+      { key: 'status', label: 'Status' },
+      { key: 'totalAmount', label: 'Total Amount', value: (row) => formatPeso(row.totalAmount) },
+      { key: 'recordDate', label: 'Creation Date' },
+      { key: 'expectedDate', label: 'Expected Date' },
+      { key: 'receivedDate', label: 'Received Date' },
+      { key: 'notes', label: 'Notes' },
+    ],
+  },
+];
+
+const rawValueForColumn = (row, column) => {
+  const value = column.value ? column.value(row) : row[column.key];
+  if (value === null || value === undefined || (typeof value === 'string' && !value.trim())) return null;
+  return value;
+};
+
+const valueForColumn = (row, column) => {
+  const value = rawValueForColumn(row, column);
+  return value === null ? 'Not recorded' : String(value);
+};
+
+const columnsWithData = (report, rows) => (
+  rows.length === 0
+    ? report.columns
+    : report.columns.filter((column) => rows.some((row) => rawValueForColumn(row, column) !== null))
+);
+
+const exportReport = (report, rows, range, format, generatedAt) => {
+  const safeTitle = report.title.replace(/[^\w-]+/g, '_').replace(/^_+|_+$/g, '');
+  const filename = report.key === 'inventory'
+    ? `${safeTitle}_snapshot_${generatedAt?.slice(0, 10) || 'date-not-recorded'}`
+    : `${safeTitle}_${range.from}_to_${range.to}`;
+  const columns = columnsWithData(report, rows);
+
+  if (format === 'csv') {
+    const escapeCSV = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const csvRows = [
+      columns.map((column) => escapeCSV(column.label)).join(','),
+      ...rows.map((row) => columns
+        .map((column) => escapeCSV(valueForColumn(row, column)))
+        .join(',')),
+    ];
+    const blob = new Blob([`\uFEFF${csvRows.join('\r\n')}`], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}.csv`;
+    link.click();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    return;
+  }
+
+  try {
+    const doc = new jsPDF({ orientation: columns.length > 7 ? 'landscape' : 'portrait' });
+    doc.setFillColor(13, 148, 136);
+    doc.rect(0, 0, 210, 2, 'F');
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(report.title, 14, 18);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(
+      report.key === 'inventory'
+        ? `Inventory snapshot: ${generatedAt ? new Date(generatedAt).toLocaleString() : 'Not recorded'}`
+        : `Report Date Range: ${range.from} to ${range.to}`,
+      14,
+      25,
+    );
+    doc.text(`Total Records: ${rows.length}`, 14, 31);
+    autoTable(doc, {
+      head: [columns.map((column) => column.label)],
+      body: rows.map((row) => columns.map((column) => valueForColumn(row, column))),
+      startY: 38,
+      styles: { fontSize: 7.5, cellPadding: 3, overflow: 'linebreak' },
+      headStyles: { fillColor: [13, 148, 136], textColor: [255, 255, 255], fontStyle: 'bold' },
+      margin: { left: 14, right: 14 },
+    });
+    doc.save(`${filename}.pdf`);
+  } catch (error) {
+    console.error('Unable to export manager report PDF.', error);
+    window.alert('Unable to export PDF. Please try again.');
+  }
+};
+
+const ReportTable = ({ report, rows, range, loading, generatedAt }) => {
+  const columns = columnsWithData(report, rows);
+
+  return (
+    <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/50">
+        <div>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white">{report.title}</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{report.description}</p>
+          <p className="text-[11px] font-mono text-emerald-700 dark:text-emerald-400 mt-1">
+            {rows.length} record{rows.length === 1 ? '' : 's'}
+            {report.key !== 'inventory' && ` · ${range.from} to ${range.to}`}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => exportReport(report, rows, range, 'csv', generatedAt)}
+            className="px-3 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Download size={13} /> CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => exportReport(report, rows, range, 'pdf', generatedAt)}
+            className="px-3 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <FileText size={13} /> PDF
+          </button>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+            <tr>
+              {columns.map((column) => (
+                <th key={column.key} className="whitespace-nowrap px-6 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">{column.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+            {rows.map((row, index) => (
+              <tr key={row.reservationId || row.itemId || row.movementId || row.purchaseOrderId || index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                {columns.map((column) => (
+                  <td key={column.key} className="whitespace-nowrap px-6 py-3.5 text-slate-700 dark:text-slate-300 font-medium">{valueForColumn(row, column)}</td>
+                ))}
+              </tr>
+            ))}
+            {!loading && rows.length === 0 && (
+              <tr>
+                <td colSpan={columns.length} className="px-6 py-12 text-center text-xs font-mono uppercase tracking-widest text-slate-400">
+                  No records found in this report for the selected period.
+                </td>
+              </tr>
+            )}
+            {loading && (
+              <tr>
+                <td colSpan={columns.length} className="px-6 py-12 text-center text-xs font-mono uppercase tracking-widest text-slate-400 animate-pulse">
+                  Fetching records...
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+};
+
+export default function Reports() {
+  const session = readManagerSession() || {};
+  const managerId = session.id;
+  const today = getLocalDate();
+  const [fromDate, setFromDate] = useState(() => getLocalDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
+  const [toDate, setToDate] = useState(today);
+  const [reportData, setReportData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadReports = async (range = { from: fromDate, to: toDate }) => {
+    if (!managerId) {
+      setError('Manager session not found. Please log in again before opening reports.');
+      return;
     }
-  })();
-  const ownerId = managerSession?.ownerId;
-  const [data, setData] = useState(null);
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  
-  // --- NAVIGATION & FILTERING STATES ---
-  const [currentView, setCurrentView] = useState("dashboard"); // dashboard | table-view
-  const [activeCategory, setActiveCategory] = useState(null);
-  const [roomTypeFilter, setRoomTypeFilter] = useState("All");
+    if (!range.from || !range.to || range.from > range.to) {
+      setError('Please select a valid date range. The "From" date must not be later than the "To" date.');
+      return;
+    }
 
-  useEffect(() => {
-    fetchReportData();
-  }, []);
-
-  const fetchReportData = async () => {
     setLoading(true);
+    setError('');
+    setReportData(null);
     try {
-      const [resStats, resLogs] = await Promise.all([
-        axios.get('/api/manager/reports/full-stats', { params: ownerId ? { owner_id: ownerId } : {} }),
-        axios.get('/api/manager/reports/transactions', { params: ownerId ? { owner_id: ownerId } : {} })
-      ]);
-      setData(resStats.data);
-      setLogs(resLogs.data);
-    } catch (err) {
-      console.error("Error loading dynamic reports", err);
+      const response = await axios.get('/api/manager/reports/manager-data', {
+        params: { manager_id: managerId, from: range.from, to: range.to },
+      });
+      setReportData(response.data);
+    } catch (requestError) {
+      setError(requestError.response?.data?.error || 'Unable to fetch reports. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // --- FUNCTIONAL EXPORTS ---
-  const exportCSV = () => {
-    const headers = ["Event,Customer,Value,Status,Time\n"];
-    const rows = logs.map(log => `${log.event},${log.user},${log.value},${log.status},${log.time}\n`);
-    const blob = new Blob([...headers, ...rows], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('href', url);
-    a.setAttribute('download', `Transaction_Report_${new Date().toLocaleDateString()}.csv`);
-    a.click();
+  useEffect(() => {
+    loadReports();
+  }, [managerId]);
+
+  const data = reportData || {};
+  const summary = data.summary || {};
+  const rowsByReport = {
+    revenue: data.revenue || [],
+    inventory: data.inventory || [],
+    stockMovements: data.stockMovements || [],
+    purchaseOrders: data.purchaseOrders || [],
   };
+  const range = reportData?.range || { from: fromDate, to: toDate };
 
-  const exportPDF = () => {
-    try {
-      const doc = new jsPDF();
-      const safeLogs = logs || [];
-
-      doc.setFillColor(13, 148, 136); // Emerald theme accent
-      doc.rect(0, 0, 210, 2, 'F'); 
-
-      doc.setTextColor(15, 23, 42); 
-      doc.setFontSize(24);
-      doc.setFont("helvetica", "bold");
-      doc.text("VELORA", 14, 20);
-      
-      doc.setFillColor(13, 148, 136);
-      doc.circle(53, 18, 1, 'F');
-
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(150, 150, 150);
-      doc.text("PREMIUM ANALYTICS REPORT", 14, 28);
-
-      doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`ISSUED: ${new Date().toLocaleDateString()}`, 160, 20);
-      doc.text(`REF: ${new Date().getTime()}`, 160, 25);
-
-      const tableColumn = ["EVENT TYPE", "CUSTOMER / STAFF", "VALUE", "STATUS", "TIMESTAMP"];
-      const tableRows = safeLogs.map(log => [
-        String(log.event || 'N/A').toUpperCase(), 
-        String(log.user || 'SYSTEM'), 
-        String(log.value || '-'), 
-        String(log.status || 'N/A').toUpperCase(), 
-        String(log.time || '---')
-      ]);
-
-      autoTable(doc, {
-        head: [tableColumn],
-        body: tableRows,
-        startY: 40,
-        theme: 'plain',
-        headStyles: { 
-          fillColor: [255, 255, 255],
-          textColor: [13, 148, 136],
-          fontSize: 8,
-          fontStyle: 'bold',
-          halign: 'left',
-          lineWidth: { bottom: 0.5 },
-          lineColor: { bottom: [13, 148, 136] }
-        },
-        bodyStyles: { 
-          fontSize: 8,
-          textColor: [71, 85, 105],
-          cellPadding: 6
-        },
-        columnStyles: {
-          2: { fontStyle: 'bold', textColor: [15, 23, 42] },
-          3: { fontStyle: 'bold' }
-        },
-        didDrawCell: (data) => {
-          if (data.section === 'body' && data.column.index === 3) {
-            const status = data.cell.raw;
-            if (status === 'CONFIRMED' || status === 'SUCCESS') {
-              doc.setTextColor(16, 185, 129);
-            } else if (status === 'ALERT') {
-              doc.setTextColor(239, 68, 68);
-            }
-          }
-        },
-        margin: { left: 14, right: 14 }
-      });
-
-      const pageCount = doc.internal.getNumberOfPages();
-      doc.setFontSize(7);
-      doc.setTextColor(180, 180, 180);
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.text(`Hotel Velora Luxury Residences - Confidential Document - Page ${i} of ${pageCount}`, 105, 285, { align: "center" });
-      }
-
-      doc.save(`Velora_Emerald_Report_${new Date().getTime()}.pdf`);
-    } catch (err) {
-      console.error("PDF Design Error:", err);
-      alert("Technical issue with Emerald PDF styling.");
-    }
-  };
-
-  const filteredLogs = useMemo(() => {
-    return logs.filter(log => 
-      toSearchable(log.event).includes(searchTerm.toLowerCase()) ||
-      toSearchable(log.user).includes(searchTerm.toLowerCase())
-    );
-  }, [searchTerm, logs]);
-
-  const dynamicTableData = useMemo(() => {
-    if (!activeCategory || !data?.details) return [];
-    const list = data.details[activeCategory] || [];
-    return list.filter(item => {
-      const matchesSearch = [
-        item.customerName,
-        item.customerId,
-        item.roomId,
-        item.hotelId,
-        item.status,
-      ].some(value => toSearchable(value).includes(searchTerm.toLowerCase()));
-      const matchesRoom = roomTypeFilter === "All" ? true : item.roomType === roomTypeFilter;
-      return matchesSearch && matchesRoom;
-    });
-  }, [data, activeCategory, searchTerm, roomTypeFilter]);
-
-  const handleCardClick = (categoryKey) => {
-    setActiveCategory(categoryKey);
-    setSearchTerm("");
-    setCurrentView("table-view");
-  };
-
-  if (loading) return (
+  if (loading && !reportData) return (
     <div className="flex h-screen flex-col items-center justify-center bg-slate-100 dark:bg-slate-950 font-sans">
        <div className="w-12 h-12 border-4 border-emerald-700 border-t-transparent rounded-full animate-spin mb-4"></div>
-       <p className="text-slate-500 font-mono text-[11px] uppercase tracking-[0.2em] animate-pulse">Initializing System...</p>
+       <p className="text-slate-500 font-mono text-[11px] uppercase tracking-[0.2em] animate-pulse">Loading Reports Dashboard...</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans p-4 sm:p-8">
-      
-      <main className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-100 text-slate-800 p-4 sm:p-6 lg:p-8 font-sans dark:bg-slate-950 dark:text-slate-100 space-y-6">
+      <main className="max-w-[1600px] mx-auto space-y-6">
         
         {/* HEADER SECTION */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-200 dark:border-slate-800 pb-4 gap-4">
-          <div className="flex items-center gap-3">
-            {currentView === "table-view" && (
-              <button 
-                onClick={() => setCurrentView("dashboard")}
-                className="p-2 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-              >
-                <ArrowLeft size={16} />
-              </button>
-            )}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">
-                {currentView === "dashboard" ? "Establishment Reports" : activeCategory?.replace(/_/g, ' ')}
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
-                <span className="w-2 h-2 bg-emerald-600 rounded-full inline-block" />
-                {currentView === "dashboard" ? "Property reports and operational records." : "Detailed property records view."}
+              <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">Manager Control Panel</span>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Revenue & Supply Reports</h1>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                Actual hotel records and inventory movements for the selected period.
               </p>
             </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button onClick={exportCSV} className="px-3 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 rounded text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5">
-              <Download size={13}/> Export CSV
-            </button>
-            <button onClick={exportPDF} className="px-3 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 rounded text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5">
-              <FileText size={13}/> Export PDF
-            </button>
-            <button onClick={fetchReportData} className="px-4 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded text-xs font-bold shadow-sm flex items-center gap-1.5">
-              <RefreshCw size={13} className={loading ? "animate-spin" : ""}/> Refresh Data
+            <button
+              type="button"
+              onClick={() => loadReports()}
+              disabled={loading}
+              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors disabled:opacity-60 cursor-pointer self-start sm:self-auto"
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              Refresh Reports
             </button>
           </div>
         </div>
 
-        <AnimatePresence mode="wait">
-          {currentView === "dashboard" ? (
-            <motion.div key="dash" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
-              
-              {/* SECTION 1: METRICS STAT CARDS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="Total Reservations" value={data?.summary?.total_res} change={data?.summary?.res_change} isUp={true} onClick={() => handleCardClick("total_reservations")} />
-                <StatCard title="Today's Check-ins" value={data?.summary?.today_checkins} sub={`${data?.summary?.pending || 0} pending arrivals`} onClick={() => handleCardClick("today_checkins")} />
-                <StatCard title="Available Rooms" value={data?.summary?.available} sub={`${data?.summary?.occupancy || 0}% Occupancy`} highlight onClick={() => handleCardClick("available_rooms")} />
-                <StatCard title="Today's Check-outs" value={data?.summary?.today_checkouts} onClick={() => handleCardClick("today_checkouts")} />
-              </div>
-
-              {/* SECTION 2: LOGS & OPERATIONAL CARDS */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* Transaction Logs Table */}
-                <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 border-b border-slate-200 dark:border-slate-800 pb-3">
-                    <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                      Transaction Logs
-                    </h3>
-                    <div className="relative w-full sm:w-56">
-                      <Search className="absolute left-2.5 top-2.5 text-slate-400" size={14} />
-                      <input 
-                        type="text" 
-                        placeholder="Search event or user..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-8 pr-3 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs rounded focus:outline-none" 
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-mono uppercase text-slate-400">
-                          <th className="text-left pb-3">Event Type</th>
-                          <th className="text-left pb-3">Staff / User</th>
-                          <th className="text-left pb-3">Value</th>
-                          <th className="text-left pb-3">Status</th>
-                          <th className="text-right pb-3">Time</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {filteredLogs.map((log, i) => (
-                          <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                            <td className="py-3 font-semibold text-slate-800 dark:text-white">{log.event}</td>
-                            <td className="py-3 text-emerald-700 dark:text-emerald-400 font-medium">{log.user}</td>
-                            <td className="py-3 font-bold text-slate-900 dark:text-slate-100">{log.value}</td>
-                            <td className="py-3">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                                log.status === 'CONFIRMED' || log.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 
-                                log.status === 'ALERT' || log.status === 'STOCK OUT' ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                              }`}>{log.status}</span>
-                            </td>
-                            <td className="py-3 text-right text-slate-400 font-mono text-[11px]">{log.time}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Operational Sidebar Cards */}
-                <div className="space-y-4">
-                  <OperationalCard 
-                    title="Inventory Alert" 
-                    alert={data?.operational?.inventory?.stock} 
-                    alertItem={data?.operational?.inventory?.item} 
-                  />
-                  <OperationalCard 
-                    title="Payroll & Attendance" 
-                    sub={data?.operational?.staff?.next_date ? `Next Distribution: ${data.operational.staff.next_date}` : "Next Distribution: --"} 
-                    val={formatPeso(data?.operational?.staff?.payroll)} 
-                    percentage={data?.operational?.staff?.attendance ?? null} 
-                    label="Attendance Rate" 
-                  />
-                </div>
-              </div>
-
-            </motion.div>
-          ) : (
-            
-            /* TABLE VIEW FOR CARDS */
-            <motion.div key="table" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
-                  <div className="relative w-full sm:w-72">
-                    <Search className="absolute left-3 top-2.5 text-slate-400" size={15} />
-                    <input 
-                      type="text" 
-                      placeholder="Search record by name or ID..." 
-                      className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs rounded focus:outline-none" 
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded">
-                    <Filter size={13} className="text-slate-400" />
-                    <select 
-                      onChange={(e) => setRoomTypeFilter(e.target.value)}
-                      className="bg-transparent text-xs font-semibold uppercase outline-none cursor-pointer text-slate-700 dark:text-slate-200"
-                    >
-                      <option value="All">All Room Types</option>
-                      <option value="Standard">Standard</option>
-                      <option value="Double">Double</option>
-                      <option value="Suite">Suite</option>
-                      <option value="Deluxe">Deluxe</option>
-                      <option value="Family Room">Family Room</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] font-mono uppercase text-slate-400">
-                        <th className="pb-3">Hotel ID</th>
-                        <th className="pb-3">Room ID</th>
-                        <th className="pb-3">Customer ID</th>
-                        <th className="pb-3">Name</th>
-                        <th className="pb-3">Status</th>
-                        <th className="pb-3">Check-in</th>
-                        <th className="pb-3">Check-out</th>
-                        <th className="pb-3 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {dynamicTableData.map((row, i) => (
-                        <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                          <td className="py-3 font-mono text-slate-500">{row.hotelId}</td>
-                          <td className="py-3 font-semibold text-slate-900 dark:text-white">{row.roomId}</td>
-                          <td className="py-3 font-mono text-emerald-700 dark:text-emerald-400">{row.customerId ?? '--'}</td>
-                          <td className="py-3 font-bold uppercase text-slate-800 dark:text-slate-200">{row.customerName}</td>
-                          <td className="py-3 font-medium text-slate-600 dark:text-slate-400">{row.status || '--'}</td>
-                          <td className="py-3 font-mono text-[11px] text-slate-500">{row.checkInDate || '--'}</td>
-                          <td className="py-3 font-mono text-[11px] text-slate-500">{row.checkOutDate || '--'}</td>
-                          <td className="py-3 text-right font-bold text-slate-900 dark:text-white">{formatPeso(row.totalAmount)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {dynamicTableData.length === 0 && (
-                    <div className="py-12 text-center text-xs font-mono uppercase tracking-widest text-slate-400">No records found for this category</div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
+        {/* DATE RANGE FILTER CONTROLS */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm flex flex-col sm:flex-row sm:items-end gap-4">
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <span className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold"><CalendarDays size={13} /> From Date</span>
+              <input
+                type="date"
+                value={fromDate}
+                max={toDate || undefined}
+                onChange={(event) => setFromDate(event.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded text-xs outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <span className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold"><CalendarDays size={13} /> To Date</span>
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate || undefined}
+                max={today}
+                onChange={(event) => setToDate(event.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded text-xs outline-none"
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadReports({ from: fromDate, to: toDate })}
+            disabled={loading || !fromDate || !toDate || fromDate > toDate}
+            className="px-5 py-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            <TrendingUp size={14} className="text-emerald-700 dark:text-emerald-400" /> Apply Filter
+          </button>
+          {reportData?.generatedAt && (
+            <p className="text-[10px] font-mono text-slate-400 sm:ml-auto self-center">
+              Inventory snapshot: {new Date(reportData.generatedAt).toLocaleString()}
+            </p>
           )}
-        </AnimatePresence>
+        </div>
 
+        {error && (
+          <div role="alert" className="flex items-start gap-2 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 font-bold">
+            <AlertCircle size={15} className="mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* SUMMARY METRICS CARDS */}
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard title="Collected Revenue" value={formatPeso(summary.totalRevenue)} icon={<TrendingUp size={18} />} />
+          <SummaryCard title="Current Inventory Items" value={summary.inventoryItems ?? 0} icon={<Package size={18} />} />
+          <SummaryCard title="Stock Movements in Range" value={summary.stockMovements ?? 0} icon={<RefreshCw size={18} />} />
+          <SummaryCard title="Purchase Orders in Range" value={summary.purchaseOrders ?? 0} icon={<FileText size={18} />} detail={formatPeso(summary.purchaseOrderTotal) || 'Not recorded'} />
+        </section>
+
+        {/* DETAILED TABLES */}
+        <div className="space-y-6">
+          {reportDefinitions.map((report) => (
+            <ReportTable
+              key={report.key}
+              report={report}
+              rows={rowsByReport[report.key]}
+              range={range}
+              loading={loading}
+              generatedAt={data.generatedAt}
+            />
+          ))}
+        </div>
+
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+          Note: There is no separate standalone payment timestamp column in the database. Consequently, revenue is calculated based on actual booking payments/downpayments recorded within the selected date range, clearly indicating the booking record date.
+        </p>
       </main>
     </div>
   );
-};
+}
 
-// --- SUB-COMPONENTS ---
-
-const StatCard = ({ title, value, change, sub, isUp, highlight, onClick }) => (
-  <div 
-    onClick={onClick}
-    className={`cursor-pointer rounded-lg border p-4 bg-white dark:bg-slate-900 shadow-sm transition-all hover:border-emerald-600 ${highlight ? 'border-emerald-600 bg-emerald-50/20 dark:bg-emerald-950/20' : 'border-slate-200 dark:border-slate-800'}`}
-  >
-    <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-2">{title}</p>
-    <div className="flex items-center gap-3">
-      <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{value ?? 0}</h2>
-      {change && (
-        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5 ${isUp ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'}`}>
-          <TrendingUp size={10} /> {change}
-        </span>
-      )}
-    </div>
-    {sub && <p className="mt-2 text-[11px] font-medium text-slate-500">{sub}</p>}
-  </div>
-);
-
-const OperationalCard = ({ title, alert, alertItem, sub, val, percentage, label }) => {
-  const isInventory = title === "Inventory Alert";
-  const numericAlert = Number(alert ?? 0);
-  const numericPercentage = Number.isFinite(Number(percentage)) ? Number(percentage) : null;
-  
+function SummaryCard({ title, value, icon, detail }) {
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
-      <h4 className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-4">{title}</h4>
-      {isInventory ? (
-        <div className={`rounded border p-3.5 ${numericAlert > 0 && numericAlert < 30 ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'}`}>
-          <div className="flex justify-between items-center mb-1">
-            <span className={`text-[10px] font-bold uppercase ${numericAlert > 0 && numericAlert < 30 ? 'text-red-700 dark:text-red-400' : 'text-slate-500'}`}>
-              {numericAlert > 0 && numericAlert < 30 ? 'Critical Stock' : 'Stock Level'}
-            </span>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${numericAlert > 0 && numericAlert < 30 ? 'bg-red-700 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
-              {alert ?? '--'} LEFT
-            </span>
-          </div>
-          <p className="text-xs font-bold uppercase text-slate-800 dark:text-white">{alertItem || 'No Alerts'}</p>
+      <div className="flex items-center justify-between mb-3">
+        <div className="p-2 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400">
+          {icon}
         </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex justify-between items-end">
-            <div>
-              <p className="text-[10px] font-mono uppercase text-slate-400">{label}</p>
-              <p className="text-xl font-bold text-slate-900 dark:text-white">{numericPercentage === null ? '--' : `${numericPercentage}%`}</p>
-            </div>
-            <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{val}</p>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${numericPercentage ?? 0}%` }}
-              transition={{ duration: 1 }}
-              className="h-full bg-emerald-700"
-            />
-          </div>
-          <p className="text-[10px] text-slate-400 font-medium">{sub}</p>
-        </div>
-      )}
+        <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Metric Summary</span>
+      </div>
+      <p className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">{title}</p>
+      <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value}</h2>
+      {detail && <p className="mt-1 text-[11px] text-slate-500 font-medium">Total PO amount: {detail}</p>}
     </div>
   );
-};
-
-export default Reports;
+}

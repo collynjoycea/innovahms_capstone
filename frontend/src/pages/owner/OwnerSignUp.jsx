@@ -348,7 +348,7 @@ export default function OwnerSignUp() {
 
     // Strict Real-time Formatting & Masking
     if (key === "firstName" || key === "middleName" || key === "lastName") {
-      sanitizedValue = value.replace(/[^a-zA-Z\sÃ±Ã‘-]/g, "");
+      sanitizedValue = value.replace(/[^a-zA-Z\sñÑ-]/g, "");
     } else if (key === "contactNumber") {
       sanitizedValue = value.replace(/[^0-9]/g, "").slice(0, 11);
     } else if (key === "otpCode") {
@@ -636,19 +636,6 @@ export default function OwnerSignUp() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Middle Name</label>
-                  <input type="text" placeholder="e.g. Santos" value={formData.middleName} onChange={(e) => updateField("middleName", e.target.value)} onBlur={() => handleBlur("middleName")} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded" />
-                  {touchedFields.middleName && fieldErrors.middleName && <span className="text-[11px] text-red-600 mt-1 block">{fieldErrors.middleName}</span>}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Suffix</label>
-                  <select value={formData.suffix} onChange={(e) => updateField("suffix", e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded">
-                    <option value="">None</option><option value="Jr.">Jr.</option><option value="Sr.">Sr.</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option>
-                  </select>
-                </div>
-
-                <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     First Name <span className="text-red-500">*</span>
                   </label>
@@ -675,6 +662,19 @@ export default function OwnerSignUp() {
                 </div>
 
                 <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Middle Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Santos" 
+                    value={formData.middleName} 
+                    onChange={(e) => updateField("middleName", e.target.value)} 
+                    onBlur={() => handleBlur("middleName")} 
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded" 
+                  />
+                  {touchedFields.middleName && fieldErrors.middleName && <span className="text-[11px] text-red-600 mt-1 block">{fieldErrors.middleName}</span>}
+                </div>
+
+                <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Last Name <span className="text-red-500">*</span>
                   </label>
@@ -698,6 +698,13 @@ export default function OwnerSignUp() {
                       {fieldErrors.lastName}
                     </span>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Suffix</label>
+                  <select value={formData.suffix} onChange={(e) => updateField("suffix", e.target.value)} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-xs rounded">
+                    <option value="">None</option><option value="Jr.">Jr.</option><option value="Sr.">Sr.</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option>
+                  </select>
                 </div>
 
                 <div>

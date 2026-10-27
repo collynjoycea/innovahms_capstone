@@ -4,21 +4,12 @@ import { FileText, Download, RefreshCw, X, ShieldAlert, AlertTriangle, CreditCar
 import Pagination, { usePagination } from '../../components/Pagination';
 
 export default function SystemLogs() {
-  const { isDarkMode } = useOutletContext();
+  const { isDarkMode = false } = useOutletContext() || {};
   const [logs, setLogs] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [filterTab, setFilterTab] = useState('all'); // 'all' | 'critical' | 'payment' | 'flagged'
   const [toast, setToast] = useState('');
-
-  const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#F4F5F7]',
-    card: isDarkMode ? 'bg-[#111111]/80 backdrop-blur-md' : 'bg-white/90 backdrop-blur-md',
-    textMain: isDarkMode ? 'text-white' : 'text-gray-900',
-    textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
-    border: isDarkMode ? 'border-white/10' : 'border-gray-200',
-    shadow: isDarkMode ? 'shadow-2xl shadow-black/50' : 'shadow-xl shadow-gray-200/50',
-  };
 
   const normalizeLogs = (payloadLogs = []) =>
     payloadLogs.map((log, index) => ({
@@ -57,7 +48,7 @@ export default function SystemLogs() {
     setTimeout(() => setToast(''), 3000);
   };
 
-  // Filter logic batay sa napiling tab (tinanggal ang double booking)
+  // Filter logic batay sa napiling tab
   const filteredLogs = Array.isArray(logs)
     ? logs.filter((log) => {
         const cat = String(log.category || '').toLowerCase();
@@ -72,71 +63,75 @@ export default function SystemLogs() {
 
   const getSeverityBadge = (severity) => {
     const s = String(severity || 'ERROR').toUpperCase();
-    if (s === 'CRITICAL') return 'text-rose-500 bg-rose-500/10 border-rose-500/30 animate-pulse';
-    if (s === 'WARNING') return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-    return 'text-orange-500 bg-orange-500/10 border-orange-500/20';
+    if (s === 'CRITICAL') return 'text-rose-800 bg-rose-50 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/50 animate-pulse';
+    if (s === 'WARNING') return 'text-amber-800 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50';
+    return 'text-emerald-800 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50';
   };
 
   return (
-    <div className={`p-6 space-y-6 text-left relative min-h-screen transition-colors duration-500 ${theme.bg}`}>
+    <div className="min-h-screen bg-slate-100 text-slate-800 p-4 sm:p-6 lg:p-8 font-sans dark:bg-slate-950 dark:text-slate-100 space-y-6 relative">
       
       {/* TOAST NOTIFICATION */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-right duration-300">
-          <div className={`${isDarkMode ? 'bg-[#161618]' : 'bg-white'} border ${theme.border} rounded-2xl px-5 py-4 flex items-center gap-4 ${theme.shadow}`}>
-            <div className="bg-[#2FA084]/10 p-2 rounded-xl text-[#2FA084]"><FileText size={18} /></div>
-            <p className={`text-[11px] font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} pr-8`}>{toast}</p>
-            <button onClick={() => setToast('')} className="text-gray-500 hover:text-[#2FA084]"><X size={14} /></button>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-3 flex items-center gap-3 shadow-lg">
+            <div className="bg-emerald-50 dark:bg-emerald-950/40 p-2 rounded text-emerald-700 dark:text-emerald-400"><FileText size={16} /></div>
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 pr-6">{toast}</p>
+            <button onClick={() => setToast('')} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"><X size={14} /></button>
           </div>
         </div>
       )}
 
       {/* HEADER SECTION */}
-      <div className={`flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-5 ${theme.border}`}>
-        <div>
-          <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
-            System Diagnostics & <span className="text-[#2FA084]">Error Resolution</span>
-          </h1>
-          <p className={`text-[10px] font-bold uppercase tracking-wider ${theme.textSub} mt-0.5`}>
-            INNOVA-HMS Administrative Oversight — Monitor payment failures, security flags, and critical system exceptions
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <button 
-            onClick={() => { loadLogs(); triggerToast('Diagnostic logs synchronized successfully.'); }}
-            className={`flex items-center gap-2 px-4 py-2 bg-transparent border ${theme.border} rounded-xl text-[10px] font-black uppercase ${theme.textSub} hover:border-[#2FA084] hover:text-[#2FA084] transition-all`}
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Audits
-          </button>
-          <button 
-            onClick={() => triggerToast('System error diagnostic report exported to CSV.')}
-            className="flex items-center gap-2 px-5 py-2 bg-[#2FA084] rounded-xl text-[10px] font-black uppercase text-black hover:scale-105 transition-all shadow-lg shadow-[#2FA084]/20"
-          >
-            <Download size={14} strokeWidth={3} /> Export Logs
-          </button>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">Admin Control Panel</span>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">System Diagnostics & Error Resolution</h1>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+              Monitor payment failures, security flags, and critical system exceptions.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <button 
+              onClick={() => { loadLogs(); triggerToast('Diagnostic logs synchronized successfully.'); }}
+              className="px-4 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Audits
+            </button>
+            <button 
+              onClick={() => triggerToast('System error diagnostic report exported to CSV.')}
+              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Download size={14} /> Export Logs
+            </button>
+          </div>
         </div>
       </div>
 
       {/* METRIC CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: 'Critical System Exceptions', val: stats.criticalErrors ?? 2, icon: <ShieldAlert size={18} className="text-rose-500" /> },
-          { label: 'Payment Failures (Can\'t Pay)', val: stats.paymentFailures ?? 2, icon: <CreditCard size={18} className="text-orange-500" /> },
-          { label: 'Flagged Security Incidents', val: stats.flaggedEvents ?? 1, icon: <AlertTriangle size={18} className="text-purple-500" /> },
+          { label: 'Critical System Exceptions', val: stats.criticalErrors ?? 2, icon: <ShieldAlert size={18} className="text-rose-600 dark:text-rose-400" /> },
+          { label: "Payment Failures", val: stats.paymentFailures ?? 2, icon: <CreditCard size={18} className="text-amber-600 dark:text-amber-400" /> },
+          { label: 'Flagged Security Incidents', val: stats.flaggedEvents ?? 1, icon: <AlertTriangle size={18} className="text-purple-600 dark:text-purple-400" /> },
         ].map((s, i) => (
-          <div key={i} className={`p-6 rounded-2xl ${theme.card} border ${theme.border} ${theme.shadow} hover:border-[#2FA084]/40 transition-all`}>
-            <div className="flex items-center justify-between mb-3">
-              <p className={`text-[9px] font-black uppercase ${theme.textSub} tracking-widest`}>{s.label}</p>
-              <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'} border ${theme.border}`}>{s.icon}</div>
+          <div key={i} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400">
+                {s.icon}
+              </div>
+              <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Live</span>
             </div>
-            <h2 className={`text-3xl font-black ${theme.textMain} tabular-nums`}>{s.val}</h2>
+            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">{s.label}</p>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1 tabular-nums">{s.val}</h2>
           </div>
         ))}
       </div>
 
       {/* FILTER TABS */}
-      <div className="flex justify-between items-center flex-wrap gap-4">
-        <div className={`flex p-1 rounded-xl border ${theme.border} ${isDarkMode ? 'bg-white/5' : 'bg-gray-200/50'}`}>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-wrap gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-lg shadow-sm">
           {[
             { id: 'all', label: 'All System Issues' },
             { id: 'payment', label: 'Payment Failures' },
@@ -146,79 +141,85 @@ export default function SystemLogs() {
             <button 
               key={tab.id} 
               onClick={() => setFilterTab(tab.id)}
-              className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${filterTab === tab.id ? 'bg-[#2FA084] text-black shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`px-4 py-1.5 rounded text-xs font-bold uppercase transition-all cursor-pointer ${
+                filterTab === tab.id 
+                  ? 'bg-emerald-700 text-white shadow-sm' 
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        <span className={`text-[10px] font-black text-[#2FA084] bg-[#2FA084]/10 px-3.5 py-2 rounded-xl border border-[#2FA084]/20`}>
+        <span className="text-[10px] font-mono uppercase font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 px-3 py-1 rounded">
           Showing {filteredLogs.length} Active Incidents
         </span>
       </div>
 
       {/* ERROR AUDIT TABLE */}
-      <div className={`${theme.card} rounded-2xl border ${theme.border} ${theme.shadow} overflow-hidden`}>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-8 h-8 border-2 border-[#2FA084] border-t-transparent rounded-full animate-spin" />
+          <div className="flex items-center justify-center py-16">
+            <div className="w-8 h-8 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className={`text-[9px] font-black uppercase tracking-widest ${theme.textSub} border-b ${theme.border} ${isDarkMode ? 'bg-white/[0.02]' : 'bg-gray-50'}`}>
-                  <th className="px-6 py-4">Timestamp</th>
-                  <th className="px-6 py-4">Exception Action / Code</th>
-                  <th className="px-6 py-4">Affected Actor / Module</th>
-                  <th className="px-6 py-4">Source IP</th>
-                  <th className="px-6 py-4">Severity Tier</th>
-                  <th className="px-6 py-4">Diagnostic Details & Resolution Guide</th>
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${theme.border}`}>
-                {pagedLogs.map((log, i) => (
-                  <tr key={log.id || i} className="hover:bg-rose-500/[0.03] transition-colors">
-                    <td className={`px-6 py-4 text-[10px] font-bold ${theme.textSub} whitespace-nowrap`}>
-                      {log.timestamp ? new Date(log.timestamp).toLocaleString() : '—'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-[11px] font-black text-rose-500 font-mono">
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className={`text-[10px] font-bold ${theme.textMain}`}>{log.actor}</span>
-                        <span className={`text-[8px] uppercase font-mono ${theme.textSub}`}>{log.role}</span>
-                      </div>
-                    </td>
-                    <td className={`px-6 py-4 text-[10px] font-mono font-bold ${theme.textSub}`}>
-                      {log.ipAddress}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`text-[8px] font-black uppercase px-2.5 py-1 rounded-md border ${getSeverityBadge(log.severity)}`}>
-                        {log.severity}
-                      </span>
-                    </td>
-                    <td className={`px-6 py-4 text-[10px] ${theme.textSub} font-medium max-w-md`}>
-                      {log.details}
-                    </td>
-                  </tr>
-                ))}
-                {filteredLogs.length === 0 && (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
                   <tr>
-                    <td colSpan={6} className={`px-6 py-16 text-center text-[11px] ${theme.textSub}`}>
-                      <CheckCircle2 size={24} className="mx-auto mb-2 text-[#2FA084]" />
-                      No system exceptions or errors found under this filter. INNOVA-HMS is operating at optimal stability.
-                    </td>
+                    <th className="px-6 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">Timestamp</th>
+                    <th className="px-6 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">Exception Action / Code</th>
+                    <th className="px-6 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">Affected Actor / Module</th>
+                    <th className="px-6 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">Source IP</th>
+                    <th className="px-6 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">Severity Tier</th>
+                    <th className="px-6 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">Diagnostic Details</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {pagedLogs.map((log, i) => (
+                    <tr key={log.id || i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-6 py-3.5 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                        {log.timestamp ? new Date(log.timestamp).toLocaleString() : '—'}
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <span className="font-bold text-rose-600 dark:text-rose-400 font-mono">
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-900 dark:text-white">{log.actor}</span>
+                          <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400">{log.role}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-3.5 font-mono text-slate-600 dark:text-slate-400">
+                        {log.ipAddress}
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded border ${getSeverityBadge(log.severity)}`}>
+                          {log.severity}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3.5 text-slate-600 dark:text-slate-400 max-w-md">
+                        {log.details}
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredLogs.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-12 text-center text-xs font-mono uppercase tracking-widest text-slate-400">
+                        <CheckCircle2 size={24} className="mx-auto mb-2 text-emerald-700 dark:text-emerald-400" />
+                        No system exceptions or errors found under this filter. System is operating at optimal stability.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={page} totalPages={totalPages} setPage={setPage} total={filteredLogs.length} isDarkMode={isDarkMode} />
+          </>
         )}
-        <Pagination page={page} totalPages={totalPages} setPage={setPage} total={filteredLogs.length} isDarkMode={isDarkMode} />
       </div>
 
     </div>

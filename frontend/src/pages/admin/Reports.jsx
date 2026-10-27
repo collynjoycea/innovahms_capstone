@@ -1,300 +1,312 @@
-import React, { useEffect, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { DollarSign, Building2, Download, Calendar, PackageCheck, Layers, Award } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  TrendingUp,
+  Download, RefreshCw, Search, FileText, Calendar, Building2, DollarSign
+} from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
-// Helper function para laging gumawa ng huling 6 na buwan
-const getLast6MonthsLabels = () => {
-  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-  const result = [];
-  const today = new Date();
+const pesoFormatter = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  maximumFractionDigits: 2,
+});
 
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    result.push(months[d.getMonth()]);
-  }
-  return result;
+const formatPeso = (value) => {
+  if (value === null || value === undefined || value === '') return '--';
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? pesoFormatter.format(numericValue) : '--';
 };
 
-export default function Analytics() {
-  const { isDarkMode } = useOutletContext();
-  const [data, setData] = useState(null);
+const toSearchable = (value) => String(value ?? '').toLowerCase();
+
+const Reports = () => {
+  const managerSession = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('managerSession') || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  const ownerId = managerSession?.ownerId;
+  
+  const [subscriptions, setSubscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const normalizeReportsData = (payload = {}) => {
-    const kpis = payload?.kpis && typeof payload.kpis === 'object' ? payload.kpis : {};
-    const revenueChart = payload?.revenueChart && typeof payload.revenueChart === 'object' ? payload.revenueChart : { labels: [], values: [] };
-    const labels = Array.isArray(revenueChart.labels) ? revenueChart.labels : [];
-    const values = Array.isArray(revenueChart.values) ? revenueChart.values.map((v) => Number(v ?? 0)) : [];
-
-    return {
-      kpis: {
-        ...kpis,
-        totalPartners: Number(kpis.totalPartners ?? kpis.totalHotels ?? 0),
-        totalHotels: Number(kpis.totalHotels ?? kpis.totalPartners ?? 0),
-        totalRevenue: Number(kpis.totalRevenue ?? 0),
-        subscriptionRevenue: Number(kpis.subscriptionRevenue ?? 0),
-        totalReservations: Number(kpis.totalReservations ?? 0),
-        totalCustomers: Number(kpis.totalCustomers ?? 0),
-        subscribedOwners: Number(kpis.subscribedOwners ?? kpis.subscribedHotels ?? 0),
-        subscribedHotels: Number(kpis.subscribedHotels ?? kpis.subscribedOwners ?? 0),
-        underReviewHotels: Number(kpis.underReviewHotels ?? kpis.underReviewSubscriptions ?? 0),
-        underReviewSubscriptions: Number(kpis.underReviewSubscriptions ?? kpis.underReviewHotels ?? 0),
-      },
-      revenueChart: { labels, values },
-    };
-  };
-
-  // Date Range Filter States
-  const [fromDate, setFromDate] = useState(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}-01`;
-  });
-
-  const [toDate, setToDate] = useState(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  });
-
-  const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#F4F5F7]',
-    card: isDarkMode ? 'bg-[#111111]/80 backdrop-blur-md' : 'bg-white',
-    textMain: isDarkMode ? 'text-white' : 'text-gray-900',
-    textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
-    border: isDarkMode ? 'border-white/10' : 'border-gray-300',
-    shadow: isDarkMode ? 'shadow-2xl shadow-black/40' : 'shadow-[0_15px_40px_rgba(0,0,0,0.08)]',
-  };
-
-  const loadReportsData = () => {
-    fetch('/api/admin/reports')
-      .then(async (r) => {
-        const payload = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(payload?.error || 'Unable to load reports data.');
-        setData(normalizeReportsData(payload));
-      })
-      .catch(() => setData(normalizeReportsData({})))
-      .finally(() => setLoading(false));
-  };
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    loadReportsData();
-    const intervalId = setInterval(loadReportsData, 15000);
-    return () => clearInterval(intervalId);
+    fetchRevenueReportData();
   }, []);
 
-  const normalizedData = normalizeReportsData(data);
-  const kpis = normalizedData.kpis || {};
-  const defaultLabels = getLast6MonthsLabels();
-  const chartLabels = normalizedData.revenueChart.labels.length >= 6
-    ? normalizedData.revenueChart.labels
-    : defaultLabels;
-  const rawValues = normalizedData.revenueChart.values || [];
-  const chartValues = chartLabels.map((label, idx) => {
-    const apiIdx = normalizedData.revenueChart.labels.indexOf(label);
-    if (apiIdx >= 0) return normalizedData.revenueChart.values[apiIdx] ?? 0;
-    return rawValues[idx] || 0;
-  });
+  const fetchRevenueReportData = async () => {
+    setLoading(true);
+    try {
+      // Kumukuha ng data para sa mga subscription at revenue ng mga hotel
+      const res = await axios.get('/api/admin/packages', { params: ownerId ? { owner_id: ownerId } : {} });
+      setSubscriptions(res.data?.subscriptions || []);
+    } catch (err) {
+      console.error("Error loading revenue reports", err);
+      setSubscriptions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const packageBreakdown = data?.packageBreakdown || [
-    { name: 'Basic Starter', subscribers: 8, price: '₱2,500 / mo', totalRevenue: 20000 },
-    { name: 'Pro Hotelier', subscribers: 15, price: '₱5,000 / mo', totalRevenue: 75000 },
-    { name: 'Enterprise Suite', subscribers: 4, price: '₱10,000 / mo', totalRevenue: 40000 },
-  ];
+  // --- CSV EXPORT FUNCTION ---
+  const exportCSV = () => {
+    if (filteredSubscriptions.length === 0) {
+      alert("Walang data na ma-export.");
+      return;
+    }
 
-  const totalSubscriptionsCount = Number(kpis.subscribedHotels ?? kpis.subscribedOwners ?? packageBreakdown.reduce((acc, curr) => acc + curr.subscribers, 0));
-  const maxVal = Math.max(...chartValues, 1);
-  const isValidDateRange = !fromDate || !toDate || fromDate <= toDate;
+    const headers = ["Hotel Name,Owner Name,Plan,Billing Cycle,Amount (PHP),Status,Renewal Date\n"];
+    const rows = filteredSubscriptions.map(sub => 
+      `"${sub.hotelName || ''}","${sub.ownerName || ''}","${sub.plan || ''}","${sub.cycle || ''}",${sub.amount || 0},"${sub.status || ''}","${sub.renewal || ''}"\n`
+    );
+    
+    const blob = new Blob([...headers, ...rows], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `Revenue_Subscription_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // --- PDF EXPORT FUNCTION ---
+  const exportPDF = () => {
+    try {
+      const doc = new jsPDF();
+      const safeSubs = filteredSubscriptions || [];
+
+      doc.setFillColor(13, 148, 136); // Emerald theme accent
+      doc.rect(0, 0, 210, 2, 'F'); 
+
+      doc.setTextColor(15, 23, 42); 
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("INNOVA-HMS", 14, 20);
+      
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(150, 150, 150);
+      doc.text("REVENUE & SUBSCRIPTION REPORT", 14, 26);
+
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`ISSUED: ${new Date().toLocaleDateString()}`, 150, 20);
+
+      const tableColumn = ["HOTEL NAME", "OWNER", "PLAN", "CYCLE", "AMOUNT (PHP)", "STATUS", "RENEWAL"];
+      const tableRows = safeSubs.map(sub => [
+        String(sub.hotelName || 'N/A'),
+        String(sub.ownerName || 'N/A'),
+        String(sub.plan || 'N/A').toUpperCase(),
+        String(sub.cycle || 'N/A').toUpperCase(),
+        formatPeso(sub.amount),
+        String(sub.status || 'N/A').toUpperCase(),
+        String(sub.renewal ? new Date(sub.renewal).toLocaleDateString() : '---')
+      ]);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 35,
+        theme: 'plain',
+        headStyles: { 
+          fillColor: [255, 255, 255],
+          textColor: [13, 148, 136],
+          fontSize: 8,
+          fontStyle: 'bold',
+          halign: 'left',
+          lineWidth: { bottom: 0.5 },
+          lineColor: { bottom: [13, 148, 136] }
+        },
+        bodyStyles: { 
+          fontSize: 8,
+          textColor: [71, 85, 105],
+          cellPadding: 5
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      doc.save(`Revenue_Report_${new Date().getTime()}.pdf`);
+    } catch (err) {
+      console.error("PDF Design Error:", err);
+      alert("May problema sa pag-generate ng PDF.");
+    }
+  };
+
+  // --- FILTERING LOGIC ---
+  const filteredSubscriptions = useMemo(() => {
+    return subscriptions.filter(sub => 
+      toSearchable(sub.hotelName).includes(searchTerm.toLowerCase()) ||
+      toSearchable(sub.ownerName).includes(searchTerm.toLowerCase()) ||
+      toSearchable(sub.plan).includes(searchTerm.toLowerCase()) ||
+      toSearchable(sub.status).includes(searchTerm.toLowerCase())
+    );
+  }, [searchTerm, subscriptions]);
+
+  // Total Revenue calculation
+  const totalRevenue = useMemo(() => {
+    return subscriptions
+      .filter(sub => String(sub.status).toUpperCase() === 'ACTIVE')
+      .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  }, [subscriptions]);
 
   if (loading) return (
-    <div className={`p-6 min-h-screen flex items-center justify-center ${theme.bg}`}>
-      <div className="w-10 h-10 border-2 border-[#2FA084] border-t-transparent rounded-full animate-spin" />
+    <div className="flex h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 font-sans">
+       <div className="w-8 h-8 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin mb-4"></div>
+       <p className="text-slate-500 font-mono text-[10px] uppercase tracking-widest animate-pulse">Loading Revenue Data...</p>
     </div>
   );
 
   return (
-    <div className={`p-6 space-y-8 min-h-screen transition-all duration-500 ${theme.bg}`}>
+    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 lg:p-8 font-sans dark:bg-[#0f1117] dark:text-slate-100 space-y-6">
       
-      {/* HEADER WITH DATE RANGE SELECTOR & EXPORT */}
-      <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-5 ${theme.border}`}>
-        <div>
-          <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
-            Reports & <span className="text-[#2FA084]">Analytics</span>
-          </h1>
-          <p className={`text-[10px] font-bold uppercase tracking-wider ${theme.textSub} mt-0.5`}>
-            Pagsusuri sa kita ng system, mga naka-subscribe na owners, at hotel performance
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${theme.border} ${isDarkMode ? 'bg-black/30' : 'bg-white'}`}>
-            <Calendar size={14} className="text-[#2FA084]" />
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className={`bg-transparent text-xs font-bold outline-none cursor-pointer ${theme.textMain}`}
-            />
-            <span className={`text-xs font-bold ${theme.textSub}`}>to</span>
-            <input
-              type="date"
-              value={toDate}
-              min={fromDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className={`bg-transparent text-xs font-bold outline-none cursor-pointer ${theme.textMain}`}
-            />
-          </div>
-
-          <button className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2FA084] text-black font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all">
-            <Download size={15} strokeWidth={3} /> Export Report
-          </button>
-        </div>
-      </div>
-
-      {/* KPI SUMMARY CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          { 
-            label: 'Total Hotel Subscriptions', 
-            value: totalSubscriptionsCount, 
-            subtext: 'Kabuuan ng naka-activate na hotel packages',
-            icon: <Award size={20} /> 
-          },
-          { 
-            label: 'Subscription Revenue', 
-            value: `₱${(kpis.subscriptionRevenue ?? 32480).toLocaleString()}`, 
-            subtext: 'Kabuuang kinita sa packages',
-            icon: <DollarSign size={20} /> 
-          },
-          { 
-            label: 'Subscribed Hotels', 
-            value: kpis.subscribedHotels ?? kpis.subscribedOwners ?? 27, 
-            subtext: 'Mga hotel na may aktibong subscription',
-            icon: <PackageCheck size={20} /> 
-          },
-          { 
-            label: 'Total Hotels', 
-            value: kpis.totalHotels ?? kpis.totalPartners ?? 5, 
-            subtext: 'Kabuuan ng nakatalang hotel listings',
-            icon: <Building2 size={20} /> 
-          },
-        ].map((kpi, i) => (
-          <div key={i} className={`p-6 rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow} group transition-all`}>
-            <div className={`p-2.5 rounded-xl border ${theme.border} ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'} text-[#2FA084] inline-block mb-4`}>
-              {kpi.icon}
-            </div>
-            <p className={`text-[9px] font-black uppercase tracking-widest ${theme.textSub} mb-1`}>{kpi.label}</p>
-            <h2 className={`text-2xl font-black tracking-tighter ${theme.textMain}`}>{kpi.value}</h2>
-            <p className={`text-[9px] font-bold uppercase mt-1 ${theme.textSub}`}>{kpi.subtext}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* REVENUE GRAPH & PACKAGE BREAKDOWN GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* REVENUE GRAPH (SIGURADONG LAGI AT KUMPLETO ANG 6 BUWAN) */}
-        <div className={`lg:col-span-2 p-7 rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow}`}>
-          <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
-            <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#2FA084]" />
-              <div>
-                <h3 className={`text-[10px] font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Monthly Subscription Revenue</h3>
-                <p className={`text-[9px] font-bold uppercase ${theme.textSub}`}>Kita mula sa package subscriptions</p>
-              </div>
-            </div>
-            <span className={`text-[9px] font-black uppercase text-[#2FA084] bg-[#2FA084]/10 px-2.5 py-1 rounded-md`}>
-              Last 6 Months
-            </span>
-          </div>
-
-          <div className="h-64 flex items-end justify-between gap-3 px-2 pt-8">
-{!isValidDateRange ? (
-                <div className={`w-full text-center text-[11px] font-bold ${theme.textSub}`}>
-                  Start date cannot be after end date.
-                </div>
-              ) : chartLabels.map((label, i) => {
-              const rawVal = chartValues[i] || 0;
-              const isZero = rawVal === 0;
-              
-              // Kapag higit sa 0 ay may percent height, kapag 0 naman ay nakaset sa visual indicator bar (4px)
-              const heightPercent = isZero ? '4px' : `${Math.max((rawVal / maxVal) * 100, 10)}%`;
-
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer h-full justify-end">
-                  
-                  {/* Amount Label */}
-                  <div className={`text-[9px] font-black tracking-wider transition-all ${
-                    isZero 
-                      ? 'text-gray-400 dark:text-gray-500' 
-                      : theme.textMain
-                  }`}>
-                    ₱{Number(rawVal).toLocaleString()}
-                  </div>
-
-                  {/* Bar Container Area */}
-                  <div className="w-full max-w-[45px] h-full flex items-end bg-gray-100/60 dark:bg-white/[0.03] rounded-t-lg overflow-hidden border-b border-[#2FA084]/30">
-                    <div
-                      style={{ height: heightPercent }}
-                      className={`w-full transition-all duration-500 relative ${
-                        isZero 
-                          ? 'bg-gray-300 dark:bg-white/20 rounded-t-sm' 
-                          : 'bg-[#2FA084] rounded-t-lg'
-                      }`}
-                    >
-                      {!isZero && <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/10 to-white/20" />}
-                    </div>
-                  </div>
-
-                  {/* Month Label */}
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${theme.textSub}`}>{label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* PACKAGE DISTRIBUTION SUMMARY */}
-        <div className={`p-7 rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow} flex flex-col justify-between`}>
+      {/* HEADER SECTION */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="flex items-center gap-2.5 mb-6">
-              <div className="p-2 rounded-lg bg-[#2FA084]/10 text-[#2FA084]">
-                <Layers size={16} />
-              </div>
-              <div>
-                <h3 className={`text-[10px] font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Package Overview</h3>
-                <p className={`text-[9px] font-bold uppercase ${theme.textSub}`}>Pinakasikat na System Packages</p>
-              </div>
-            </div>
+            <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">Admin Control Panel</span>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Revenue & Subscription Reports</h1>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+              Subscribed hotels, payment statuses, subscription dates, and total revenue tracking.
+            </p>
+          </div>
 
-            <div className="space-y-4">
-              {packageBreakdown.map((pkg, idx) => (
-                <div key={idx} className={`p-4 rounded-xl border ${theme.border} ${isDarkMode ? 'bg-white/[0.02]' : 'bg-gray-50'}`}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className={`text-[11px] font-black ${theme.textMain}`}>{pkg.name}</span>
-                    <span className="text-[10px] font-black text-[#2FA084]">{pkg.price}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-[10px] text-gray-400">
-                    <span>{pkg.subscribers} Hotels Subscribed</span>
-                    <span className="font-bold text-gray-300">₱{pkg.totalRevenue.toLocaleString()}</span>
-                  </div>
-                </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={exportCSV} className="px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1.5 cursor-pointer">
+              <Download size={14}/> Export CSV
+            </button>
+            <button onClick={exportPDF} className="px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-1.5 cursor-pointer">
+              <FileText size={14}/> Export PDF
+            </button>
+            <button onClick={fetchRevenueReportData} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-bold shadow-sm flex items-center gap-1.5 cursor-pointer">
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""}/> Refresh Data
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* METRICS SUMMARY CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400">
+              <DollarSign size={18} />
+            </div>
+            <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Total Active</span>
+          </div>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">Total Revenue (Active)</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{formatPeso(totalRevenue)}</h2>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400">
+              <Building2 size={18} />
+            </div>
+            <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Subscribed</span>
+          </div>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">Total Subscribed Hotels</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{subscriptions.length}</h2>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400">
+              <Calendar size={18} />
+            </div>
+            <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Status</span>
+          </div>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">Active Subscriptions</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+            {subscriptions.filter(s => String(s.status).toUpperCase() === 'ACTIVE').length}
+          </h2>
+        </div>
+      </div>
+
+      {/* SUBSCRIPTION & REVENUE TABLE CONTAINER */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
+        
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/50">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+              Hotel Subscriptions & Revenue Logs
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              List of all hotels, subscription plans, billing cycle, amount paid, and renewal dates.
+            </p>
+          </div>
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+            <input 
+              type="text" 
+              placeholder="Search hotel, owner, plan..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs rounded focus:outline-none text-slate-900 dark:text-slate-100" 
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+              <tr>
+                <th className="px-6 py-3 font-bold text-slate-400 uppercase tracking-wider">Hotel Name</th>
+                <th className="px-6 py-3 font-bold text-slate-400 uppercase tracking-wider">Owner / Contact</th>
+                <th className="px-6 py-3 font-bold text-slate-400 uppercase tracking-wider">Plan / Tier</th>
+                <th className="px-6 py-3 font-bold text-slate-400 uppercase tracking-wider">Billing Cycle</th>
+                <th className="px-6 py-3 font-bold text-slate-400 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-3 font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-right font-bold text-slate-400 uppercase tracking-wider">Next Renewal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {filteredSubscriptions.map((sub, i) => (
+                <tr key={sub.id || i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <td className="px-6 py-3.5 font-bold text-slate-900 dark:text-white">{sub.hotelName || '—'}</td>
+                  <td className="px-6 py-3.5 text-slate-600 dark:text-slate-400">{sub.ownerName || '—'}</td>
+                  <td className="px-6 py-3.5">
+                    <span className="text-[10px] font-bold uppercase px-2.5 py-1 rounded border border-emerald-200 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50">
+                      {sub.plan || 'Standard'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3.5 font-mono uppercase text-slate-600 dark:text-slate-400">{sub.cycle || 'Monthly'}</td>
+                  <td className="px-6 py-3.5 font-bold text-slate-900 dark:text-white">{formatPeso(sub.amount)}</td>
+                  <td className="px-6 py-3.5">
+                    <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded border ${
+                      String(sub.status).toUpperCase() === 'ACTIVE' 
+                        ? 'text-emerald-800 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50' 
+                        : 'text-amber-800 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50'
+                    }`}>
+                      {sub.status || 'PENDING'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3.5 text-right font-mono text-[11px] text-slate-500">
+                    {sub.renewal ? new Date(sub.renewal).toLocaleDateString() : '—'}
+                  </td>
+                </tr>
               ))}
-            </div>
-          </div>
 
-          <div className="pt-4 border-t border-dashed mt-6 text-center border-gray-200 dark:border-white/10">
-            <span className={`text-[9px] font-bold uppercase tracking-wider ${theme.textSub}`}>
-              Updated sa real-time batay sa mga pumasok na kabayaran
-            </span>
-          </div>
+              {filteredSubscriptions.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-xs font-mono uppercase tracking-widest text-slate-400">
+                    Walang nakitang data ng subscription o revenue.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
 
       </div>
 
     </div>
   );
-}
+};
+
+export default Reports;

@@ -516,6 +516,18 @@ def _ensure_admin_settings_table(cur):
     )
 
 
+def _ensure_admin_preferences_table(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS admin_preferences (
+            admin_id INTEGER PRIMARY KEY REFERENCES admins(id) ON DELETE CASCADE,
+            sidebar_open BOOLEAN NOT NULL DEFAULT FALSE,
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+        """
+    )
+
+
 DEFAULT_ADMIN_SETTINGS = {
     'platformName': 'INNOVA-HMS',
     'systemVersion': 'v1.0.0 - Production',
@@ -4557,6 +4569,55 @@ def admin_system_settings():
         return jsonify({'message': 'System settings updated successfully.', 'settings': sanitized}), 200
     except Exception as e:
         if conn: conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/admin/<int:admin_id>/sidebar-preference', methods=['GET', 'PUT'])
+def admin_sidebar_preference(admin_id):
+    payload = request.get_json(silent=True) if request.method == 'PUT' else None
+    if request.method == 'PUT' and (
+        not isinstance(payload, dict) or not isinstance(payload.get('isOpen'), bool)
+    ):
+        return jsonify({'error': 'Sidebar preference must include a boolean isOpen value.'}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_admin_preferences_table(cur)
+        cur.execute('SELECT id FROM admins WHERE id = %s', (admin_id,))
+        if not cur.fetchone():
+            return jsonify({'error': 'Admin not found.'}), 404
+
+        if request.method == 'GET':
+            cur.execute(
+                'SELECT sidebar_open FROM admin_preferences WHERE admin_id = %s',
+                (admin_id,),
+            )
+            row = cur.fetchone()
+            is_open = bool(row['sidebar_open']) if row else False
+            conn.commit()
+            return jsonify({'isOpen': is_open}), 200
+
+        cur.execute(
+            """
+            INSERT INTO admin_preferences (admin_id, sidebar_open, updated_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (admin_id)
+            DO UPDATE SET sidebar_open = EXCLUDED.sidebar_open, updated_at = NOW()
+            RETURNING sidebar_open
+            """,
+            (admin_id, payload['isOpen']),
+        )
+        row = cur.fetchone()
+        conn.commit()
+        return jsonify({'isOpen': bool(row['sidebar_open'])}), 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
         _safe_close(conn, cur)
@@ -12174,6 +12235,203 @@ def reports_transactions():
             ]
 
         return jsonify(logs), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        _safe_close(conn, cur)
+
+
+@app.route('/api/manager/reports/manager-data', methods=['GET'])
+def manager_reports_data():
+    manager_id = request.args.get('manager_id', type=int)
+    from_value = request.args.get('from')
+    to_value = request.args.get('to')
+
+    if not manager_id:
+        return jsonify({"error": "A valid manager_id is required."}), 400
+    try:
+        from_date = date.fromisoformat(from_value or '')
+        to_date = date.fromisoformat(to_value or '')
+        if from_date.isoformat() != from_value or to_date.isoformat() != to_value:
+            raise ValueError("Dates must use YYYY-MM-DD format.")
+    except ValueError:
+        return jsonify({"error": "Valid from and to dates are required in YYYY-MM-DD format."}), 400
+    if from_date > to_date:
+        return jsonify({"error": "The from date must be on or before the to date."}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT s.hotel_id, h.owner_id
+            FROM staff s
+            JOIN hotels h ON h.id = s.hotel_id
+            WHERE s.id = %s AND s.role = %s
+            LIMIT 1
+        """, (manager_id, MANAGER_ROLE))
+        manager = cur.fetchone()
+        if not manager:
+            return jsonify({"error": "Manager account not found."}), 404
+
+        owner_id = manager.get("owner_id")
+        hotel_id = manager.get("hotel_id")
+        if not owner_id or not hotel_id:
+            return jsonify({"error": "The manager is not linked to an owner hotel."}), 404
+        guard, _subscription = _owner_feature_guard(cur, owner_id, 'reports')
+        if guard:
+            return guard
+
+        cur.execute("""
+            WITH revenue_candidates AS (
+                SELECT r.id, r.booking_number,
+                   NULLIF(TRIM(
+                       COALESCE(c.first_name, '') || ' ' || COALESCE(c.last_name, '')
+                   ), '') AS guest_name,
+                   r.status, r.payment_status, r.check_in_date, r.check_in_time,
+                   r.check_out_date, r.check_out_time, r.created_at,
+                   r.total_amount, r.deposit_amount,
+                   CASE
+                       WHEN UPPER(COALESCE(r.payment_status, '')) IN ('PAID', 'FULLY_PAID')
+                           THEN GREATEST(COALESCE(r.total_amount, 0), 0)
+                       WHEN UPPER(COALESCE(r.payment_status, '')) IN
+                            ('DOWNPAYMENT', 'PARTIAL', 'PARTIALLY_PAID', 'PARTIALLY PAID')
+                           THEN GREATEST(LEAST(
+                               COALESCE(r.deposit_amount, 0),
+                               COALESCE(r.total_amount, r.deposit_amount, 0)
+                           ), 0)
+                       ELSE 0
+                   END AS amount_received
+                FROM reservations r
+                LEFT JOIN customers c ON c.id = r.customer_id
+                WHERE r.hotel_id = %s
+                  AND r.created_at >= %s::date
+                  AND r.created_at < (%s::date + INTERVAL '1 day')
+                  AND UPPER(COALESCE(r.status, '')) NOT IN ('CANCELLED', 'FAILED')
+            )
+            SELECT * FROM revenue_candidates
+            WHERE amount_received > 0
+            ORDER BY created_at DESC, id DESC
+        """, (hotel_id, from_date.isoformat(), to_date.isoformat()))
+        revenue_rows = []
+        for row in cur.fetchall() or []:
+            revenue_rows.append({
+                "reservationId": row.get("id"),
+                "bookingNumber": row.get("booking_number"),
+                "guestName": row.get("guest_name"),
+                "reservationStatus": row.get("status"),
+                "paymentStatus": row.get("payment_status"),
+                "recordDate": _serialize_date(row.get("created_at")),
+                "checkInDate": _serialize_date(row.get("check_in_date")),
+                "checkInTime": _serialize_date(row.get("check_in_time")),
+                "checkOutDate": _serialize_date(row.get("check_out_date")),
+                "checkOutTime": _serialize_date(row.get("check_out_time")),
+                "totalAmount": _to_float(row.get("total_amount")) if row.get("total_amount") is not None else None,
+                "depositAmount": _to_float(row.get("deposit_amount")) if row.get("deposit_amount") is not None else None,
+                "amountReceived": _to_float(row.get("amount_received")),
+            })
+
+        cur.execute("""
+            SELECT i.id, i.sku_id, i.item_name, i.category, i.unit,
+                   i.stock_level, i.reorder_point, i.unit_cost, i.supplier,
+                   i.status, i.created_at, i.updated_at,
+                   movements.last_movement_at
+            FROM inventory_items i
+            LEFT JOIN (
+                SELECT item_id, MAX(created_at) AS last_movement_at
+                FROM stock_movements
+                WHERE hotel_id = %s
+                GROUP BY item_id
+            ) movements ON movements.item_id = i.id
+            WHERE i.hotel_id = %s
+            ORDER BY i.category NULLS LAST, i.item_name
+        """, (hotel_id, hotel_id))
+        inventory_rows = [{
+            "itemId": row.get("id"),
+            "sku": row.get("sku_id"),
+            "itemName": row.get("item_name"),
+            "category": row.get("category"),
+            "unit": row.get("unit"),
+            "stockLevel": _to_int(row.get("stock_level")) if row.get("stock_level") is not None else None,
+            "reorderPoint": _to_int(row.get("reorder_point")) if row.get("reorder_point") is not None else None,
+            "unitCost": _to_float(row.get("unit_cost")) if row.get("unit_cost") is not None else None,
+            "supplier": row.get("supplier"),
+            "status": row.get("status"),
+            "createdAt": _serialize_date(row.get("created_at")),
+            "updatedAt": _serialize_date(row.get("updated_at")),
+            "lastMovementAt": _serialize_date(row.get("last_movement_at")),
+        } for row in (cur.fetchall() or [])]
+
+        cur.execute("""
+            SELECT m.id, m.item_id, i.item_name, i.sku_id, m.movement_type,
+                   m.quantity, m.unit_cost, m.department, m.reason, m.supplier,
+                   m.po_number, m.notes, m.performed_by, m.created_at
+            FROM stock_movements m
+            LEFT JOIN inventory_items i ON i.id = m.item_id AND i.hotel_id = m.hotel_id
+            WHERE m.hotel_id = %s
+              AND m.created_at >= %s::date
+              AND m.created_at < (%s::date + INTERVAL '1 day')
+            ORDER BY m.created_at DESC, m.id DESC
+        """, (hotel_id, from_date.isoformat(), to_date.isoformat()))
+        movement_rows = [{
+            "movementId": row.get("id"),
+            "itemId": row.get("item_id"),
+            "itemName": row.get("item_name"),
+            "sku": row.get("sku_id"),
+            "movementType": row.get("movement_type"),
+            "quantity": _to_int(row.get("quantity")) if row.get("quantity") is not None else None,
+            "unitCost": _to_float(row.get("unit_cost")) if row.get("unit_cost") is not None else None,
+            "department": row.get("department"),
+            "reason": row.get("reason"),
+            "supplier": row.get("supplier"),
+            "purchaseOrderNumber": row.get("po_number"),
+            "notes": row.get("notes"),
+            "performedBy": row.get("performed_by"),
+            "recordDate": _serialize_date(row.get("created_at")),
+        } for row in (cur.fetchall() or [])]
+
+        cur.execute("""
+            SELECT id, po_number, supplier, status, total_amount,
+                   expected_date, received_date, notes, created_at
+            FROM purchase_orders
+            WHERE hotel_id = %s
+              AND created_at >= %s::date
+              AND created_at < (%s::date + INTERVAL '1 day')
+            ORDER BY created_at DESC, id DESC
+        """, (hotel_id, from_date.isoformat(), to_date.isoformat()))
+        purchase_order_rows = [{
+            "purchaseOrderId": row.get("id"),
+            "purchaseOrderNumber": row.get("po_number"),
+            "supplier": row.get("supplier"),
+            "status": row.get("status"),
+            "totalAmount": _to_float(row.get("total_amount")) if row.get("total_amount") is not None else None,
+            "recordDate": _serialize_date(row.get("created_at")),
+            "expectedDate": _serialize_date(row.get("expected_date")),
+            "receivedDate": _serialize_date(row.get("received_date")),
+            "notes": row.get("notes"),
+        } for row in (cur.fetchall() or [])]
+
+        return jsonify({
+            "range": {"from": from_date.isoformat(), "to": to_date.isoformat()},
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "summary": {
+                "totalRevenue": sum(row["amountReceived"] for row in revenue_rows),
+                "revenueRecords": len(revenue_rows),
+                "inventoryItems": len(inventory_rows),
+                "stockMovements": len(movement_rows),
+                "purchaseOrders": len(purchase_order_rows),
+                "purchaseOrderTotal": (
+                    sum(row["totalAmount"] for row in purchase_order_rows)
+                    if all(row["totalAmount"] is not None for row in purchase_order_rows)
+                    else None
+                ),
+            },
+            "revenue": revenue_rows,
+            "inventory": inventory_rows,
+            "stockMovements": movement_rows,
+            "purchaseOrders": purchase_order_rows,
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:

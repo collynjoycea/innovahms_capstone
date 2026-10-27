@@ -26,13 +26,13 @@ export default function Profile() {
   const [notice, setNotice] = useState('');
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0F2B25]' : 'bg-[#F4F5F7]',
-    card: isDarkMode ? 'bg-[#163C34]/80 backdrop-blur-md' : 'bg-white',
+    bg: isDarkMode ? 'bg-[#0f1117]' : 'bg-slate-50',
+    card: isDarkMode ? 'bg-[#121824]/80 backdrop-blur-md' : 'bg-white',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
-    textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
-    border: isDarkMode ? 'border-white/10' : 'border-gray-300',
-    inputBg: isDarkMode ? 'bg-black/30' : 'bg-gray-50',
-    shadow: isDarkMode ? 'shadow-2xl shadow-black/40' : 'shadow-[0_15px_40px_rgba(0,0,0,0.08)]',
+    textSub: isDarkMode ? 'text-slate-400' : 'text-slate-500',
+    border: isDarkMode ? 'border-white/10' : 'border-black/5',
+    inputBg: isDarkMode ? 'bg-white/5' : 'bg-slate-50',
+    shadow: 'shadow-sm',
   };
 
   const loadProfile = async () => {

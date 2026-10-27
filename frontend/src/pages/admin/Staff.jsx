@@ -24,12 +24,12 @@ export default function Staff() {
   const [addError, setAddError] = useState('');
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', contactNumber: '', password: '', role: STAFF_ROLES[0], hotelId: '' });
 
-  const cardBg = isDarkMode ? 'bg-[#163C34]' : 'bg-white';
-  const borderStyle = isDarkMode ? 'border-white/10' : 'border-gray-200';
+  const cardBg = isDarkMode ? 'bg-[#121824]' : 'bg-white';
+  const borderStyle = isDarkMode ? 'border-white/10' : 'border-black/5';
   const textMain = isDarkMode ? 'text-white' : 'text-gray-900';
-  const textSub = isDarkMode ? 'text-gray-400' : 'text-gray-600';
-  const inputBg = isDarkMode ? 'bg-white/5' : 'bg-gray-100';
-  const chipBg = isDarkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-gray-50 hover:bg-gray-100';
+  const textSub = isDarkMode ? 'text-slate-400' : 'text-slate-500';
+  const inputBg = isDarkMode ? 'bg-white/5' : 'bg-slate-50';
+  const chipBg = isDarkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-50 hover:bg-slate-100';
 
   const load = () => {
     setLoading(true);
@@ -169,7 +169,7 @@ export default function Staff() {
   const hasSelection = viewMode === 'hotel' ? Boolean(selectedHotel) : Boolean(selectedRole);
 
   return (
-    <div className={`p-6 space-y-8 transition-colors duration-300 ${isDarkMode ? 'bg-[#0F2B25]' : 'bg-[#F4F5F7]'}`}>
+    <div className={`p-6 space-y-8 transition-colors duration-300 ${isDarkMode ? 'bg-[#0f1117]' : 'bg-slate-50'}`}>
       <div className={`flex flex-col md:flex-row justify-between items-center gap-4 border-b ${borderStyle} pb-6`}>
         <div className="text-left">
           <h1 className={`text-2xl font-black uppercase tracking-tighter ${textMain}`}>
@@ -219,7 +219,7 @@ export default function Staff() {
           { label: 'Hotels Covered', value: hotels.length, icon: <Building2 size={20} />, color: 'text-[#2FA084]' },
         ].map((kpi, i) => (
           <div key={i} className={`p-6 rounded-2xl border ${cardBg} ${borderStyle} shadow-sm`}>
-            <div className="p-2.5 rounded-xl bg-white/5 text-[#2FA084] border border-white/5 inline-block mb-4">{kpi.icon}</div>
+            <div className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-black/5'} text-[#2FA084] border inline-block mb-4`}>{kpi.icon}</div>
             <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">{kpi.label}</p>
             <h2 className={`text-3xl font-black tracking-tighter ${textMain}`}>{kpi.value}</h2>
           </div>

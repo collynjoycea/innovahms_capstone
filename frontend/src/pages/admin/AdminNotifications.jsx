@@ -26,13 +26,13 @@ export default function AdminNotifications() {
   });
 
   const theme = {
-    bg: isDarkMode ? 'bg-[#0F2B25]' : 'bg-[#EEEEEE]',
-    card: isDarkMode ? 'bg-[#163C34]/80 backdrop-blur-md' : 'bg-white',
+    bg: isDarkMode ? 'bg-[#0f1117]' : 'bg-slate-50',
+    card: isDarkMode ? 'bg-[#121824]/80 backdrop-blur-md' : 'bg-white',
     textMain: isDarkMode ? 'text-white' : 'text-gray-900',
-    textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
-    border: isDarkMode ? 'border-white/10' : 'border-gray-300',
-    inputBg: isDarkMode ? 'bg-white/5' : 'bg-gray-50',
-    shadow: isDarkMode ? 'shadow-2xl shadow-black/40' : 'shadow-[0_15px_40px_rgba(0,0,0,0.08)]',
+    textSub: isDarkMode ? 'text-slate-400' : 'text-slate-500',
+    border: isDarkMode ? 'border-white/10' : 'border-black/5',
+    inputBg: isDarkMode ? 'bg-white/5' : 'bg-slate-50',
+    shadow: 'shadow-sm',
   };
 
   useEffect(() => {
@@ -329,7 +329,7 @@ export default function AdminNotifications() {
       {showCreateForm && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCreateForm(false)}>
           <div
-            className={`w-full max-w-md p-6 rounded-2xl border ${theme.border} ${isDarkMode ? 'bg-[#163C34]' : 'bg-white'} ${theme.shadow}`}
+            className={`w-full max-w-md p-6 rounded-2xl border ${theme.border} ${isDarkMode ? 'bg-[#121824]' : 'bg-white'} ${theme.shadow}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">

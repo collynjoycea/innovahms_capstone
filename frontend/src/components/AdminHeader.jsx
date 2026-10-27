@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Sun, Moon, Bell, Menu, X } from 'lucide-react';
 
 const priorityColor = (priority) => {
@@ -7,12 +8,60 @@ const priorityColor = (priority) => {
   return 'text-[#2FA084]';
 };
 
-const AdminHeader = ({ isDarkMode, toggleTheme, isSidebarOpen, toggleSidebar }) => {
+const AdminHeader = ({ isDarkMode, toggleTheme, isSidebarOpen, toggleSidebar, isSidebarPreferenceLoaded }) => {
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notificationError, setNotificationError] = useState('');
+  const [admin, setAdmin] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('adminData') || '{}');
+    } catch {
+      return {};
+    }
+  });
   const dropdownRef = useRef(null);
+
+  const pageTitles = {
+    '/admin': 'System Dashboard',
+    '/admin/reports': 'Reports & Analytics',
+    '/admin/reviews': 'Reviews',
+    '/admin/owners': 'Hotel Owners',
+    '/admin/staff': 'Staff Management',
+    '/admin/customers': 'Customer Management',
+    '/admin/packages': 'Member Packages',
+    '/admin/roles': 'Roles & Permissions',
+    '/admin/profile': 'My Profile',
+    '/admin/logs': 'System Logs',
+    '/admin/api': 'Integrations',
+    '/admin/maps': 'Map Services',
+    '/admin/notifications': 'Notifications',
+    '/admin/settings': 'System Settings',
+  };
+  const pageTitle = pageTitles[location.pathname] || 'Admin Portal';
+  const adminInitials = String(admin?.name || 'Admin')
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  useEffect(() => {
+    const refreshAdmin = () => {
+      try {
+        setAdmin(JSON.parse(localStorage.getItem('adminData') || '{}'));
+      } catch {
+        setAdmin({});
+      }
+    };
+    window.addEventListener('userUpdated', refreshAdmin);
+    window.addEventListener('storage', refreshAdmin);
+    return () => {
+      window.removeEventListener('userUpdated', refreshAdmin);
+      window.removeEventListener('storage', refreshAdmin);
+    };
+  }, []);
 
   const fetchNotifications = async () => {
     try {
@@ -46,31 +95,43 @@ const AdminHeader = ({ isDarkMode, toggleTheme, isSidebarOpen, toggleSidebar }) 
   const recent = notifications.slice(0, 8);
 
   return (
-    <header className={`h-20 border-b flex items-center justify-between px-10 sticky top-0 z-40 transition-all duration-300 
-      ${isDarkMode ? 'bg-[#163C34] border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
+    <header className={`sticky top-0 z-40 flex h-20 items-center justify-between border-b px-5 sm:px-8 lg:px-10 backdrop-blur-md transition-colors duration-300 ${
+      isDarkMode ? 'border-white/10 bg-[#0b0f16]/85' : 'border-black/5 bg-white/80'
+    }`}>
       
       {/* LEFT: MENU + TITLE */}
-      <div className="flex items-center gap-3 text-left">
+      <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <button
           type="button"
           onClick={toggleSidebar}
+          disabled={!isSidebarPreferenceLoaded}
           aria-label={isSidebarOpen ? 'Close admin sidebar' : 'Open admin sidebar'}
           aria-expanded={isSidebarOpen}
-          className={`p-2.5 rounded-xl transition-all ${isDarkMode ? 'hover:bg-white/5 text-gray-400 hover:text-[#2FA084]' : 'hover:bg-gray-100 text-gray-500 hover:text-[#2FA084]'}`}
+          className={`rounded-2xl border px-3 py-3 transition-all disabled:cursor-wait disabled:opacity-50 ${
+            isDarkMode ? 'border-white/10 bg-white/5 text-slate-200 hover:text-[#2FA084]' : 'border-black/5 bg-white text-slate-600 hover:text-[#2FA084]'
+          }`}
+          title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
         >
-          {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
         </button>
-        <h2 className={`text-xl font-black tracking-tight uppercase ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
-          Welcome <span className="text-[#2FA084]">Admin</span>
-        </h2>
+        <div className="h-10 w-1 shrink-0 rounded-full bg-gradient-to-b from-[#2FA084] to-[#1F6F5F] opacity-80" />
+        <div className="flex min-w-0 flex-col overflow-hidden">
+          <span className="whitespace-nowrap text-[9px] font-black uppercase tracking-[0.3em] text-[#2FA084]">INNOVA HMS</span>
+          <h2 className={`mt-0.5 truncate font-serif text-xl font-bold tracking-tight md:text-2xl ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+            {pageTitle}
+          </h2>
+        </div>
       </div>
 
       {/* RIGHT: NOTIFICATIONS + THEME TOGGLE */}
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setOpen((v) => !v)}
-            className={`relative p-2.5 rounded-xl transition-all ${isDarkMode ? 'hover:bg-white/5 text-gray-400 hover:text-[#2FA084]' : 'hover:bg-gray-100 text-gray-500 hover:text-[#2FA084]'}`}
+            aria-label="Admin notifications"
+            className={`relative rounded-2xl border px-3 py-3 shadow-sm transition-all ${
+              isDarkMode ? 'border-white/10 bg-white/5 text-slate-300 hover:border-[#2FA084]/30 hover:text-[#2FA084]' : 'border-black/5 bg-white text-slate-600 hover:border-[#2FA084]/30 hover:text-[#2FA084]'
+            }`}
           >
             <Bell size={18} />
             {unreadCount > 0 && (
@@ -81,9 +142,9 @@ const AdminHeader = ({ isDarkMode, toggleTheme, isSidebarOpen, toggleSidebar }) 
           </button>
 
           {open && (
-            <div className={`absolute right-0 mt-2 w-80 rounded-2xl border shadow-2xl z-50 overflow-hidden ${isDarkMode ? 'bg-[#163C34] border-white/10' : 'bg-white border-gray-200'}`}>
-              <div className={`flex items-center justify-between px-4 py-3 border-b ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
-                <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Notifications</span>
+            <div className={`absolute right-0 mt-3 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border shadow-2xl z-50 overflow-hidden ${isDarkMode ? 'bg-[#121824] border-white/10' : 'bg-white border-black/5'}`}>
+              <div className={`flex items-center justify-between px-4 py-3 border-b ${isDarkMode ? 'border-white/10' : 'border-black/5'}`}>
+                <span className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Notifications</span>
                 {unreadCount > 0 && (
                   <span className="text-[9px] font-black uppercase text-[#2FA084]">{unreadCount} new</span>
                 )}
@@ -104,15 +165,15 @@ const AdminHeader = ({ isDarkMode, toggleTheme, isSidebarOpen, toggleSidebar }) 
                   </p>
                 ) : (
                   recent.map((n) => (
-                    <div key={n.id} className={`px-4 py-3 border-b last:border-b-0 ${isDarkMode ? 'border-white/5' : 'border-gray-100'}`}>
+                    <div key={n.id} className={`px-4 py-3 border-b last:border-b-0 ${isDarkMode ? 'border-white/5' : 'border-black/5'}`}>
                       <div className="flex items-start justify-between gap-2">
-                        <p className={`text-[11px] font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{n.title}</p>
+                        <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{n.title}</p>
                         {!n.is_read && <span className="w-1.5 h-1.5 rounded-full bg-[#2FA084] mt-1 shrink-0" />}
                       </div>
-                      <p className={`text-[10px] mt-0.5 line-clamp-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{n.message}</p>
+                      <p className={`text-xs mt-1 line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{n.message}</p>
                       <div className="flex items-center gap-2 mt-1.5">
                         <span className={`text-[8px] font-black uppercase ${priorityColor(n.priority)}`}>{n.priority}</span>
-                        <span className={`text-[9px] ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                        <span className={`text-[9px] ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
                           {n.created_at ? new Date(n.created_at).toLocaleDateString() : ''}
                         </span>
                       </div>
@@ -126,10 +187,22 @@ const AdminHeader = ({ isDarkMode, toggleTheme, isSidebarOpen, toggleSidebar }) 
 
         <button 
           onClick={toggleTheme} 
-          className={`p-2.5 rounded-xl transition-all ${isDarkMode ? 'hover:bg-white/5 text-gray-400 hover:text-[#2FA084]' : 'hover:bg-gray-100 text-gray-500 hover:text-[#2FA084]'}`}
+          aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          className={`rounded-2xl border px-3 py-3 transition-all ${
+            isDarkMode ? 'border-white/10 bg-white/5 text-slate-200 hover:text-[#f5d37e]' : 'border-black/5 bg-white text-slate-600 hover:text-[#2FA084]'
+          }`}
         >
           {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
         </button>
+        <Link
+          to="/admin/profile"
+          title={admin?.name || 'Admin profile'}
+          className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#2FA084]/20 bg-gradient-to-br from-[#2FA084] to-[#1F6F5F] text-xs font-black text-white shadow-sm"
+        >
+          {admin?.profileImage
+            ? <img src={admin.profileImage} alt={admin?.name || 'Admin'} className="h-full w-full object-cover" />
+            : adminInitials}
+        </Link>
       </div>
     </header>
   );

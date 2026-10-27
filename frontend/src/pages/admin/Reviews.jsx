@@ -5,69 +5,65 @@ import Pagination, { usePagination } from '../../components/Pagination';
 import { confirmAdminAction, showAdminResult } from '../../utils/adminDialogs';
 
 export default function Reviews() {
-  const { isDarkMode } = useOutletContext();
+  const { isDarkMode = false } = useOutletContext() || {};
 
-  // Top-level category: guest ratings (travelers reviewing hotels) vs
-  // system reviews (hotel owners giving feedback on the platform itself).
+  // Top-level category: guest ratings vs system reviews
   const [category, setCategory] = useState('guest'); // 'guest' | 'system'
 
-  const theme = {
-    bg: isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#F4F5F7]',
-    card: isDarkMode ? 'bg-[#111111]/80 backdrop-blur-md' : 'bg-white',
-    textMain: isDarkMode ? 'text-white' : 'text-gray-900',
-    textSub: isDarkMode ? 'text-gray-500' : 'text-gray-400',
-    border: isDarkMode ? 'border-white/10' : 'border-gray-300',
-    shadow: isDarkMode ? 'shadow-2xl shadow-black/40' : 'shadow-[0_15px_40px_rgba(0,0,0,0.08)]',
-  };
-
   return (
-    <div className={`p-6 space-y-6 min-h-screen transition-all duration-500 ${theme.bg}`}>
-      <div className={`flex flex-col gap-5 border-b pb-5 ${theme.border}`}>
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-          <h1 className={`text-2xl font-black uppercase tracking-tighter ${theme.textMain}`}>
-            <span className="text-[#2FA084]">Reviews</span>
-          </h1>
+    <div className="min-h-screen bg-slate-100 text-slate-800 p-4 sm:p-6 lg:p-8 font-sans dark:bg-slate-950 dark:text-slate-100 space-y-6">
+      
+      {/* HEADER SECTION */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">Admin Control Panel</span>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Reputation & Reviews Management</h1>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+              Monitor and moderate guest feedback and hotel owner platform reviews.
+            </p>
+          </div>
         </div>
 
         {/* CATEGORY TABS */}
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
           <button
             onClick={() => setCategory('system')}
-            className={`flex-1 flex items-center gap-3 rounded-2xl border p-4 text-left transition-all ${
+            className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-all cursor-pointer ${
               category === 'system'
-                ? 'border-[#2FA084] bg-[#2FA084]/10'
-                : `${theme.border} ${theme.card} hover:border-[#2FA084]/40`
+                ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/30'
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-emerald-600/40'
             }`}
           >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${category === 'system' ? 'bg-[#2FA084] text-black' : `${isDarkMode ? 'bg-white/5' : 'bg-gray-50'} text-[#2FA084]`}`}>
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${category === 'system' ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50'}`}>
               <Building2 size={16} />
             </div>
             <div>
-              <p className={`text-[11px] font-black uppercase tracking-wide ${category === 'system' ? 'text-[#2FA084]' : theme.textMain}`}>System Reviews</p>
-              <p className={`text-[9px] font-bold uppercase tracking-widest ${theme.textSub}`}>For Hotel Owners</p>
+              <p className={`text-xs font-bold uppercase tracking-wider ${category === 'system' ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-800 dark:text-white'}`}>System Reviews</p>
+              <p className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 mt-0.5">For Hotel Owners</p>
             </div>
           </button>
 
           <button
             onClick={() => setCategory('guest')}
-            className={`flex-1 flex items-center gap-3 rounded-2xl border p-4 text-left transition-all ${
+            className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-all cursor-pointer ${
               category === 'guest'
-                ? 'border-[#2FA084] bg-[#2FA084]/10'
-                : `${theme.border} ${theme.card} hover:border-[#2FA084]/40`
+                ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/30'
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-emerald-600/40'
             }`}
           >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${category === 'guest' ? 'bg-[#2FA084] text-black' : `${isDarkMode ? 'bg-white/5' : 'bg-gray-50'} text-[#2FA084]`}`}>
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${category === 'guest' ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50'}`}>
               <Users size={16} />
             </div>
             <div>
-              <p className={`text-[11px] font-black uppercase tracking-wide ${category === 'guest' ? 'text-[#2FA084]' : theme.textMain}`}>Guest Ratings</p>
-              <p className={`text-[9px] font-bold uppercase tracking-widest ${theme.textSub}`}>For Guests</p>
+              <p className={`text-xs font-bold uppercase tracking-wider ${category === 'guest' ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-800 dark:text-white'}`}>Guest Ratings</p>
+              <p className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 mt-0.5">For Guests & Rooms</p>
             </div>
           </button>
         </div>
       </div>
 
-      {category === 'system' ? <SystemReviews theme={theme} isDarkMode={isDarkMode} /> : <GuestRatings theme={theme} isDarkMode={isDarkMode} />}
+      {category === 'system' ? <SystemReviews isDarkMode={isDarkMode} /> : <GuestRatings isDarkMode={isDarkMode} />}
     </div>
   );
 }
@@ -75,7 +71,7 @@ export default function Reviews() {
 /* ---------------------------------------------------------------------- */
 /* SYSTEM REVIEWS — hotel owners rating the platform itself                */
 /* ---------------------------------------------------------------------- */
-function SystemReviews({ theme, isDarkMode }) {
+function SystemReviews({ isDarkMode }) {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
@@ -101,74 +97,72 @@ function SystemReviews({ theme, isDarkMode }) {
   useEffect(() => { load(); }, []);
 
   return (
-    <div className="space-y-8">
-      <div className={`rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow} overflow-hidden`}>
-        <div className={`px-6 py-4 border-b ${theme.border} ${isDarkMode ? 'bg-white/[0.01]' : 'bg-gray-50/50'}`}>
-          <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${theme.textMain}`}>Hotel Owner Feedback</span>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-8 h-8 border-2 border-[#2FA084] border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : unavailable || reviews.length === 0 ? (
-          <div className="px-6 py-14 text-center">
-            <Building2 size={28} className={`mx-auto mb-3 ${theme.textSub}`} />
-            <p className={`text-[11px] font-black uppercase tracking-widest ${theme.textMain}`}>No system reviews yet</p>
-            <p className={`mt-1 text-[10px] ${theme.textSub}`}>
-              {unavailable
-                ? 'This feature is wired up but the /api/admin/system-reviews endpoint isn\u2019t live yet.'
-                : 'Hotel owners haven\u2019t submitted feedback on the platform yet.'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className={`${isDarkMode ? 'bg-white/[0.02]' : 'bg-gray-50'} border-b ${theme.border}`}>
-                <tr>
-                  {['Hotel Owner', 'Hotel', 'Rating', 'Feedback', 'Date', 'Status'].map((h) => (
-                    <th key={h} className={`px-5 py-4 text-[9px] font-black uppercase tracking-widest ${theme.textSub}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${theme.border}`}>
-                {reviews.map((r) => (
-                  <tr key={r.id} className="hover:bg-[#2FA084]/5 transition-colors">
-                    <td className={`px-5 py-4 text-[11px] font-black ${theme.textMain}`}>{r.ownerName}</td>
-                    <td className="px-5 py-4 text-[10px] font-bold text-[#2FA084]">{r.hotelName || '—'}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex gap-0.5">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star key={s} size={10} fill={s <= r.rating ? '#2FA084' : 'transparent'} className={s <= r.rating ? 'text-[#2FA084]' : 'text-gray-400'} />
-                        ))}
-                      </div>
-                    </td>
-                    <td className={`px-5 py-4 text-[10px] ${theme.textSub} max-w-[240px]`}>
-                      <p className="line-clamp-2 italic">"{r.comment}"</p>
-                    </td>
-                    <td className={`px-5 py-4 text-[10px] ${theme.textSub}`}>
-                      {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className="text-[8px] font-black uppercase px-2 py-1 rounded border text-green-500 bg-green-500/10 border-green-500/20">
-                        {r.status || 'published'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">Hotel Owner Feedback</h3>
       </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="w-8 h-8 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : unavailable || reviews.length === 0 ? (
+        <div className="px-6 py-14 text-center">
+          <Building2 size={28} className="mx-auto mb-3 text-slate-400" />
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">No system reviews yet</p>
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+            {unavailable
+              ? 'This feature is wired up but the endpoint isn\u2019t live yet.'
+              : 'Hotel owners haven\u2019t submitted feedback on the platform yet.'}
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+              <tr>
+                {['Hotel Owner', 'Hotel', 'Rating', 'Feedback', 'Date', 'Status'].map((h) => (
+                  <th key={h} className="px-6 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              {reviews.map((r) => (
+                <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                  <td className="px-6 py-3.5 font-bold text-slate-900 dark:text-white">{r.ownerName}</td>
+                  <td className="px-6 py-3.5 font-semibold text-emerald-700 dark:text-emerald-400">{r.hotelName || '—'}</td>
+                  <td className="px-6 py-3.5">
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star key={s} size={13} fill={s <= r.rating ? '#047857' : 'transparent'} className={s <= r.rating ? 'text-emerald-700 dark:text-emerald-500' : 'text-slate-300 dark:text-slate-700'} />
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-6 py-3.5 text-slate-600 dark:text-slate-400 max-w-[280px]">
+                    <p className="line-clamp-2 italic">"{r.comment}"</p>
+                  </td>
+                  <td className="px-6 py-3.5 font-mono text-[11px] text-slate-500">
+                    {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="px-6 py-3.5">
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50">
+                      {r.status || 'published'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ---------------------------------------------------------------------- */
-/* GUEST RATINGS — travelers rating rooms / hotels (existing behaviour)    */
+/* GUEST RATINGS — travelers rating rooms / hotels                         */
 /* ---------------------------------------------------------------------- */
-function GuestRatings({ theme, isDarkMode }) {
+function GuestRatings({ isDarkMode }) {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusTab, setStatusTab] = useState('all');
@@ -230,12 +224,21 @@ function GuestRatings({ theme, isDarkMode }) {
   const { paged, page, totalPages, setPage } = usePagination(filtered);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      
+      {/* FILTER TABS */}
       <div className="flex justify-end">
-        <div className={`flex p-1 rounded-xl border ${theme.border} ${isDarkMode ? 'bg-white/5' : 'bg-gray-200/50'}`}>
+        <div className="flex gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm">
           {['all', 'flagged', 'hidden'].map(tab => (
-            <button key={tab} onClick={() => setStatusTab(tab)}
-              className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${statusTab === tab ? 'bg-[#2FA084] text-black shadow-lg' : 'text-gray-500'}`}>
+            <button 
+              key={tab} 
+              onClick={() => setStatusTab(tab)}
+              className={`px-4 py-1.5 rounded text-xs font-bold uppercase transition-all cursor-pointer ${
+                statusTab === tab 
+                  ? 'bg-emerald-700 text-white shadow-sm' 
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
               {tab}
             </button>
           ))}
@@ -243,88 +246,88 @@ function GuestRatings({ theme, isDarkMode }) {
       </div>
 
       {/* TABLE */}
-      <div className={`rounded-2xl border ${theme.border} ${theme.card} ${theme.shadow} overflow-hidden`}>
-        <div className={`px-6 py-4 border-b ${theme.border} ${isDarkMode ? 'bg-white/[0.01]' : 'bg-gray-50/50'}`}>
-          <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${theme.textMain}`}>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
             {statusTab === 'all' ? 'All Guest Ratings' : statusTab === 'flagged' ? 'Flagged Ratings' : 'Hidden Ratings'}
-          </span>
+          </h3>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="w-8 h-8 border-2 border-[#2FA084] border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className={`${isDarkMode ? 'bg-white/[0.02]' : 'bg-gray-50'} border-b ${theme.border}`}>
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
                   <tr>
-                    {['Guest Code', 'Room / Hotel', 'Rating', 'Review', 'Date', 'Status', ''].map(h => (
-                      <th key={h} className={`px-5 py-4 text-[9px] font-black uppercase tracking-widest ${theme.textSub}`}>{h}</th>
+                    {['Guest Code', 'Room / Hotel', 'Rating', 'Review', 'Date', 'Status', 'Actions'].map(h => (
+                      <th key={h} className="px-6 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className={`divide-y ${theme.border}`}>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                   {paged.map((r) => (
-                    <tr key={r.id} className="hover:bg-[#2FA084]/5 transition-colors group">
-                      <td className={`px-5 py-4 text-[11px] font-black font-mono ${theme.textMain}`}>
+                    <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+                      <td className="px-6 py-3.5 font-bold font-mono text-slate-700 dark:text-slate-300">
                         {r.guestCode || r.guestId || `#GUEST-${r.id}`}
                       </td>
-                      <td className="px-5 py-4">
-                        <p className="text-[10px] font-bold text-[#2FA084]">{r.roomName || '—'}</p>
-                        <p className={`text-[9px] ${theme.textSub}`}>{r.hotelName || '—'}</p>
+                      <td className="px-6 py-3.5">
+                        <p className="font-bold text-emerald-700 dark:text-emerald-400">{r.roomName || '—'}</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{r.hotelName || '—'}</p>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-6 py-3.5">
                         <div className="flex gap-0.5">
                           {[1,2,3,4,5].map(s => (
-                            <Star key={s} size={10} fill={s <= r.rating ? '#2FA084' : 'transparent'} className={s <= r.rating ? 'text-[#2FA084]' : 'text-gray-400'} />
+                            <Star key={s} size={13} fill={s <= r.rating ? '#047857' : 'transparent'} className={s <= r.rating ? 'text-emerald-700 dark:text-emerald-500' : 'text-slate-300 dark:text-slate-700'} />
                           ))}
                         </div>
                       </td>
-                      <td className={`px-5 py-4 text-[10px] ${theme.textSub} max-w-[200px]`}>
-                        {r.title && <p className={`font-bold ${theme.textMain} mb-0.5`}>{r.title}</p>}
+                      <td className="px-6 py-3.5 text-slate-600 dark:text-slate-400 max-w-[240px]">
+                        {r.title && <p className="font-bold text-slate-900 dark:text-white mb-0.5">{r.title}</p>}
                         <p className="line-clamp-2 italic">"{r.comment}"</p>
                       </td>
-                      <td className={`px-5 py-4 text-[10px] ${theme.textSub}`}>
+                      <td className="px-6 py-3.5 font-mono text-[11px] text-slate-500">
                         {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}
                       </td>
-                      <td className="px-5 py-4">
-                        <span className={`text-[8px] font-black uppercase px-2 py-1 rounded border ${
-                          r.status === 'published' ? 'text-green-500 bg-green-500/10 border-green-500/20' :
-                          r.status === 'flagged' ? 'text-orange-500 bg-orange-500/10 border-orange-500/20' :
-                          'text-gray-500 bg-gray-500/10 border-gray-500/20'
+                      <td className="px-6 py-3.5">
+                        <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded border ${
+                          r.status === 'published' ? 'text-emerald-800 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50' :
+                          r.status === 'flagged' ? 'text-amber-800 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50' :
+                          'text-slate-700 bg-slate-100 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
                         }`}>{r.status}</span>
                       </td>
-                      <td className="px-5 py-4">
-                        <div className="flex gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                      <td className="px-6 py-3.5">
+                        <div className="flex items-center gap-1.5 opacity-75 group-hover:opacity-100 transition-opacity">
                           {r.status !== 'flagged' && (
-                            <button onClick={() => updateStatus(r.id, 'flagged')} title="Flag"
-                              className={`p-1.5 rounded-lg border ${theme.border} text-orange-500 hover:bg-orange-500/10 transition-all`}>
-                              <Flag size={12} />
+                            <button onClick={() => updateStatus(r.id, 'flagged')} title="Flag Review"
+                              className="p-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-all cursor-pointer">
+                              <Flag size={13} />
                             </button>
                           )}
                           {r.status === 'hidden' ? (
-                            <button onClick={() => updateStatus(r.id, 'published')} title="Unhide"
-                              className={`p-1.5 rounded-lg border ${theme.border} text-green-500 hover:bg-green-500/10 transition-all`}>
-                              <Eye size={12} />
+                            <button onClick={() => updateStatus(r.id, 'published')} title="Unhide Review"
+                              className="p-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-all cursor-pointer">
+                              <Eye size={13} />
                             </button>
                           ) : (
-                            <button onClick={() => updateStatus(r.id, 'hidden')} title="Hide"
-                              className={`p-1.5 rounded-lg border ${theme.border} ${theme.textSub} hover:bg-white/5 transition-all`}>
-                              <EyeOff size={12} />
+                            <button onClick={() => updateStatus(r.id, 'hidden')} title="Hide Review"
+                              className="p-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer">
+                              <EyeOff size={13} />
                             </button>
                           )}
-                          <button onClick={() => deleteReview(r.id)} title="Delete"
-                            className={`p-1.5 rounded-lg border ${theme.border} text-red-500 hover:bg-red-500/10 transition-all`}>
-                            <Trash2 size={12} />
+                          <button onClick={() => deleteReview(r.id)} title="Delete Review"
+                            className="p-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all cursor-pointer">
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </td>
                     </tr>
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={7} className={`px-6 py-10 text-center text-[11px] ${theme.textSub}`}>No reviews found.</td></tr>
+                    <tr><td colSpan={7} className="px-6 py-12 text-center text-xs font-mono uppercase tracking-widest text-slate-400">No reviews found.</td></tr>
                   )}
                 </tbody>
               </table>
