@@ -261,10 +261,6 @@ function App() {
           <Route path="/owner/signup" element={<OwnerSignUp />} />
         </Route>
 
-        <Route element={<RegistrationLayout />}>
-          <Route path="/hotelier" element={<HotelierHome />} />
-        </Route>
-
         {/* GROUP 2: OWNER DASHBOARD */}
         <Route path="/owner" element={<OwnerLayout context={{ isDarkMode, setIsDarkMode }} />}>
           <Route index element={<OwnerDashboard />} />

@@ -167,9 +167,6 @@ const Inventory = () => {
             <div>
               <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">Inventory Control</span>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Live Stock Ledger</h1>
-              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                Mag-add, mag-monitor, at mag-manage ng stock levels ng iyong hotel inventory.
-              </p>
             </div>
             <div className="flex items-center gap-2 self-start lg:self-auto">
               <button
@@ -216,7 +213,6 @@ const Inventory = () => {
           <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-5 flex items-center justify-between">
             <div>
               <h3 className="font-bold text-sm text-slate-900 dark:text-white">Inventory Stock Table</h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Listahan ng lahat ng naka-record na items at quantity.</p>
             </div>
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded">
               Total Items: {inventoryData.length}
@@ -230,7 +226,7 @@ const Inventory = () => {
               </div>
             ) : inventoryData.length === 0 ? (
               <div className="px-6 py-12 text-center text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900">
-                Walang inventory items na nahanap. I-click ang "Add Item" para magdagdag.
+                No Item
               </div>
             ) : (
               <table className="w-full text-left border-collapse">

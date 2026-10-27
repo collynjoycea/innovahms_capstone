@@ -490,6 +490,38 @@ def _ensure_room_status_options(cur):
 def _ensure_housekeeping_tables(cur):
     return db_bootstrap.ensure_housekeeping_tables(cur)
 
+def _hk_inventory_columns(cur):
+    columns = _table_columns(cur, "hk_inventory")
+    quantity_column = next(
+        (column for column in ("current_qty", "current_stock") if column in columns),
+        None,
+    )
+    if not quantity_column:
+        raise RuntimeError("Housekeeping inventory has no recognized stock quantity column.")
+
+    capacity_column = next(
+        (column for column in ("max_qty", "max_stock") if column in columns),
+        None,
+    )
+    minimum_column = "min_stock" if "min_stock" in columns else None
+    capacity_expression = (
+        capacity_column
+        if capacity_column
+        else f"GREATEST({quantity_column}, COALESCE({minimum_column}, {quantity_column}), 1)"
+    )
+    low_stock_expression = (
+        f"{quantity_column} < {minimum_column}"
+        if minimum_column
+        else f"{quantity_column} < ({capacity_expression} * 0.4)"
+    )
+    return {
+        "quantity": quantity_column,
+        "capacity": capacity_column,
+        "capacity_expression": capacity_expression,
+        "low_stock_expression": low_stock_expression,
+        "updated_at": "updated_at" if "updated_at" in columns else None,
+    }
+
 def _ensure_guest_requests_table(cur):
     return db_bootstrap.ensure_guest_requests_table(cur)
 
@@ -12549,14 +12581,6 @@ def inventory_overview():
                     "last_restock": _serialize_date(row.get("updated_at") or row.get("created_at")),
                 })
 
-        if not items:
-            items = [
-                {"id": 1, "sku_id": "SKU-1001", "item_name": "Fresh Towels", "description": "Bath and pool towels", "category": "Linens", "unit": "pcs", "supplier": "Luxe Linen PH", "stock_level": 120, "max_stock": 180, "reorder_point": 40, "status": "OPTIMAL", "last_restock": datetime.utcnow().date().isoformat()},
-                {"id": 2, "sku_id": "SKU-1002", "item_name": "Mini Toiletries Kit", "description": "Guest amenity packs", "category": "Consumables", "unit": "box", "supplier": "Innova Guest Supply", "stock_level": 34, "max_stock": 140, "reorder_point": 35, "status": "LOW", "last_restock": datetime.utcnow().date().isoformat()},
-                {"id": 3, "sku_id": "SKU-1003", "item_name": "Coffee Pods", "description": "In-room coffee supply", "category": "Consumables", "unit": "box", "supplier": "Brewline Global", "stock_level": 88, "max_stock": 160, "reorder_point": 45, "status": "OPTIMAL", "last_restock": datetime.utcnow().date().isoformat()},
-                {"id": 4, "sku_id": "SKU-1004", "item_name": "AC Filter Set", "description": "Maintenance filters", "category": "Maintenance", "unit": "set", "supplier": "HVAC Core", "stock_level": 12, "max_stock": 60, "reorder_point": 15, "status": "LOW", "last_restock": datetime.utcnow().date().isoformat()},
-            ]
-
         if category_filter and category_filter.lower() != "all items":
             items = [item for item in items if str(item.get("category") or "").lower() == category_filter.lower()]
 
@@ -17302,13 +17326,28 @@ def hk_dashboard_stats():
             cur.execute("SELECT room_number AS id, room_type AS type, status FROM rooms ORDER BY (status='Dirty') DESC, room_number LIMIT 12")
         rooms = cur.fetchall()
 
-        # Supplies
+        # Support both legacy quantity columns and the current_stock/min_stock schema.
+        inventory_columns = _hk_inventory_columns(cur)
+        supply_query = f"""
+            SELECT item_name AS name,
+                   {inventory_columns['quantity']} AS current,
+                   {inventory_columns['capacity_expression']} AS max,
+                   {inventory_columns['low_stock_expression']} AS alert
+            FROM hk_inventory
+        """
         if hotel_id:
-            cur.execute("SELECT item_name AS name, current_qty AS current, max_qty AS max FROM hk_inventory WHERE hotel_id=%s ORDER BY current_qty ASC LIMIT 5", [hotel_id])
+            cur.execute(
+                supply_query + f" WHERE hotel_id=%s ORDER BY {inventory_columns['quantity']} ASC LIMIT 5",
+                [hotel_id],
+            )
         else:
-            cur.execute("SELECT item_name AS name, current_qty AS current, max_qty AS max FROM hk_inventory ORDER BY current_qty ASC LIMIT 5")
-        supplies_raw = cur.fetchall()
-        supplies = [{'name': s['name'], 'current': s['current'], 'max': s['max'], 'alert': s['current'] < (s['max'] * 0.4)} for s in supplies_raw]
+            cur.execute(
+                supply_query + f" ORDER BY {inventory_columns['quantity']} ASC LIMIT 5"
+            )
+        supplies = [
+            {"name": s["name"], "current": s["current"], "max": s["max"], "alert": s["alert"]}
+            for s in (cur.fetchall() or [])
+        ]
 
         priority_tasks = [{'id': t['room_label'], 'type': t['task_type'], 'staff': t['staff_name'] or '', 'time': str(t['scheduled_time'] or ''), 'status': t['priority'], 'note': t['notes'] or ''} for t in tasks]
         grid_labels = {'Available': 'Avail', 'InProgress': 'In Prog', 'Maintenance': 'Maint.', 'Cleaning': 'In Prog'}
@@ -17526,10 +17565,17 @@ def hk_get_inventory():
         _ensure_housekeeping_tables(cur)
         _ensure_hk_inventory_movements_table(cur)
         conn.commit()
+        inventory_columns = _hk_inventory_columns(cur)
+        inventory_query = f"""
+            SELECT *,
+                   {inventory_columns['quantity']} AS current_qty,
+                   {inventory_columns['capacity_expression']} AS max_qty
+            FROM hk_inventory
+        """
         if hotel_id:
-            cur.execute("SELECT * FROM hk_inventory WHERE hotel_id=%s ORDER BY category, item_name", [hotel_id])
+            cur.execute(inventory_query + " WHERE hotel_id=%s ORDER BY category, item_name", [hotel_id])
         else:
-            cur.execute("SELECT * FROM hk_inventory ORDER BY category, item_name")
+            cur.execute(inventory_query + " ORDER BY category, item_name")
         rows = cur.fetchall()
         if hotel_id:
             cur.execute("""
@@ -17595,22 +17641,24 @@ def hk_consume_inventory(item_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         _ensure_housekeeping_tables(cur)
         _ensure_hk_inventory_movements_table(cur)
+        inventory_columns = _hk_inventory_columns(cur)
         cur.execute("""
-            SELECT id, hotel_id, item_name, current_qty, unit
+            SELECT id, hotel_id, item_name, {quantity} AS current_qty, unit
             FROM hk_inventory
             WHERE id = %s AND (%s IS NULL OR hotel_id = %s)
             FOR UPDATE
-        """, (item_id, hotel_id, hotel_id))
+        """.format(quantity=inventory_columns["quantity"]), (item_id, hotel_id, hotel_id))
         item = cur.fetchone()
         if not item:
             return jsonify({'error': 'Inventory item not found.'}), 404
         if quantity > item['current_qty']:
             return jsonify({'error': f"Only {item['current_qty']} {item['unit']} available."}), 409
-        cur.execute("""
+        updated_at_clause = f", {inventory_columns['updated_at']} = NOW()" if inventory_columns["updated_at"] else ""
+        cur.execute(f"""
             UPDATE hk_inventory
-            SET current_qty = current_qty - %s, updated_at = NOW()
+            SET {inventory_columns['quantity']} = {inventory_columns['quantity']} - %s{updated_at_clause}
             WHERE id = %s
-            RETURNING current_qty
+            RETURNING {inventory_columns['quantity']} AS current_qty
         """, (quantity, item_id))
         remaining = cur.fetchone()['current_qty']
         cur.execute("""
@@ -17637,9 +17685,19 @@ def hk_restock_inventory(item_id):
     conn = None; cur = None
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         _ensure_housekeeping_tables(cur)
-        cur.execute("UPDATE hk_inventory SET current_qty = LEAST(current_qty + %s, max_qty) WHERE id=%s", [qty, item_id])
+        inventory_columns = _hk_inventory_columns(cur)
+        quantity_expression = (
+            f"LEAST({inventory_columns['quantity']} + %s, {inventory_columns['capacity_expression']})"
+            if inventory_columns["capacity"]
+            else f"{inventory_columns['quantity']} + %s"
+        )
+        cur.execute(f"""
+            UPDATE hk_inventory
+            SET {inventory_columns['quantity']} = {quantity_expression}
+            WHERE id=%s
+        """, [qty, item_id])
         conn.commit()
         return jsonify({'message': 'Restocked'}), 200
     except Exception as e:

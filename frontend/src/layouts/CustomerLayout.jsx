@@ -41,15 +41,15 @@ const AuthHotelierHeader = () => {
     <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3 lg:px-8">
         <div className="flex items-center gap-4">
-          <Link to="/" className="min-w-0 flex-shrink-0">
+          <Link to="/hotelier" className="min-w-0 flex-shrink-0" aria-label="Official Partner Portal home">
             <img src="/images/logo.png" alt="Innova HMS" className="h-12 w-auto sm:h-14" />
           </Link>
-          <nav aria-label="Hotelier navigation" className="flex items-center gap-4">
+          <nav aria-label="Hotelier navigation" className="flex items-center">
             <Link
-              to="/"
+              to="/hotelier"
               className="border-l border-slate-300 pl-4 text-xs font-semibold uppercase text-slate-500 transition-colors hover:text-emerald-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-emerald-400"
             >
-              Home
+              Hotelier
             </Link>
             <Link
               to="/hotelier#plans"

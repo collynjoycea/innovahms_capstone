@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { Briefcase, Building2, ChevronDown, ShieldCheck } from "lucide-react";
+import { ArrowUp, Briefcase, Building2, ChevronDown, ShieldCheck } from "lucide-react";
 import Footer from "../components/Footer";
 
 export default function RegistrationLayout() {
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const menuRef = useRef(null);
   const isOwnerPage = location.pathname.startsWith("/owner/");
   const isStaffPage = location.pathname.startsWith("/staff/");
@@ -39,8 +40,23 @@ export default function RegistrationLayout() {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (location.hash) {
+      const targetId = decodeURIComponent(location.hash.slice(1));
+      const frame = window.requestAnimationFrame(() => {
+        document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth" });
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [location.pathname]);
+  }, [location.pathname, location.hash]);
+
+  useEffect(() => {
+    const updateScrollTopVisibility = () => setShowScrollTop(window.scrollY > 300);
+    updateScrollTopVisibility();
+    window.addEventListener("scroll", updateScrollTopVisibility, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrollTopVisibility);
+  }, []);
 
   useEffect(() => {
     const applyTheme = () => {
@@ -62,18 +78,18 @@ export default function RegistrationLayout() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-100 font-sans text-slate-800 dark:bg-slate-950 dark:text-slate-100">
-      <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3 lg:px-8">
           <div className="flex items-center gap-4">
-            <Link to="/" className="min-w-0 flex-shrink-0">
+            <Link to="/hotelier" className="min-w-0 flex-shrink-0" aria-label="Official Partner Portal home">
               <img src="/images/logo.png" alt="Innova HMS" className="h-12 w-auto sm:h-14" />
             </Link>
-            <nav aria-label="Hotelier navigation" className="flex items-center gap-4">
+            <nav aria-label="Hotelier navigation" className="flex items-center">
               <Link
-                to="/"
+                to="/hotelier"
                 className="border-l border-slate-300 pl-4 text-xs font-semibold uppercase text-slate-500 transition-colors hover:text-emerald-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-emerald-400"
               >
-                Home
+                Hotelier
               </Link>
               <Link
                 to="/hotelier#plans"
@@ -125,6 +141,17 @@ export default function RegistrationLayout() {
       </div>
 
       <Footer />
+      {showScrollTop ? (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="Scroll to top"
+          title="Scroll to top"
+          className="fixed bottom-6 right-6 z-50 inline-flex h-11 w-11 items-center justify-center rounded-full bg-emerald-700 text-white shadow-lg transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+        >
+          <ArrowUp size={20} />
+        </button>
+      ) : null}
     </div>
   );
 }

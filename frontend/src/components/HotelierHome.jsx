@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   BarChart3,
   CheckCircle2,
@@ -78,7 +78,6 @@ const readSession = () => {
 
 export default function HotelierHome() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -92,11 +91,6 @@ export default function HotelierHome() {
       navigate('/owner/signup', { state: { redirectTo: '/owner/subscription' } });
     }
   };
-
-  useEffect(() => {
-    if (location.hash !== '#plans') return;
-    document.getElementById('plans')?.scrollIntoView({ behavior: 'smooth' });
-  }, [location.hash]);
 
   useEffect(() => {
     let cancelled = false;

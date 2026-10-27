@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Package } from "lucide-react";
 
 const MANAGER_SESSION_KEY = "managerSession";
 
@@ -13,14 +13,18 @@ const formatPhp = (value) => {
   }
 };
 
-const StatCard = ({ title, value, subtitle }) => (
-  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm transition-all hover:shadow">
+const StatCard = ({ title, value, subtitle, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="w-full rounded-lg border border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-emerald-600 hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:border-slate-800 dark:bg-slate-900"
+  >
     <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500">{title}</p>
     <div className="mt-2 flex items-end justify-between gap-3">
       <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
       {subtitle ? <span className="text-right text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{subtitle}</span> : null}
     </div>
-  </div>
+    </button>
 );
 
 export default function Dashboard() {
@@ -29,14 +33,19 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
+  const [inventoryStats, setInventoryStats] = useState(null);
+  const [inventoryError, setInventoryError] = useState("");
 
   useEffect(() => {
     const raw = localStorage.getItem(MANAGER_SESSION_KEY);
     if (!raw) return navigate("/staff/login", { replace: true });
 
     let ownerId = null;
+    let hotelId = null;
     try {
-      ownerId = JSON.parse(raw)?.ownerId ?? null;
+      const session = JSON.parse(raw);
+      ownerId = session?.ownerId ?? null;
+      hotelId = session?.hotelId ?? session?.hotel_id ?? null;
     } catch {
       ownerId = null;
     }
@@ -50,18 +59,38 @@ export default function Dashboard() {
       setLoading(true);
       setError("");
       try {
-        const dashRes = await fetch(`/api/manager/dashboard/${ownerId}?period=${period}`, { signal: controller.signal });
-        const dash = await dashRes.json().catch(() => ({}));
+        const [dashRes, inventoryRes] = await Promise.all([
+          fetch(`/api/manager/dashboard/${ownerId}?period=${period}`, { signal: controller.signal }),
+          hotelId
+            ? fetch(`/api/manager/inventory/dashboard?hotel_id=${encodeURIComponent(hotelId)}`, { signal: controller.signal })
+            : Promise.resolve(null),
+        ]);
+        const [dash, inventory] = await Promise.all([
+          dashRes.json().catch(() => ({})),
+          inventoryRes ? inventoryRes.json().catch(() => ({})) : Promise.resolve({}),
+        ]);
         if (!dashRes.ok) {
           setError(dash?.error || `Failed to load dashboard (HTTP ${dashRes.status}).`);
           setData(null);
           return;
         }
         setData(dash);
+        if (!inventoryRes) {
+          setInventoryStats(null);
+          setInventoryError("This manager account does not have a hotel linked to it.");
+        } else if (!inventoryRes.ok) {
+          setInventoryStats(null);
+          setInventoryError(inventory?.error || `Failed to load supply inventory (HTTP ${inventoryRes.status}).`);
+        } else {
+          setInventoryStats(inventory?.stats || {});
+          setInventoryError("");
+        }
       } catch (e) {
         if (e?.name === "AbortError") return;
         setError("Unable to reach the server. Please try again.");
         setData(null);
+        setInventoryStats(null);
+        setInventoryError("Unable to load supply inventory. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -127,11 +156,46 @@ export default function Dashboard() {
 
         {/* KPI cards reflect the selected period. */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard title="Total Reservations" value={(kpis.totalReservations ?? 0).toLocaleString()} />
-          <StatCard title="Occupancy Rate" value={`${Math.round(kpis.occupancyRate ?? 0)}%`} subtitle="Selected period" />
-          <StatCard title="Total Revenue" value={formatPhp(kpis.totalRevenuePhp)} />
-          <StatCard title="Available Rooms" value={(kpis.availableRooms ?? 0).toLocaleString()} subtitle={kpis.inventoryNote || "Ready"} />
+          <StatCard title="Total Reservations" value={(kpis.totalReservations ?? 0).toLocaleString()} onClick={() => navigate("/manager/reservations")} />
+          <StatCard title="Occupancy Rate" value={`${Math.round(kpis.occupancyRate ?? 0)}%`} subtitle="Selected period" onClick={() => navigate("/manager/rooms")} />
+          <StatCard title="Total Revenue" value={formatPhp(kpis.totalRevenuePhp)} onClick={() => navigate("/manager/revenue")} />
+          <StatCard title="Available Rooms" value={(kpis.availableRooms ?? 0).toLocaleString()} subtitle={kpis.inventoryNote || "Ready"} onClick={() => navigate("/manager/rooms")} />
         </div>
+
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+                <Package size={16} className="text-emerald-700 dark:text-emerald-400" />
+                <h2 className="text-[10px] font-mono uppercase tracking-widest">Supply Inventory</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate("/manager/inventory")}
+                className="rounded border border-emerald-700 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+              >
+                Open Inventory
+              </button>
+            </div>
+            {inventoryError ? (
+              <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-300">{inventoryError}</p>
+            ) : (
+              <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+                {[
+                  ["Tracked Items", inventoryStats?.totalSkus],
+                  ["Low Stock", inventoryStats?.lowStock],
+                  ["Out Today", inventoryStats?.itemsOutToday],
+                  ["Pending Orders", inventoryStats?.pendingPos],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-slate-500">{label}</p>
+                    <p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">
+                      {inventoryStats ? Number(value || 0).toLocaleString() : "—"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+        </section>
 
         {/* FOOTER WIDGETS */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
