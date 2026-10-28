@@ -365,7 +365,11 @@ export default function InnovaSuites() {
                         />
                         <div className="p-4 text-left">
                           <h3 className="text-lg font-bold text-white">{recommendedRoom.name}</h3>
-                          <p className="text-xs font-semibold text-emerald-400">{php(recommendedRoom.basePricePhp)} / night</p>
+                          <p className="text-xs font-semibold text-emerald-400">
+                            {Number(recommendedRoom.basePricePhp) > 0
+                              ? `${php(recommendedRoom.basePricePhp)} / ${recommendedRoom.basePriceHours || 3} hours`
+                              : "Hourly rate unavailable"}
+                          </p>
                         </div>
                       </div>
                     ) : (
@@ -559,8 +563,12 @@ export default function InnovaSuites() {
                       <p className="mt-1 text-xs text-zinc-400 line-clamp-2">{room.tagline || room.description || "Luxurious comfort."}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-emerald-400">{php(room.basePricePhp)}</p>
-                      <p className="text-[10px] font-medium text-zinc-500 uppercase">/ night</p>
+                      <p className="text-lg font-bold text-emerald-400">
+                        {Number(room.basePricePhp) > 0 ? php(room.basePricePhp) : "Rate unavailable"}
+                      </p>
+                      {Number(room.basePricePhp) > 0 ? (
+                        <p className="text-[10px] font-medium text-zinc-500 uppercase">/ {room.basePriceHours || 3} hours</p>
+                      ) : null}
                     </div>
                   </div>
 

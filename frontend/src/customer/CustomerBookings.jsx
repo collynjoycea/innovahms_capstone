@@ -332,6 +332,10 @@ export default function CustomerBookings() {
                     86400000
                 ) || 1
               );
+              const durationHours = Number(booking.stayDurationHours || 0);
+              const formatTime = (value) => value
+                ? new Date(`2000-01-01T${value}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                : "";
               const isPendingOnlinePayment =
                 booking.status === "PENDING" &&
                 ["card", "gcash", "maya", "online", "qrph"].includes(String(booking.paymentMethod || "").toLowerCase());
@@ -375,14 +379,14 @@ export default function CustomerBookings() {
                               <p className="text-[10px] font-medium tracking-wide text-zinc-400 uppercase">Check In</p>
                               <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
                                 <CalendarDays size={14} className="text-emerald-600" />
-                                {formatBookingDate(booking.checkInDate)}
+                                {formatBookingDate(booking.checkInDate)}{booking.checkInTime ? ` at ${formatTime(booking.checkInTime)}` : ""}
                               </p>
                             </div>
                             <div>
                               <p className="text-[10px] font-medium tracking-wide text-zinc-400 uppercase">Check Out</p>
                               <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
                                 <CalendarDays size={14} className="text-emerald-600" />
-                                {formatBookingDate(booking.checkOutDate)}
+                                {formatBookingDate(booking.checkOutDate)}{booking.checkOutTime ? ` at ${formatTime(booking.checkOutTime)}` : ""}
                               </p>
                             </div>
                             <div>
@@ -393,7 +397,7 @@ export default function CustomerBookings() {
                               <p className="text-[10px] font-medium tracking-wide text-zinc-400 uppercase">Duration</p>
                               <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-zinc-800">
                                 <Clock3 size={14} className="text-emerald-600" />
-                                {nights} Night{nights > 1 ? "s" : ""}
+                                {durationHours > 0 ? `${durationHours} Hours` : `${nights} Night${nights > 1 ? "s" : ""}`}
                               </p>
                             </div>
                           </div>
@@ -427,10 +431,6 @@ export default function CustomerBookings() {
                             {booking.status}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-zinc-500">Rate per night</span>
-                          <span className="font-medium text-zinc-700">{formatCurrency(booking.totalPrice / nights)}</span>
-                        </div>
                         <div className="pt-2 border-t border-zinc-200/60 flex items-center justify-between text-sm">
                           <span className="font-medium text-zinc-600">Total Charged</span>
                           <span className="font-bold text-emerald-900">{formatCurrency(booking.totalPrice)}</span>
@@ -438,7 +438,7 @@ export default function CustomerBookings() {
                       </div>
 
                       <div className="mt-6 space-y-2">
-                        {booking.canModify ? (
+                        {booking.canModify && durationHours <= 0 ? (
                           <button
                             type="button"
                             onClick={() => {

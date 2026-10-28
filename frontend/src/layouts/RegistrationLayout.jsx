@@ -16,7 +16,6 @@ export default function RegistrationLayout() {
 
   const registrationOptions = [
     { to: "/owner/signup", label: "Signup as Hotel Owner", icon: <Building2 size={16} className="text-emerald-600" /> },
-    { to: "/staff/signup", label: "Signup as Hotel Staff", icon: <Briefcase size={16} className="text-emerald-600" /> },
   ];
   const loginOptions = [
     { to: "/owner/login", label: "Login as Hotel Owner", icon: <Building2 size={16} className="text-emerald-600" /> },

@@ -26,10 +26,10 @@ const FALLBACK_HOTELS = [
     location: "#03 A Gen. Pio Valenzuela St., Brgy. 78, Caloocan, Metro Manila",
     description: "Experience premium comfort and warm hospitality with top-tier room amenities and convenient location.",
     image: "/images/sobel.png",
-    availableToday: 4,
-    bookingsToday: 3,
-    avgRating: 4.8,
-    reviewCount: 128,
+    availableToday: null,
+    bookingsToday: null,
+    avgRating: 0,
+    reviewCount: 0,
   },
   {
     id: "victoria-court-north-edsa",
@@ -37,10 +37,10 @@ const FALLBACK_HOTELS = [
     location: "3 Don Vicente Ang, Bagong Barrio West, Caloocan, Metro Manila",
     description: "Stylish, modern suites with fast Wi-Fi, 24/7 service, and themed luxurious ambiance.",
     image: "/images/3.jpg",
-    availableToday: 2,
-    bookingsToday: 5,
-    avgRating: 4.9,
-    reviewCount: 210,
+    availableToday: null,
+    bookingsToday: null,
+    avgRating: 0,
+    reviewCount: 0,
   },
 ];
 
@@ -100,6 +100,18 @@ const addDaysToInputDate = (value, days) => {
 /* ==========================================
    MAIN COMPONENT CODE
    ========================================== */
+const getStartingHourlyRate = (room) => {
+  const rates = [3, 6, 9, 12, 24].flatMap((hours) => {
+    const weekdayRate = Number(room?.[`rate${hours}Hours`] || 0);
+    const weekendRate = Number(room?.[`weekendRate${hours}Hours`] || 0);
+    return [
+      { price: weekdayRate, hours },
+      ...(room?.useDayRates ? [{ price: weekendRate, hours }] : []),
+    ].filter((rate) => Number.isFinite(rate.price) && rate.price > 0);
+  });
+  return rates.sort((first, second) => first.price - second.price)[0] || null;
+};
+
 export default function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -185,10 +197,10 @@ export default function LandingPage() {
             const mappedFeatured = hotels.map((hotel, index) => ({
               ...hotel,
               image: resolveImg(hotel.image || hotel.hotelLogo || hotel.buildingImage || FALLBACK_HOTELS[index % 2].image),
-              availableToday: Number(hotel.availableToday || 2),
-              bookingsToday: Number(hotel.bookingsToday || 1),
-              avgRating: Number(hotel.avgRating || 4.8),
-              reviewCount: Number(hotel.reviewCount || 100),
+              availableToday: Number.isFinite(Number(hotel.availableToday)) ? Number(hotel.availableToday) : null,
+              bookingsToday: Number.isFinite(Number(hotel.bookingsToday)) ? Number(hotel.bookingsToday) : null,
+              avgRating: Number(hotel.avgRating ?? 0),
+              reviewCount: Number(hotel.reviewCount ?? 0),
             }));
 
             if (isMounted) setFeaturedHotels(mappedFeatured);
@@ -222,16 +234,14 @@ export default function LandingPage() {
             }
           }
 
-          const mappedHotels = Array.from(roomGroups.values()).map((room, index) => {
+          const mappedHotels = Array.from(roomGroups.values()).map((room) => {
             const capacity = Number(room.maxAdults || 0) + Number(room.maxChildren || 0);
             const roomType = room.roomType || room.type || room.room_type || "Suite";
             const rawImg = (Array.isArray(room.images) && room.images[0]) || "";
             const image = resolveImg(rawImg);
             const roomName = room.roomName || room.room_name || room.name || roomType || "Innova Suite";
-            const priceVal = room.basePricePhp || room.price || room.base_price || 0;
-            const roomDesc = room.description || "Comfortable accommodation equipped with modern smart amenities and relaxing ambiance.";
-
-            const hardcodedRoomRatings = [4.8, 4.6, 4.9, 4.7];
+            const startingHourlyRate = getStartingHourlyRate(room);
+            const roomDesc = room.description || "";
 
             return {
               id: room.id,
@@ -242,12 +252,13 @@ export default function LandingPage() {
               image,
               forecast: `${Math.max(capacity, 2)} Pax`,
               roomType,
-              price: priceVal,
+              price: startingHourlyRate?.price || 0,
+              priceDurationHours: startingHourlyRate?.hours || 0,
               ownerDiscountType: room.ownerDiscountType || room.owner_discount_type || "none",
               ownerDiscountValue: Number(room.ownerDiscountValue ?? room.owner_discount_value ?? 0),
               amenities: Array.isArray(room.amenities) ? room.amenities : [],
-              avgRating: hardcodedRoomRatings[index % hardcodedRoomRatings.length],
-              reviewCount: Number(room.reviewCount || room.review_count || 120),
+              avgRating: Number(room.avgRating ?? room.rating ?? 0),
+              reviewCount: Number(room.reviewCount ?? room.review_count ?? 0),
             };
           });
 
@@ -569,17 +580,21 @@ export default function LandingPage() {
                       {hotel.description || "Comfortable rooms and a relaxing stay await you."}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
-                      <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-medium">
-                        <BedDouble size={13} className="text-rose-600 dark:text-rose-400 shrink-0" />
-                        {hotel.availableToday || 2} rooms still available today
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
-                        <CalendarCheck size={13} className="text-[#1F6F5F] dark:text-[#2FA084]" />
-                        Booked {hotel.bookingsToday || 1} {(hotel.bookingsToday || 1) === 1 ? "time" : "times"} today
-                      </span>
+                      {hotel.availableToday != null ? (
+                        <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-medium">
+                          <BedDouble size={13} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                          {hotel.availableToday} rooms available today
+                        </span>
+                      ) : null}
+                      {hotel.bookingsToday != null ? (
+                        <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+                          <CalendarCheck size={13} className="text-[#1F6F5F] dark:text-[#2FA084]" />
+                          Booked {hotel.bookingsToday} {hotel.bookingsToday === 1 ? "time" : "times"} today
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                      {hotel.reviewCount ? `${hotel.reviewCount} reviews` : ""}
+                      {hotel.reviewCount} {hotel.reviewCount === 1 ? "review" : "reviews"}
                     </p>
                   </div>
                 </div>
@@ -679,11 +694,11 @@ export default function LandingPage() {
 
                       {/* Room Description */}
                       <p className="mt-2 line-clamp-2 min-h-8 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
-                        {hotel.description || "Comfortable accommodation equipped with modern smart amenities and relaxing ambiance."}
+                        {hotel.description || "No room description provided."}
                       </p>
 
                       <p className="mt-3 text-xs font-semibold text-[#1F6F5F] dark:text-[#6FCF97]">
-                        {hotel.price ? `PHP ${Number(hotel.price).toLocaleString()} / night` : "Contact for Pricing"}
+                        {hotel.price ? `PHP ${Number(hotel.price).toLocaleString()} / ${hotel.priceDurationHours} hours` : "Hourly rate not configured"}
                       </p>
                     </div>
                   </div>

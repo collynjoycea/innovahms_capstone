@@ -1,9 +1,25 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 export default function Footer() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isCustomerLoggedIn, setIsCustomerLoggedIn] = useState(() =>
+    Boolean(localStorage.getItem("user") || localStorage.getItem("customerSession"))
+  );
+
+  useEffect(() => {
+    const syncCustomerSession = () => {
+      setIsCustomerLoggedIn(Boolean(localStorage.getItem("user") || localStorage.getItem("customerSession")));
+    };
+
+    window.addEventListener("userUpdated", syncCustomerSession);
+    window.addEventListener("storage", syncCustomerSession);
+    return () => {
+      window.removeEventListener("userUpdated", syncCustomerSession);
+      window.removeEventListener("storage", syncCustomerSession);
+    };
+  }, []);
 
   const scrollToHomeSection = (sectionId) => {
     if (location.pathname !== "/") {
@@ -17,7 +33,13 @@ export default function Footer() {
   return (
     <footer className="border-t border-slate-200 bg-white py-10 text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 font-sans">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 border-b border-slate-200 pb-10 md:grid-cols-[1.5fr_0.9fr_1fr_0.9fr_1.1fr] dark:border-slate-800">
+        <div
+          className={`grid grid-cols-1 gap-8 border-b border-slate-200 pb-10 ${
+            isCustomerLoggedIn
+              ? "md:grid-cols-[1.5fr_0.9fr_1fr_1.1fr]"
+              : "md:grid-cols-[1.5fr_0.9fr_1fr_0.9fr_1.1fr]"
+          } dark:border-slate-800`}
+        >
           <div className="space-y-3">
             <Link to="/" className="flex w-fit items-center gap-2.5">
               <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
@@ -73,11 +95,6 @@ export default function Footer() {
                 </a>
               </li>
               <li>
-                <a href="sms:+639605736024" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
-                  SMS Support
-                </a>
-              </li>
-              <li>
                 <a href="mailto:support.innova.hms@gmail.com" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
                   support.innova.hms@gmail.com
                 </a>
@@ -87,18 +104,20 @@ export default function Footer() {
               </li>
             </ul>
           </div>
-          <div className="space-y-4">
-            <h3 className="w-fit border-b-2 border-emerald-700 pb-1 text-xs font-bold uppercase tracking-wider text-slate-900 dark:border-emerald-500 dark:text-white">
-              Join Us
-            </h3>
-            <ul className="space-y-2.5 text-xs font-medium">
-              <li>
-                <Link to="/hotelier" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
-                  For Hotelier
-                </Link>
-              </li>
-            </ul>
-          </div>
+          {!isCustomerLoggedIn && (
+            <div className="space-y-4">
+              <h3 className="w-fit border-b-2 border-emerald-700 pb-1 text-xs font-bold uppercase tracking-wider text-slate-900 dark:border-emerald-500 dark:text-white">
+                Join Us
+              </h3>
+              <ul className="space-y-2.5 text-xs font-medium">
+                <li>
+                  <Link to="/hotelier" className="transition-colors hover:text-emerald-700 dark:hover:text-emerald-400">
+                    For Hotelier
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          )}
 
           <div className="space-y-4">
             <h3 className="w-fit border-b-2 border-emerald-700 pb-1 text-xs font-bold uppercase tracking-wider text-slate-900 dark:border-emerald-500 dark:text-white">

@@ -26,7 +26,6 @@ class FakeCursor:
     def close(self):
         pass
 
-
 class FakeConnection:
     def __init__(self, rows):
         self.cursor_instance = FakeCursor(rows)
@@ -35,6 +34,9 @@ class FakeConnection:
         return self.cursor_instance
 
     def close(self):
+        pass
+
+    def commit(self):
         pass
 
 
@@ -96,16 +98,23 @@ class HousekeepingRoomStatusTest(unittest.TestCase):
             'status': 'Available',
             'hotel_name': 'Sample Hotel',
             'hotel_address': 'Sample address',
+            'published_avg_rating': 4.5,
+            'published_review_count': 2,
         }])
 
-        with patch.object(app_module, 'get_db_connection', return_value=connection):
+        with patch.object(app_module, 'get_db_connection', return_value=connection), patch.object(
+            app_module, '_ensure_hourly_room_rate_columns'
+        ):
             response = app_module.app.test_client().get('/api/rooms')
 
         self.assertEqual(response.status_code, 200)
         room = response.get_json()['rooms'][0]
         self.assertEqual(room['roomType'], 'Double')
         self.assertEqual(room['description'], 'Sample Double room on the third floor.')
+        self.assertEqual(room['avgRating'], 4.5)
+        self.assertEqual(room['reviewCount'], 2)
         self.assertNotIn('roomNumber', room)
+        self.assertIn("status = 'published'", connection.cursor_instance.query)
 
 
 if __name__ == '__main__':

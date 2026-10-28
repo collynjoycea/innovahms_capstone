@@ -94,6 +94,10 @@ class RoomPricingTest(unittest.TestCase):
         room["use_day_rates"] = False
         self.assertEqual(app_module._room_duration_rate(room, 24, date(2026, 10, 31)), 1800)
 
+    def test_chatbot_extracts_hourly_stay_durations(self):
+        self.assertEqual(app_module._extract_chat_duration_hours("How much for a 6-hour stay?"), 6)
+        self.assertEqual(app_module._extract_chat_duration_hours("Magkano ang 24 oras?"), 24)
+
     def test_percentage_discount_and_discount_cap(self):
         percent_result = app_module._calculate_room_stay_pricing(
             date(2026, 10, 26),
@@ -159,10 +163,18 @@ class RoomPricingTest(unittest.TestCase):
         self.assertIn("ADD COLUMN IF NOT EXISTS rate_9_hours", migration)
         self.assertIn("ADD COLUMN IF NOT EXISTS rate_24_hours", migration)
         self.assertIn("ADD COLUMN IF NOT EXISTS room_discount_amount", migration)
-        self.assertIn("_calculate_room_stay_pricing(", inspect.getsource(app_module.create_reservation))
-        self.assertIn("_calculate_room_discount(", inspect.getsource(app_module.create_reservation))
-        self.assertIn("weekend_rate", inspect.getsource(app_module.get_rooms_catalog))
-        self.assertIn("weekendRate24Hours", inspect.getsource(app_module.get_rooms_catalog))
+        reservation_source = inspect.getsource(app_module.create_reservation)
+        self.assertIn("_room_duration_rate(room, duration_hours, ci)", reservation_source)
+        self.assertIn("duration_hours not in (3, 6, 9, 12, 24)", reservation_source)
+        self.assertIn("_calculate_room_discount(", reservation_source)
+        self.assertIn("check_out_date + COALESCE(check_out_time", reservation_source)
+        self.assertIn("COALESCE(stay_duration_hours, 0) > 0", reservation_source)
+        self.assertIn("COALESCE(stay_duration_hours, 0) <= 0", reservation_source)
+        catalog_source = inspect.getsource(app_module.get_rooms_catalog)
+        self.assertIn("weekend_rate", catalog_source)
+        self.assertIn("weekendRate24Hours", catalog_source)
+        self.assertIn("published_review_count", catalog_source)
+        self.assertIn("WHERE status = 'published'", catalog_source)
         update_source = inspect.getsource(app_module.update_room)
         self.assertIn("owner_discount_type = %s", update_source)
         self.assertIn("owner_discount_value = %s", update_source)

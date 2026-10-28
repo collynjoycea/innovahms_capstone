@@ -2,8 +2,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Mail, Lock, Phone, User, Eye, EyeOff, UserPlus, AlertCircle, FileText, X } from "lucide-react";
 import { GoogleLogin } from '@react-oauth/google';
-import FacebookLogin from 'react-facebook-login/dist/facebook-login-render-props';
-import { Facebook } from "lucide-react";
 import {
   normalizeEmail,
   isValidEmail,
@@ -339,30 +337,6 @@ export default function SignUp() {
     }
   };
 
-  const responseFacebook = async (response) => {
-    if (response.accessToken) {
-      try {
-        const res = await fetch("/api/facebook-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accessToken: response.accessToken }),
-        });
-
-        const result = await res.json();
-        if (res.ok) {
-          localStorage.setItem("user", JSON.stringify(result.user));
-          localStorage.setItem("customerSession", JSON.stringify(result.user));
-          window.dispatchEvent(new Event("userUpdated"));
-          navigate("/");
-        } else {
-          setErrorMessage(result.error || "Facebook Login failed.");
-        }
-      } catch {
-        setErrorMessage("Server connection error.");
-      }
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#f4f7f6] dark:bg-slate-950 font-sans py-10 px-4 sm:px-8 lg:px-16">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -668,37 +642,19 @@ export default function SignUp() {
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-white dark:bg-slate-900 px-3 text-slate-400 text-[11px] font-medium">
-                Or continue with social account
+                Or sign up with Google
               </span>
             </div>
           </div>
 
-          {/* Social Logins */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-            <div className="flex justify-center">
-              <GoogleLogin 
-                onSuccess={handleGoogleSuccess} 
-                onError={() => setErrorMessage("Google Login Failed")}
-                theme={document.documentElement.classList.contains("dark") ? "filled_black" : "outline"}
-                shape="rectangular"
-                width="240px" 
-              />
-            </div>
-          
-            <FacebookLogin
-              appId="1986409515302523"
-              autoLoad={false}
-              callback={responseFacebook}
-              render={(renderProps) => (
-                <button
-                  type="button"
-                  onClick={renderProps.onClick}
-                  className="flex items-center justify-center gap-2 w-[240px] h-[40px] px-4 border border-slate-300 dark:border-slate-700 rounded text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm bg-white dark:bg-slate-900"
-                >
-                  <Facebook size={18} className="text-[#1877F2] fill-[#1877F2]" />
-                  <span>Facebook</span>
-                </button>
-              )}
+          {/* Google sign-up */}
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setErrorMessage("Google Login Failed")}
+              theme={document.documentElement.classList.contains("dark") ? "filled_black" : "outline"}
+              shape="rectangular"
+              width="240px"
             />
           </div>
 

@@ -49,7 +49,7 @@ const roomText = (room, ...fields) => {
 };
 
 const normalizeRoomText = (value) => String(value || "").replace(/\s+/g, " ").trim();
-const sanitizeSearchQuery = (value) => String(value || "").replace(/[^\p{L}\s]/gu, "").replace(/\s+/g, " ");
+const sanitizeSearchQuery = (value) => String(value || "").replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ");
 const escapeRegExp = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const formatInputDate = (date) => {
   const year = date.getFullYear();
@@ -337,7 +337,7 @@ export default function VisionSuites() {
     return true;
   };
 
-  const loadVision = async (query = {}) => {
+  const loadVision = async (query = {}, signal) => {
     setLoading(true);
     setError("");
     try {
@@ -351,11 +351,11 @@ export default function VisionSuites() {
       const qs = new URLSearchParams(query).toString();
       const suffix = qs ? `?${qs}` : "";
 
-      const roomsPromise = fetch(`/api/vision/rooms${suffix}`);
+      const roomsPromise = fetch(`/api/vision/rooms${suffix}`, { signal });
       const secondaryPromise = Promise.all([
-        fetch(`/api/vision/hotel${suffix}`),
-        fetch(`/api/vision/landmarks${suffix}`),
-        fetch(`/api/vision/nearby-hotels${suffix}`),
+        fetch(`/api/vision/hotel${suffix}`, { signal }),
+        fetch(`/api/vision/landmarks${suffix}`, { signal }),
+        fetch(`/api/vision/nearby-hotels${suffix}`, { signal }),
       ]);
 
       const roomsRes = await roomsPromise;
@@ -378,9 +378,11 @@ export default function VisionSuites() {
       if (lmRes.ok) setLandmarks(lmPayload.landmarks || []);
       if (nearbyHotelsRes.ok) setNearbyHotels(nearbyHotelsPayload.hotels || []);
     } catch (e) {
-      setError(e?.message || "Failed to load Vision Suites.");
+      if (e?.name !== "AbortError") {
+        setError(e?.message || "Failed to load Vision Suites.");
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
@@ -399,12 +401,7 @@ export default function VisionSuites() {
     setViewMode(selectedViewMode === "room" ? "room" : "hotel");
 
     const query = {};
-    if (from) query.from = from;
-    if (to) query.to = to;
-    if (hotelId) query.hotel_id = hotelId;
-    if (requestedView && requestedView.toLowerCase() !== "any") {
-      query.view = requestedView;
-    }
+    if (requestedView && requestedView.toLowerCase() !== "any") query.view = requestedView;
 
     setSearchContext({
       from,
@@ -414,20 +411,20 @@ export default function VisionSuites() {
       hasFilters: Boolean(from || to || guests || query.view || hotelId),
       hotelId,
     });
-    if (from) setFilterCheckIn(from);
-    if (to) setFilterCheckOut(to);
-    if (adults || guests) setFilterAdults(adults || guests);
-    if (children) setFilterChildren(children);
+    setFilterCheckIn(from);
+    setFilterCheckOut(to);
+    setFilterAdults(adults || guests || "2");
+    setFilterChildren(children || "0");
     setHotelSearch(search);
-    setSelectedRoomType(requestedView || "all");
+    setSelectedRoomType(requestedView && requestedView.toLowerCase() !== "any" ? requestedView : "all");
     setSelectedRating("all");
     setSortMode("recommended");
     setVisibleItemCount(PAGE_SIZE);
 
-    loadVision(query);
   }, [location.search]);
 
   useEffect(() => {
+    let controller;
     const timer = window.setTimeout(() => {
       const query = {};
       if (filterCheckIn) query.from = filterCheckIn;
@@ -436,10 +433,16 @@ export default function VisionSuites() {
       if (filterChildren) query.children = filterChildren;
       if (hotelSearch.trim()) query.search = hotelSearch.trim();
       if (selectedRoomType !== "all") query.view = selectedRoomType;
-      loadVision(query);
+      const hotelId = new URLSearchParams(location.search).get("hotel_id");
+      if (hotelId) query.hotel_id = hotelId;
+      controller = new AbortController();
+      loadVision(query, controller.signal);
     }, 350);
-    return () => window.clearTimeout(timer);
-  }, [hotelSearch, filterCheckIn, filterCheckOut, filterAdults, filterChildren, selectedRoomType]);
+    return () => {
+      window.clearTimeout(timer);
+      controller?.abort();
+    };
+  }, [location.search, hotelSearch, filterCheckIn, filterCheckOut, filterAdults, filterChildren, selectedRoomType]);
 
   const handleRoomTypeChange = (event) => {
     const roomType = event.target.value;
@@ -603,31 +606,41 @@ export default function VisionSuites() {
     else if (hotel) list = [hotel];
 
     const query = hotelSearch.trim().toLowerCase();
-    if (!query) return list;
-
-    return list.filter((h) => 
-      String(h.name || "").toLowerCase().includes(query) ||
-      String(h.location || h.locationLabel || h.address || "").toLowerCase().includes(query)
-    );
-  }, [homeHotels, nearbyHotels, hotel, hotelSearch]);
+    let filtered = list.filter((entry) => {
+      const rating = Number(entry.avgRating) || 0;
+      return selectedRating === "all" || (rating > 0 && rating >= Number(selectedRating));
+    });
+    if (query) {
+      filtered = filtered.filter((entry) =>
+        [entry.name, entry.location, entry.locationLabel, entry.address, entry.hotel_address]
+          .some((value) => String(value || "").toLowerCase().includes(query))
+      );
+    }
+    if (sortMode === "price-asc") {
+      filtered.sort((a, b) => Number(a.startingPrice || a.minPrice || 0) - Number(b.startingPrice || b.minPrice || 0));
+    } else if (sortMode === "price-desc") {
+      filtered.sort((a, b) => Number(b.startingPrice || b.minPrice || 0) - Number(a.startingPrice || a.minPrice || 0));
+    } else if (sortMode === "rating") {
+      filtered.sort((a, b) => Number(b.avgRating || 0) - Number(a.avgRating || 0));
+    }
+    return filtered;
+  }, [homeHotels, nearbyHotels, hotel, hotelSearch, selectedRating, sortMode]);
 
   const filteredRooms = useMemo(() => {
     const query = hotelSearch.trim().toLowerCase();
     const next = (rooms || []).filter((room) => {
-      const groupName = getRoomGroupName(room);
       const roomType = roomText(room, "type", "roomType", "room_type");
-      const matchRoomType = selectedRoomType === "all" || String(roomType).toLowerCase() === String(selectedRoomType).toLowerCase();
+      const matchRoomType = selectedRoomType === "all" || String(roomType).toLowerCase().includes(String(selectedRoomType).toLowerCase());
       const matchSearch =
         !query ||
-        String(room.hotelName || "").toLowerCase().includes(query) ||
-        String(room.name || "").toLowerCase().includes(query) ||
-        String(room.type || "").toLowerCase().includes(query);
+        [room.hotelName, room.name, room.type, room.description, ...(room.amenities || [])]
+          .some((value) => String(value || "").toLowerCase().includes(query));
 
       let matchRating = true;
       if (selectedRating !== "all") {
         const ratingNum = Number(selectedRating);
-        const roomRating = room.rating || room.avgRating || 5;
-        matchRating = Math.floor(Number(roomRating) || 5) === ratingNum;
+        const roomRating = Number(room.avgRating ?? room.rating) || 0;
+        matchRating = roomRating > 0 && roomRating >= ratingNum;
       }
 
       return matchRoomType && matchSearch && matchRating;
@@ -654,7 +667,9 @@ export default function VisionSuites() {
     if (sortMode === "price-asc") {
       roomList.sort((a, b) => Number(a.minPrice || 0) - Number(b.minPrice || 0));
     } else if (sortMode === "price-desc") {
-      roomList.sort((a, b) => Number(b.maxPrice || 0) - Number(a.minPrice || 0));
+      roomList.sort((a, b) => Number(b.maxPrice || 0) - Number(a.maxPrice || 0));
+    } else if (sortMode === "rating") {
+      roomList.sort((a, b) => Number(b.avgRating || 0) - Number(a.avgRating || 0));
     } else if (sortMode === "capacity") {
       roomList.sort((a, b) => Number(b.maxAdults || 0) - Number(a.maxAdults || 0));
     }
@@ -672,6 +687,14 @@ export default function VisionSuites() {
     setFilterAdults("2");
     setFilterChildren("0");
     setVisibleItemCount(PAGE_SIZE);
+
+    const params = new URLSearchParams(location.search);
+    ["search", "from", "to", "checkIn", "checkOut", "guests", "adults", "children", "view", "roomType"]
+      .forEach((key) => params.delete(key));
+    if (viewMode !== "hotel") params.set("viewMode", viewMode);
+    else params.delete("viewMode");
+    const query = params.toString();
+    navigate(`${location.pathname}${query ? `?${query}` : ""}`, { replace: true });
   };
 
   useEffect(() => {
@@ -1001,7 +1024,36 @@ export default function VisionSuites() {
                   </p>
                 </div>
               </div>
+            </div>
 
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 dark:border-[#243B33] dark:bg-[#080d0b]/50">
+                <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-gray-400">Guest rating</span>
+                <select
+                  value={selectedRating}
+                  onChange={(event) => setSelectedRating(event.target.value)}
+                  className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-gray-800 outline-none dark:text-white"
+                >
+                  <option value="all" className="text-black">Any rating</option>
+                  <option value="4" className="text-black">4+ stars</option>
+                  <option value="3" className="text-black">3+ stars</option>
+                  <option value="2" className="text-black">2+ stars</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 dark:border-[#243B33] dark:bg-[#080d0b]/50">
+                <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-gray-400">Sort by</span>
+                <select
+                  value={sortMode}
+                  onChange={(event) => setSortMode(event.target.value)}
+                  className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-gray-800 outline-none dark:text-white"
+                >
+                  <option value="recommended" className="text-black">Recommended</option>
+                  <option value="price-asc" className="text-black">Price: low to high</option>
+                  <option value="price-desc" className="text-black">Price: high to low</option>
+                  <option value="rating" className="text-black">Top rated</option>
+                  {viewMode === "room" ? <option value="capacity" className="text-black">Guest capacity</option> : null}
+                </select>
+              </label>
             </div>
 
           </div>
@@ -1045,6 +1097,11 @@ export default function VisionSuites() {
           )}
 
           {viewMode === "hotel" ? (
+            currentList.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                No hotels match these filters. Try changing your search or rating.
+              </div>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {paginatedList.map((entry, index) => (
                 <motion.article
@@ -1105,11 +1162,17 @@ export default function VisionSuites() {
                 </motion.article>
               ))}
             </div>
+            )
+          ) : currentList.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+              No rooms match these filters. Try changing the dates, guest count, room type, or search.
+            </div>
           ) : (
             <div className="space-y-4">
               {paginatedList.map((room, index) => {
                 const roomDisplayName = getRoomDisplayName(room);
-                const roomPrice = Number(room.minPrice ?? room.basePricePhp ?? room.price ?? 0);
+                const roomPrice = Number(room.basePricePhp ?? room.price ?? 0);
+                const startingRateHours = Number(room.basePriceHours || 0);
                 const roomAmenities = Array.isArray(room.roomFeatures) && room.roomFeatures.length
                   ? room.roomFeatures
                   : Array.isArray(room.features)
@@ -1197,8 +1260,9 @@ export default function VisionSuites() {
 
                     <div className="p-4 bg-slate-50/70 dark:bg-[#0f1913] border-t lg:border-t-0 lg:border-l border-[#1F6F5F]/20 flex flex-col justify-between items-start lg:items-end text-left lg:text-right">
                       <div>
-                        <p className="text-[10px] uppercase tracking-widest text-slate-400">Per night before taxes</p>
-                        <p className="text-2xl font-black text-[#1F6F5F] dark:text-[#2FA084] mt-0.5">{php(roomPrice)}</p>
+                        <p className="text-[10px] uppercase tracking-widest text-slate-400">Starting hourly rate</p>
+                        <p className="text-2xl font-black text-[#1F6F5F] dark:text-[#2FA084] mt-0.5">{roomPrice > 0 ? php(roomPrice) : "Rate unavailable"}</p>
+                        {roomPrice > 0 && startingRateHours ? <p className="text-[10px] font-semibold text-slate-500 mt-0.5">for {startingRateHours} hours</p> : null}
                         <p className="text-[10px] font-semibold text-slate-500 mt-0.5">1 room</p>
                       </div>
 

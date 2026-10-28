@@ -19,6 +19,11 @@ const getSession = () => {
 };
 
 const weekLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const stayDurations = [3, 6, 9, 12, 24];
+const checkInTimes = Array.from({ length: 48 }, (_, index) => {
+  const minutes = index * 30;
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+});
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
 const buttonDateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -309,7 +314,7 @@ function SuccessModal({ open, booking, hasReviewed, onReview, onClose }) {
 }
 
 // Shared Content UI para sa Booking Summary (Ginagamit pareho sa Modal at datihan sa Card)
-function BookingSummaryContent({ room, checkIn, checkOut, checkInTime, checkOutTime, durationHours, nights, adults, children, paymentMethod, baseTotal, roomDiscountAmount, pointsRedeemed, pointsDiscountAmount, subtotalAfterDiscount, total }) {
+function BookingSummaryContent({ room, checkIn, checkOut, checkInTime, checkOutTime, durationHours, adults, children, paymentMethod, baseTotal, roomDiscountAmount, pointsRedeemed, pointsDiscountAmount, subtotalAfterDiscount, total }) {
   return (
     <>
       <div className="mb-4 space-y-2.5 text-xs">
@@ -317,7 +322,7 @@ function BookingSummaryContent({ room, checkIn, checkOut, checkInTime, checkOutT
           { label: 'Room', value: room?.roomName || '--' },
           { label: 'Check-in', value: checkIn ? `${checkIn} at ${checkInTime}` : '--' },
           { label: 'Check-out', value: checkOut ? `${checkOut} at ${checkOutTime}` : '--' },
-          { label: 'Duration', value: durationHours ? `${durationHours} hours` : nights > 0 ? `${nights} night${nights > 1 ? 's' : ''}` : '--' },
+          { label: 'Duration', value: `${durationHours} hours` },
           { label: 'Guests', value: `${adults} adult${adults === 1 ? '' : 's'}${children ? `, ${children} child${children === 1 ? '' : 'ren'}` : ''}` },
           { label: 'Payment', value: paymentMethod },
         ].map((item) => (
@@ -364,7 +369,7 @@ function BookingSummaryContent({ room, checkIn, checkOut, checkInTime, checkOutT
 
 const vatAmountCalc = (sub) => Number((sub * (VAT_PERCENT / 100)).toFixed(2));
 
-function BookingConfirmationModal({ open, room, checkIn, checkOut, checkInTime, checkOutTime, durationHours, nights, adults, children, paymentMethod, paymentPlan, total, baseTotal, roomDiscountAmount, pointsRedeemed, pointsDiscountAmount, subtotalAfterDiscount, onClose, onConfirm, submitting }) {
+function BookingConfirmationModal({ open, room, checkIn, checkOut, checkInTime, checkOutTime, durationHours, adults, children, paymentMethod, paymentPlan, total, baseTotal, roomDiscountAmount, pointsRedeemed, pointsDiscountAmount, subtotalAfterDiscount, onClose, onConfirm, submitting }) {
   if (!open) return null;
   const paymentAmount = paymentPlan === 'deposit' ? total * 0.5 : total;
   const paymentLabel = paymentMethod === 'cash' ? 'Cash on Arrival' : paymentMethod.toUpperCase();
@@ -388,7 +393,6 @@ function BookingConfirmationModal({ open, room, checkIn, checkOut, checkInTime, 
           checkInTime={checkInTime}
           checkOutTime={checkOutTime}
           durationHours={durationHours}
-          nights={nights}
           adults={adults}
           children={children}
           paymentMethod={paymentLabel}
@@ -565,7 +569,8 @@ export default function Booking() {
   const [sessionUser, setSessionUser] = useState(getSession());
   const [pointsBalance, setPointsBalance] = useState(null);
   const [loadingRoom, setLoadingRoom] = useState(false);
-  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState('');
   const [blockedRanges, setBlockedRanges] = useState([]);
   const [checkIn, setCheckIn] = useState(today);
   const [checkOut, setCheckOut] = useState(tomorrow);
@@ -573,7 +578,7 @@ export default function Booking() {
   const [checkOutTime, setCheckOutTime] = useState('12:00');
   const [durationHours, setDurationHours] = useState(() => {
     const value = Number(params.get('duration'));
-    return [3, 6, 9, 12, 24].includes(value) ? value : 0;
+    return stayDurations.includes(value) ? value : 3;
   });
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
@@ -650,13 +655,18 @@ export default function Booking() {
     }
     let dead = false;
     setAvailabilityLoading(true);
+    setAvailabilityError('');
     fetch(`/api/rooms/${room.id}/availability`)
       .then((r) => r.json().catch(() => ({})).then((body) => ({ ok: r.ok, body })))
       .then(({ ok, body }) => {
-        if (!dead) setBlockedRanges(ok ? (body.blockedRanges || []) : []);
+        if (!ok) throw new Error(body?.error || 'Unable to load room availability.');
+        if (!dead) setBlockedRanges(body.blockedRanges || []);
       })
-      .catch(() => {
-        if (!dead) setBlockedRanges([]);
+      .catch((availabilityFetchError) => {
+        if (!dead) {
+          setBlockedRanges([]);
+          setAvailabilityError(availabilityFetchError?.message || 'Unable to load room availability.');
+        }
       })
       .finally(() => {
         if (!dead) setAvailabilityLoading(false);
@@ -697,31 +707,48 @@ export default function Booking() {
     return () => { dead = true; };
   }, [sessionUser?.id, room?.id, room?.roomName]);
 
-  const blockedNightKeys = new Set();
-  blockedRanges.forEach((range) => {
-    let cursor = parseDateValue(range.checkIn);
-    const rangeEnd = parseDateValue(range.checkOut);
-    while (cursor && rangeEnd && cursor < rangeEnd) {
-      blockedNightKeys.add(formatDateValue(cursor));
-      cursor = addDays(cursor, 1);
-    }
-  });
+  const getHourlyRateForDate = (dateValue, hours = durationHours) => {
+    const date = parseDateValue(dateValue);
+    if (!date || !room || !stayDurations.includes(Number(hours))) return 0;
+    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+    const prefix = useDayRates && isWeekend ? 'weekendRate' : 'rate';
+    return Number(room[`${prefix}${hours}Hours`] || 0);
+  };
 
-  const hasBookingConflict = (startValue, endValue) => blockedRanges.some((range) => {
+  const roomIsBookable = ['available', 'vacant', 'ready', 'open'].includes(
+    String(room?.status || '').trim().toLowerCase()
+  );
+
+  const rangeOverlapsStay = (start, end, range) => {
     if (!range?.checkIn || !range?.checkOut) return false;
-    return startValue < range.checkOut && endValue > range.checkIn;
-  });
+    const rangeStart = new Date(`${range.checkIn}T${range.checkInTime || '00:00'}`);
+    const rangeEnd = new Date(`${range.checkOut}T${range.checkOutTime || '00:00'}`);
+    return !Number.isNaN(rangeStart.getTime())
+      && !Number.isNaN(rangeEnd.getTime())
+      && start < rangeEnd
+      && end > rangeStart;
+  };
+
+  const isTimeSlotUnavailable = (dateValue, timeValue, hours = durationHours) => {
+    if (!roomIsBookable || availabilityLoading || availabilityError || !dateValue || !timeValue || getHourlyRateForDate(dateValue, hours) <= 0) return true;
+    const start = new Date(`${dateValue}T${timeValue}`);
+    if (Number.isNaN(start.getTime()) || start.getTime() < Date.now()) return true;
+    const end = new Date(start.getTime() + Number(hours) * 60 * 60 * 1000);
+    return blockedRanges.some((range) => {
+      if (Number(range.durationHours) <= 0) {
+        return dateValue >= range.checkIn && dateValue < range.checkOut;
+      }
+      return rangeOverlapsStay(start, end, range);
+    });
+  };
+
+  const getAvailableTimesForDate = (dateValue, hours = durationHours) =>
+    checkInTimes.filter((time) => !isTimeSlotUnavailable(dateValue, time, hours));
 
   const isCheckInDateDisabled = (date) => {
     const key = formatDateValue(date);
-    return !key || key < today || blockedNightKeys.has(key);
-  };
-
-  const isCheckOutDateDisabled = (date, startValue = checkIn) => {
-    const key = formatDateValue(date);
-    if (!key || !startValue) return true;
-    if (key <= startValue) return true;
-    return hasBookingConflict(startValue, key);
+    return !key || key < today || !roomIsBookable || availabilityLoading || Boolean(availabilityError)
+      || getAvailableTimesForDate(key).length === 0;
   };
 
   const findNextAvailableCheckIn = (startValue = today) => {
@@ -732,61 +759,30 @@ export default function Booking() {
     return startValue;
   };
 
-  const findNextAvailableCheckOut = (startValue) => {
-    for (let offset = 1; offset < 370; offset += 1) {
-      const candidateDate = addDays(startValue, offset);
-      if (candidateDate && !isCheckOutDateDisabled(candidateDate, startValue)) return formatDateValue(candidateDate);
-    }
-    return formatDateValue(addDays(startValue, 1));
-  };
-
   useEffect(() => {
-    if (!room?.id) return;
+    if (!room?.id || availabilityLoading || availabilityError) return;
     const parsedCheckIn = parseDateValue(checkIn);
     if (!parsedCheckIn || isCheckInDateDisabled(parsedCheckIn)) {
       const nextCheckIn = findNextAvailableCheckIn(today);
       if (nextCheckIn !== checkIn) setCheckIn(nextCheckIn);
-      return;
     }
-    const parsedCheckOut = parseDateValue(checkOut);
-    if (!durationHours && (!parsedCheckOut || isCheckOutDateDisabled(parsedCheckOut, checkIn))) {
-      const nextCheckOut = findNextAvailableCheckOut(checkIn);
-      if (nextCheckOut !== checkOut) setCheckOut(nextCheckOut);
-    }
-  }, [room?.id, blockedRanges, checkIn, checkOut, today, durationHours]);
+  }, [room?.id, blockedRanges, checkIn, today, durationHours, availabilityLoading, availabilityError]);
 
-  const nights = durationHours ? 1 : Math.max(0, Math.ceil((new Date(checkOut) - new Date(checkIn)) / 86400000));
-  const weekdayRate = Number(room?.weekdayRate ?? room?.price ?? 0);
-  const weekendRate = Number(room?.weekendRate ?? room?.price ?? weekdayRate);
+  useEffect(() => {
+    if (!room?.id || availabilityLoading || availabilityError || isCheckInDateDisabled(parseDateValue(checkIn))) return;
+    const availableTimes = getAvailableTimesForDate(checkIn);
+    if (!availableTimes.includes(checkInTime)) {
+      setCheckInTime(availableTimes[0] || '');
+    }
+  }, [room?.id, blockedRanges, checkIn, checkInTime, durationHours, availabilityLoading, availabilityError]);
+
   const useDayRates = Boolean(room?.useDayRates);
   const ownerDiscountType = room?.ownerDiscountType || 'none';
   const ownerDiscountValue = Math.max(0, Number(room?.ownerDiscountValue || 0));
   const selectedDate = parseDateValue(checkIn);
   const selectedDateIsWeekend = selectedDate && (selectedDate.getDay() === 0 || selectedDate.getDay() === 6);
-  const selectedDateRate = (() => {
-    return useDayRates && selectedDateIsWeekend ? weekendRate : weekdayRate;
-  })();
-  const selectedHourlyRate = durationHours
-    ? Number(room?.[`${useDayRates && selectedDateIsWeekend ? 'weekendRate' : 'rate'}${durationHours}Hours`] || 0)
-    : selectedDateRate;
-  const nightlyRates = (() => {
-    if (!room || durationHours || !checkIn || !checkOut) return [];
-    const start = parseDateValue(checkIn);
-    const end = parseDateValue(checkOut);
-    if (!start || !end || end <= start) return [];
-    const rates = [];
-    for (const date = new Date(start); date < end; date.setDate(date.getDate() + 1)) {
-      const weekend = date.getDay() === 0 || date.getDay() === 6;
-      const rate = useDayRates && weekend ? weekendRate : weekdayRate;
-      rates.push({ date: new Date(date), rate, dayType: useDayRates ? (weekend ? 'Weekend' : 'Weekday') : 'Flat rate' });
-    }
-    return rates;
-  })();
-  const baseTotal = room
-    ? durationHours
-      ? selectedHourlyRate
-      : Number(nightlyRates.reduce((total, night) => total + night.rate, 0).toFixed(2))
-    : 0;
+  const selectedHourlyRate = Number(room?.[`${useDayRates && selectedDateIsWeekend ? 'weekendRate' : 'rate'}${durationHours}Hours`] || 0);
+  const baseTotal = room ? selectedHourlyRate : 0;
   const roomDiscountAmount = ownerDiscountType === 'percentage'
     ? Number((baseTotal * Math.min(ownerDiscountValue, 100) / 100).toFixed(2))
     : ownerDiscountType === 'fixed' ? Math.min(baseTotal, ownerDiscountValue) : 0;
@@ -808,11 +804,10 @@ export default function Booking() {
   const validateFields = () => {
     const next = {};
     const checkInDate = parseDateValue(checkIn);
-    const checkOutDate = parseDateValue(checkOut);
+    if (availabilityLoading || availabilityError) next.availability = availabilityError || 'Room availability is still loading.';
     if (!checkInDate || isCheckInDateDisabled(checkInDate)) next.checkIn = 'Choose an available check-in date.';
-    if (!durationHours && (!checkOutDate || isCheckOutDateDisabled(checkOutDate, checkIn))) next.checkOut = 'Choose an available check-out date after check-in.';
-    if (!checkInTime) next.checkInTime = 'Check-in time is required.';
-    if (!durationHours && !checkOutTime) next.checkOutTime = 'Check-out time is required.';
+    if (!checkInTime || isTimeSlotUnavailable(checkIn, checkInTime)) next.checkInTime = 'Choose an available check-in time.';
+    if (!stayDurations.includes(Number(durationHours))) next.durationHours = 'Choose a valid stay duration.';
     if (durationHours && selectedHourlyRate <= 0) next.durationHours = `The ${durationHours}-hour rate is not available for this room.`;
     if (!Number.isInteger(Number(adults)) || Number(adults) < 1 || Number(adults) > Number(room?.maxAdults || 0)) next.adults = `Adults must be between 1 and ${room?.maxAdults || 0}.`;
     if (!Number.isInteger(Number(children)) || Number(children) < 0 || Number(children) > Number(room?.maxChildren || 0)) next.children = `Children must be between 0 and ${room?.maxChildren || 0}.`;
@@ -837,10 +832,11 @@ export default function Booking() {
     if (!room) { setError('No room selected.'); return; }
     const validationErrors = validateFields();
     if (Object.keys(validationErrors).length > 0) { setError('Please correct the highlighted fields.'); return; }
-    if (!durationHours && nights < 1) { setError('Check-out must be after check-in.'); return; }
-    if (durationHours && selectedHourlyRate <= 0) { setError(`The ${durationHours}-hour rate is not configured for this room.`); return; }
-    if (isCheckInDateDisabled(parseDateValue(checkIn))) { setError('Selected check-in date is no longer available.'); return; }
-    if (!durationHours && isCheckOutDateDisabled(parseDateValue(checkOut), checkIn)) { setError('Selected stay overlaps an existing booking. Please choose different dates.'); return; }
+    if (!stayDurations.includes(Number(durationHours)) || selectedHourlyRate <= 0) { setError(`The ${durationHours}-hour rate is not configured for this room.`); return; }
+    if (availabilityLoading || availabilityError || isCheckInDateDisabled(parseDateValue(checkIn)) || isTimeSlotUnavailable(checkIn, checkInTime)) {
+      setError(availabilityError || 'Selected date and time are no longer available.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -868,7 +864,7 @@ export default function Booking() {
       if (!res.ok) throw new Error(body.error || 'Booking failed.');
       setBooking(body);
 
-      if (['card', 'gcash', 'maya', 'qrph', 'online'].includes(paymentMethod)) {
+      if (['card', 'qrph', 'online'].includes(paymentMethod)) {
         const payRes = await fetch('/api/payment/create-link', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -911,10 +907,9 @@ export default function Booking() {
     if (!room) { setError('No room selected.'); return; }
     const validationErrors = validateFields();
     if (Object.keys(validationErrors).length > 0) { setError('Please correct the highlighted fields.'); return; }
-    if (!durationHours && nights < 1) { setError('Check-out must be after check-in.'); return; }
-    if (durationHours && selectedHourlyRate <= 0) { setError(`The ${durationHours}-hour rate is not configured for this room.`); return; }
-    if (isCheckInDateDisabled(parseDateValue(checkIn)) || (!durationHours && isCheckOutDateDisabled(parseDateValue(checkOut), checkIn))) {
-      setError('Selected dates are no longer available.');
+    if (!stayDurations.includes(Number(durationHours)) || selectedHourlyRate <= 0) { setError(`The ${durationHours}-hour rate is not configured for this room.`); return; }
+    if (availabilityLoading || availabilityError || isCheckInDateDisabled(parseDateValue(checkIn)) || isTimeSlotUnavailable(checkIn, checkInTime)) {
+      setError(availabilityError || 'Selected date and time are no longer available.');
       return;
     }
     setShowBookingSummary(true);
@@ -939,7 +934,6 @@ export default function Booking() {
         checkInTime={checkInTime}
         checkOutTime={checkOutTime}
         durationHours={durationHours}
-        nights={nights}
         adults={adults}
         children={children}
         paymentMethod={paymentLabelDisplay}
@@ -1005,12 +999,7 @@ export default function Booking() {
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{peso(selectedHourlyRate)}</p>
-                    <p className="text-xs text-slate-400">/ {durationHours ? `${durationHours} hours` : 'night'}</p>
-                    {!durationHours && roomDiscountAmount > 0 && (
-                      <p className="mt-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                        {peso(roomDiscountAmount)} owner discount for this stay
-                      </p>
-                    )}
+                    <p className="text-xs text-slate-400">/ {durationHours} hours</p>
                   </div>
                 </div>
               </div>
@@ -1032,39 +1021,31 @@ export default function Booking() {
 
                 <div className="mb-5">
                   <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Stay Duration</label>
-                  <select value={durationHours} onChange={(e) => { setDurationHours(Number(e.target.value)); setFieldErrors((current) => ({ ...current, durationHours: '' })); }} onBlur={() => validateFields()} className={invalidClass('durationHours', selectCls)}>
-                    <option value={0}>Overnight — {peso(selectedDateRate)} for check-in night</option>
-                    {[3, 6, 9, 12, 24].map((hours) => {
-                      const rate = Number(room?.[`${useDayRates && selectedDateIsWeekend ? 'weekendRate' : 'rate'}${hours}Hours`] || 0);
+                  <select value={durationHours} onChange={(e) => { setDurationHours(Number(e.target.value)); setFieldErrors((current) => ({ ...current, durationHours: '' })); }} onBlur={() => validateFields()} disabled={!roomIsBookable} className={invalidClass('durationHours', selectCls)}>
+                    {stayDurations.map((hours) => {
+                      const rate = getHourlyRateForDate(checkIn, hours);
                       return <option key={hours} value={hours} disabled={rate <= 0}>{hours} hours — {rate > 0 ? peso(rate) : 'Not available'}</option>;
                     })}
                   </select>
+                  {!roomIsBookable && room ? <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">This room is not currently available for booking.</p> : null}
+                  {roomIsBookable && room && stayDurations.every((hours) => getHourlyRateForDate(checkIn, hours) <= 0) ? (
+                    <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">This room has no hourly rates configured. Please contact the hotel.</p>
+                  ) : null}
                 </div>
 
-                {!durationHours && nightlyRates.length > 0 && (
-                  <div className="mb-5 rounded-lg border border-slate-200 p-3 text-xs dark:border-slate-700">
-                    <p className="mb-2 font-semibold text-slate-700 dark:text-slate-200">Nightly rate breakdown</p>
-                    <div className="space-y-1.5">
-                      {nightlyRates.map((night) => (
-                        <div key={formatDateValue(night.date)} className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
-                          <span>{dateButtonLabel(night.date)} · {night.dayType}</span>
-                          <span className="text-right">{peso(night.rate)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 <div className="mb-5 rounded-lg bg-emerald-50/60 p-3.5 text-xs text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
-                  <p className="font-semibold">{availabilityLoading ? 'Checking room availability...' : 'Calendar Availability'}</p>
+                  <p className="font-semibold">{availabilityLoading ? 'Checking room availability...' : availabilityError ? 'Availability could not be checked' : 'Calendar Availability'}</p>
                   <p className="mt-0.5 leading-relaxed text-emerald-700/80 dark:text-emerald-400/80">
-                    Unavailable dates are automatically disabled.{nextOpenDate ? ` Next open check-in is ${dateButtonLabel(nextOpenDate)}.` : ''}
+                    {availabilityError || 'Dates and start times without an available slot are disabled.'}
+                    {!availabilityError && nextOpenDate ? ` Next available date is ${dateButtonLabel(nextOpenDate)}.` : ''}
                   </p>
                   {shownBlockedRanges.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {shownBlockedRanges.map((range) => (
                         <span key={`${range.bookingNumber}-${range.checkIn}`} className="rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                          {dateButtonLabel(range.checkIn)} to {dateButtonLabel(addDays(range.checkOut, -1) || range.checkOut)}
+                          {Number(range.durationHours) > 0
+                            ? `${range.checkIn} ${range.checkInTime || ''}–${range.checkOut} ${range.checkOutTime || ''}`
+                            : `${dateButtonLabel(range.checkIn)} to ${dateButtonLabel(addDays(range.checkOut, -1) || range.checkOut)}`}
                         </span>
                       ))}
                     </div>
@@ -1072,17 +1053,22 @@ export default function Booking() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <DatePickerField label="Check-In Date" value={checkIn} onChange={(value) => { setCheckIn(value); setFieldErrors((current) => ({ ...current, checkIn: '' })); }} minMonthValue={today} isDateDisabled={isCheckInDateDisabled} helperText="Unavailable dates are disabled." errorText={fieldError('checkIn')} />
-                  <DatePickerField label="Check-Out Date" value={checkOut} onChange={(value) => { setCheckOut(value); setFieldErrors((current) => ({ ...current, checkOut: '' })); }} minMonthValue={checkIn || today} isDateDisabled={(date) => !durationHours && isCheckOutDateDisabled(date, checkIn)} helperText={durationHours ? 'Calculated from check-in time.' : 'Valid stay durations only.'} errorText={fieldError('checkOut')} disabled={!checkIn || Boolean(durationHours)} />
+                  <DatePickerField label="Check-In Date" value={checkIn} onChange={(value) => { setCheckIn(value); setFieldErrors((current) => ({ ...current, checkIn: '' })); }} minMonthValue={today} isDateDisabled={isCheckInDateDisabled} helperText="Dates with no available time are disabled." errorText={fieldError('checkIn')} disabled={!roomIsBookable || availabilityLoading || Boolean(availabilityError)} />
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Check-In Time</label>
-                    <input type="time" value={checkInTime} onChange={(e) => { setCheckInTime(e.target.value); setFieldErrors((current) => ({ ...current, checkInTime: '' })); }} onBlur={() => validateFields()} className={invalidClass('checkInTime', inputCls)} />
+                    <select value={checkInTime} onChange={(e) => { setCheckInTime(e.target.value); setFieldErrors((current) => ({ ...current, checkInTime: '' })); }} onBlur={() => validateFields()} disabled={!roomIsBookable || availabilityLoading || Boolean(availabilityError) || !checkIn || getAvailableTimesForDate(checkIn).length === 0} className={invalidClass('checkInTime', selectCls)}>
+                      {!checkInTime ? <option value="">No available start times</option> : null}
+                      {checkInTimes.map((time) => (
+                        <option key={time} value={time} disabled={isTimeSlotUnavailable(checkIn, time)}>
+                          {new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        </option>
+                      ))}
+                    </select>
                     {fieldError('checkInTime') ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldError('checkInTime')}</p> : null}
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Check-Out Time</label>
-                    <input type="time" value={checkOutTime} onChange={(e) => { setCheckOutTime(e.target.value); setFieldErrors((current) => ({ ...current, checkOutTime: '' })); }} onBlur={() => validateFields()} disabled={Boolean(durationHours)} className={invalidClass('checkOutTime', inputCls)} />
-                    {fieldError('checkOutTime') ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldError('checkOutTime')}</p> : null}
+                    <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Estimated Check-Out</label>
+                    <p className={`${inputCls} bg-slate-50 dark:bg-slate-900`}>{checkOut ? `${dateButtonLabel(checkOut)} at ${new Date(`2000-01-01T${checkOutTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : 'Select a start time'}</p>
                   </div>
                 </div>
 
@@ -1140,8 +1126,6 @@ export default function Booking() {
                         <option value="cash">Cash on Arrival</option>
                         <option value="qrph">QR Ph (QR Code Payment)</option>
                         <option value="card">Credit / Debit Card</option>
-                        <option value="gcash">GCash</option>
-                        <option value="maya">Maya</option>
                       </select>
                       {fieldError('paymentMethod') ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldError('paymentMethod')}</p> : null}
                       <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -1166,7 +1150,7 @@ export default function Booking() {
 
               <button
                 type="submit"
-                disabled={submitting || !room || availabilityLoading}
+                disabled={submitting || !room || !roomIsBookable || availabilityLoading || Boolean(availabilityError) || !checkInTime || isTimeSlotUnavailable(checkIn, checkInTime) || selectedHourlyRate <= 0}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:opacity-50"
               >
                 {sessionUser?.id ? 'Confirm Booking' : 'Sign In to Reserve'}

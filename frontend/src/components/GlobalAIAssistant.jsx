@@ -236,9 +236,9 @@ export default function GlobalAIAssistant() {
   };
   const quickQuestions = [
     "Show available room types",
-    "Magkano ang 6 oras na stay sa Queen room?",
+    "How much is a 6-hour stay in a Queen room?",
     "How do I book a room?",
-    "Paano tingnan ang status ng booking ko?",
+    "How can I check my booking status?",
   ];
 
   return (
@@ -308,7 +308,7 @@ export default function GlobalAIAssistant() {
 
             {!messages.some((message) => message.from === "user") ? (
               <div className="space-y-2 pt-1">
-                <p className="text-[10px] font-bold text-[#8d7e63] dark:text-[#9e927b]">Subukan / Try asking:</p>
+                <p className="text-[10px] font-bold text-[#8d7e63] dark:text-[#9e927b]">Try asking:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {quickQuestions.map((question) => (
                     <button

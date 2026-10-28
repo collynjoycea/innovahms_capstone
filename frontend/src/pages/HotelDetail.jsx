@@ -32,19 +32,33 @@ const toList = (value) => {
   return [];
 };
 
+const getStartingHourlyRate = (room) => {
+  const rates = [3, 6, 9, 12, 24].flatMap((hours) => {
+    const weekdayRate = Number(room?.[`rate${hours}Hours`] || 0);
+    const weekendRate = Number(room?.[`weekendRate${hours}Hours`] || 0);
+    return [
+      { price: weekdayRate, hours },
+      ...(room?.useDayRates ? [{ price: weekendRate, hours }] : []),
+    ].filter((rate) => Number.isFinite(rate.price) && rate.price > 0);
+  });
+  return rates.sort((first, second) => first.price - second.price)[0] || null;
+};
+
 export default function HotelDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const mapHotel = CALOOCAN_HOTELS.find((item) => String(item.id) === String(id));
   const [hotel, setHotel] = useState(null);
   const [rooms, setRooms] = useState([]);
+  const [hotelReviews, setHotelReviews] = useState([]);
+  const [reviewsError, setReviewsError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [imgError, setImgError] = useState(false);
-  const [routeLoading, setRouteLoading] = useState(false);
-  const [routeError, setRouteError] = useState("");
-  const [userCoords, setUserCoords] = useState(null);
   const [mapModalOpen, setMapModalOpen] = useState(false);
+  const [hotelDescriptionExpanded, setHotelDescriptionExpanded] = useState(false);
+  const [hotelAddressExpanded, setHotelAddressExpanded] = useState(false);
+  const [expandedRoomDescriptions, setExpandedRoomDescriptions] = useState({});
 
   useEffect(() => {
     let mounted = true;
@@ -55,17 +69,38 @@ export default function HotelDetail() {
     Promise.all([
       fetch("/api/home/hotels"),
       fetch("/api/rooms"),
+      fetch(`/api/reviews?hotel_id=${encodeURIComponent(id)}&limit=100`),
+      fetch(`/api/vision/hotel?hotel_id=${encodeURIComponent(id)}`),
     ])
-      .then(async ([hotelRes, roomRes]) => {
+      .then(async ([hotelRes, roomRes, reviewsRes, hotelDetailRes]) => {
         if (!mounted) return;
 
         const hotelPayload = await hotelRes.json().catch(() => ({}));
         const roomPayload = await roomRes.json().catch(() => ({}));
+        const reviewsPayload = await reviewsRes.json().catch(() => ({}));
+        const hotelDetailPayload = await hotelDetailRes.json().catch(() => ({}));
 
         const hotels = Array.isArray(hotelPayload?.hotels) ? hotelPayload.hotels : [];
         const roomsList = Array.isArray(roomPayload?.rooms) ? roomPayload.rooms : Array.isArray(roomPayload) ? roomPayload : [];
 
-        const matchedHotel = hotels.find((item) => String(item.id) === String(id));
+        const featuredHotel = hotels.find((item) => String(item.id) === String(id));
+        const hotelDetails = hotelDetailRes.ok && String(hotelDetailPayload?.hotel?.id) === String(id)
+          ? hotelDetailPayload.hotel
+          : null;
+        const matchedHotel = hotelDetails
+          ? {
+            ...featuredHotel,
+            id: hotelDetails.id,
+            name: hotelDetails.name,
+            location: hotelDetails.locationLabel || featuredHotel?.location || "",
+            description: hotelDetails.description || featuredHotel?.description || "",
+            image: hotelDetails.buildingImage || featuredHotel?.image,
+            avgRating: hotelDetails.avgRating,
+            reviewCount: hotelDetails.reviewCount,
+            availableToday: featuredHotel?.availableToday,
+            bookingsToday: featuredHotel?.bookingsToday,
+          }
+          : featuredHotel;
         const hotelRooms = roomsList.filter((room) => String(room.hotel_id || room.hotelId || room.hotel_id) === String(id));
 
         if (!matchedHotel && !mapHotel && hotelRooms.length === 0) {
@@ -83,23 +118,30 @@ export default function HotelDetail() {
 
         setHotel({
           ...baseHotel,
-          availableToday: Number(baseHotel.availableToday || 2),
-          bookingsToday: Number(baseHotel.bookingsToday || 1),
-          avgRating: Number(baseHotel.avgRating || 5),
-          reviewCount: Number(baseHotel.reviewCount || 120),
+          availableToday: Number.isFinite(Number(baseHotel.availableToday)) ? Number(baseHotel.availableToday) : null,
+          bookingsToday: Number.isFinite(Number(baseHotel.bookingsToday)) ? Number(baseHotel.bookingsToday) : null,
+          avgRating: Number(baseHotel.avgRating || 0),
+          reviewCount: Number(baseHotel.reviewCount || 0),
         });
 
         setRooms(hotelRooms);
+        if (reviewsRes.ok) {
+          setHotelReviews(Array.isArray(reviewsPayload.reviews) ? reviewsPayload.reviews : []);
+          setReviewsError("");
+        } else {
+          setHotelReviews([]);
+          setReviewsError(reviewsPayload.error || "Unable to load guest reviews.");
+        }
       })
       .catch((err) => {
         if (!mounted) return;
         if (mapHotel) {
           setHotel({
             ...mapHotel,
-            availableToday: 2,
-            bookingsToday: 1,
-            avgRating: 5,
-            reviewCount: 120,
+            availableToday: null,
+            bookingsToday: null,
+            avgRating: Number(mapHotel.avgRating || 0),
+            reviewCount: Number(mapHotel.reviewCount || 0),
           });
           setRooms([]);
         } else {
@@ -142,53 +184,31 @@ export default function HotelDetail() {
   const hotelHighlights = toList(hotel?.highlights);
 
   const roomPrices = availableRooms
-    .map((room) => Number(room.price ?? room.base_price_php ?? room.price_per_night ?? room.basePricePhp ?? 0))
+    .map((room) => getStartingHourlyRate(room)?.price || 0)
     .filter((value) => Number.isFinite(value) && value > 0);
 
   const minRoomPrice = roomPrices.length
     ? Math.min(...roomPrices)
-    : Number(hotel?.minPrice ?? hotel?.startingPrice ?? 0);
+    : 0;
 
   const maxRoomPrice = roomPrices.length
     ? Math.max(...roomPrices)
-    : Number(hotel?.maxPrice ?? hotel?.startingPrice ?? minRoomPrice ?? 0);
+    : 0;
 
-  const roomPriceLabel =
-    minRoomPrice === maxRoomPrice
-      ? `PHP ${minRoomPrice.toLocaleString()}`
-      : `PHP ${minRoomPrice.toLocaleString()} - PHP ${maxRoomPrice.toLocaleString()}`;
+  const roomPriceLabel = roomPrices.length
+    ? (
+        minRoomPrice === maxRoomPrice
+          ? `PHP ${minRoomPrice.toLocaleString()}`
+          : `PHP ${minRoomPrice.toLocaleString()} - PHP ${maxRoomPrice.toLocaleString()}`
+    )
+    : "Hourly rates unavailable";
 
-  const hotelRating = Number(hotel?.avgRating || 5);
-  const hotelReviewCount = Number(hotel?.reviewCount || 120);
-
-  const handleGetDirections = () => {
-    setRouteLoading(true);
-    setRouteError("");
-
-    if (!navigator.geolocation) {
-      setRouteError("Geolocation is not supported by your browser.");
-      setRouteLoading(false);
-      setMapModalOpen(true);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setUserCoords({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-        setRouteLoading(false);
-        setMapModalOpen(true);
-      },
-      (err) => {
-        console.warn("Geolocation warning:", err.message);
-        setRouteError("Unable to retrieve your location. Please check permissions.");
-        setRouteLoading(false);
-        setMapModalOpen(true);
-      },
-      { timeout: 10000, enableHighAccuracy: true }
-    );
+  const hotelRating = Number(hotel?.avgRating || 0);
+  const hotelReviewCount = Number(hotel?.reviewCount || 0);
+  const hotelAddress = hotel?.location || hotel?.address || hotel?.hotel_address || "";
+  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(hotelAddress || hotel?.name || "")}`;
+  const toggleRoomDescription = (roomId) => {
+    setExpandedRoomDescriptions((current) => ({ ...current, [roomId]: !current[roomId] }));
   };
 
   if (loading) {
@@ -259,32 +279,46 @@ export default function HotelDetail() {
                 {hotel.name}
               </h1>
 
-              <p className="text-xs text-slate-600 dark:text-zinc-300 leading-relaxed mb-4 line-clamp-3">
+              <p className={`text-xs text-slate-600 dark:text-zinc-300 leading-relaxed mb-1 whitespace-pre-line ${hotelDescriptionExpanded ? "" : "line-clamp-3"}`}>
                 {hotel.description || "A premium hospitality destination designed for comfort, convenience, and elevated guest experiences."}
               </p>
+              {String(hotel.description || "").length > 160 ? (
+                <button type="button" onClick={() => setHotelDescriptionExpanded((value) => !value)} className="mb-3 text-xs font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline">
+                  {hotelDescriptionExpanded ? "View less" : "View more"}
+                </button>
+              ) : <div className="mb-3" />}
 
               <div className="space-y-2 border-t border-slate-100 dark:border-white/5 pt-3 mb-4 text-xs text-slate-600 dark:text-zinc-300">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 truncate pr-2">
+                  <div className="flex items-start gap-2 pr-2">
                     <MapPin size={14} className="text-[#1F6F5F] dark:text-[#2FA084] shrink-0" />
-                    <span className="truncate">{hotel.location || "Innova Smart Hotel"}</span>
+                    <span className={hotelAddressExpanded ? "whitespace-pre-line" : "line-clamp-2"}>{hotelAddress || "Address not provided"}</span>
                   </div>
                 </div>
+                {hotelAddress.length > 70 ? (
+                  <button type="button" onClick={() => setHotelAddressExpanded((value) => !value)} className="ml-5 text-[11px] font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline">
+                    {hotelAddressExpanded ? "View less" : "View more"}
+                  </button>
+                ) : null}
 
                 <div className="flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
-                  <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-medium">
-                    <BedDouble size={13} className="text-rose-600 dark:text-rose-400 shrink-0" />
-                    {availableRoomCount} rooms still available today
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
-                    <CalendarCheck size={13} className="text-[#1F6F5F] dark:text-[#2FA084]" />
-                    Booked {hotel.bookingsToday || 1} {(hotel.bookingsToday || 1) === 1 ? "time" : "times"} today
-                  </span>
+                  {hotel.availableToday != null ? (
+                    <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-medium">
+                      <BedDouble size={13} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                      {hotel.availableToday} rooms available today
+                    </span>
+                  ) : null}
+                  {hotel.bookingsToday != null ? (
+                    <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+                      <CalendarCheck size={13} className="text-[#1F6F5F] dark:text-[#2FA084]" />
+                      Booked {hotel.bookingsToday} {hotel.bookingsToday === 1 ? "time" : "times"} today
+                    </span>
+                  ) : null}
                 </div>
 
-                <div className="text-[11px] text-gray-500 dark:text-gray-400 pt-0.5">
-                  {hotelReviewCount ? `${hotelReviewCount} reviews` : ""}
-                </div>
+                <a href="#hotel-reviews" className="text-[11px] text-gray-500 dark:text-gray-400 pt-0.5 hover:text-[#1F6F5F]">
+                  {hotelReviewCount} {hotelReviewCount === 1 ? "review" : "reviews"}
+                </a>
               </div>
 
               <div className="flex flex-wrap gap-1.5 mb-4">
@@ -304,11 +338,50 @@ export default function HotelDetail() {
                 <div className="text-lg font-bold text-[#1F6F5F] dark:text-[#2FA084]">
                   {roomPriceLabel}
                 </div>
-                <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-wide">Room Price Range</div>
+                <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-wide">Starting hourly rate range</div>
               </div>
             </div>
           </div>
         </div>
+
+        <section id="hotel-reviews" className="mt-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#0f1a17]">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-white/5">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Guest Reviews & Feedback</h2>
+              <p className="mt-1 text-xs text-slate-500 dark:text-zinc-400">
+                {hotelReviewCount} {hotelReviewCount === 1 ? "published review" : "published reviews"}
+                {hotelReviewCount > 0 ? ` · Average rating ${hotelRating.toFixed(1)} / 5` : ""}
+              </p>
+            </div>
+            {hotelReviewCount > 0 ? (
+              <div className="flex items-center gap-1" aria-label={`${hotelRating.toFixed(1)} out of 5 stars`}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star key={star} size={16} fill={star <= Math.round(hotelRating) ? "#1F6F5F" : "transparent"} className={star <= Math.round(hotelRating) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300"} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+          {reviewsError ? (
+            <p className="py-4 text-sm text-rose-600 dark:text-rose-400">{reviewsError}</p>
+          ) : hotelReviews.length ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {hotelReviews.map((review) => (
+                <article key={review.id} className="rounded-lg border border-slate-100 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#0d1714]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">{review.title || "Guest feedback"}</p>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">{review.guestName || "Guest"}</p>
+                    </div>
+                    <span className="shrink-0 text-xs font-semibold text-[#1F6F5F] dark:text-[#2FA084]">★ {Number(review.rating || 0).toFixed(1)}</span>
+                  </div>
+                  <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-600 dark:text-zinc-300">{review.comment}</p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="py-6 text-center text-sm text-slate-500 dark:text-zinc-400">No guest feedback yet.</p>
+          )}
+        </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           <div className="lg:col-span-7 bg-white dark:bg-[#0f1a17] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-sm flex flex-col">
@@ -381,12 +454,9 @@ export default function HotelDetail() {
                 <MapPin size={14} className="text-[#1F6F5F] dark:text-[#2FA084]" />
                 Location & Directions
               </span>
-              <button
-                onClick={handleGetDirections}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
-              >
+              <a href={directionsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline">
                 <Navigation size={12} /> Route
-              </button>
+              </a>
             </div>
 
             <div
@@ -422,7 +492,8 @@ export default function HotelDetail() {
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {availableRooms.map((room) => {
                 const roomImage = Array.isArray(room.images) && room.images.length > 0 ? room.images[0] : FALLBACKS[0];
-                const roomPrice = Number(room.price || room.base_price_php || room.price_per_night || 0);
+                const startingHourlyRate = getStartingHourlyRate(room);
+                const roomPrice = startingHourlyRate?.price || 0;
                 const roomName = room.roomName || room.name || room.roomType || "Suite";
 
                 return (
@@ -468,6 +539,26 @@ export default function HotelDetail() {
                         <span>{room.maxAdults || room.max_adults || 2} guests</span>
                       </div>
 
+                      {room.description ? (
+                        <div className="mb-3">
+                          <p className={`text-xs leading-relaxed text-slate-600 dark:text-zinc-300 whitespace-pre-line ${expandedRoomDescriptions[room.id] ? "" : "line-clamp-2"}`}>
+                            {room.description}
+                          </p>
+                          {String(room.description).length > 100 ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleRoomDescription(room.id);
+                              }}
+                              className="mt-1 text-[11px] font-semibold text-[#1F6F5F] dark:text-[#2FA084] hover:underline"
+                            >
+                              {expandedRoomDescriptions[room.id] ? "View less" : "View more"}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+
                       <div className="mb-3 flex flex-wrap gap-2 text-[10px] font-medium text-[#1F6F5F] dark:text-[#6FCF97]">
                         {(Array.isArray(room.amenities) ? room.amenities : []).slice(0, 3).map((amenity, index) => (
                           <span key={`${amenity}-${index}`} className="rounded-full border border-[#1F6F5F]/25 bg-[#1F6F5F]/5 px-2 py-1">
@@ -478,8 +569,8 @@ export default function HotelDetail() {
 
                       <div className="flex items-center justify-between gap-3 border-t border-gray-100 dark:border-[#243B33] pt-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-gray-400">Starting</p>
-                          <p className="text-xl font-bold text-[#1F6F5F] dark:text-[#6FCF97]">₱{roomPrice.toLocaleString()}</p>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-gray-400">Starting rate</p>
+                          <p className="text-xl font-bold text-[#1F6F5F] dark:text-[#6FCF97]">{roomPrice > 0 ? `₱${roomPrice.toLocaleString()} / ${startingHourlyRate.hours} hours` : "Hourly rate unavailable"}</p>
                         </div>
 
                         <button
@@ -510,12 +601,9 @@ export default function HotelDetail() {
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">{hotel.location || "Property Neighborhood"}</h3>
               </div>
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleGetDirections}
-                  className="px-3 py-1 rounded text-xs font-medium border border-slate-300 dark:border-white/20 text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-white/5 flex items-center gap-1.5"
-                >
+                <a href={directionsUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 rounded text-xs font-medium border border-slate-300 dark:border-white/20 text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-white/5 flex items-center gap-1.5">
                   <Navigation size={12} /> Get Directions
-                </button>
+                </a>
                 <button
                   onClick={() => setMapModalOpen(false)}
                   className="h-8 w-8 rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-white hover:bg-slate-200 flex items-center justify-center transition-colors"
@@ -524,13 +612,6 @@ export default function HotelDetail() {
                 </button>
               </div>
             </div>
-
-            {routeError && (
-              <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900/40 px-4 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
-                <span>{routeError}</span>
-                <button onClick={() => setRouteError("")} className="font-bold">&times;</button>
-              </div>
-            )}
 
             <div className="flex-1 relative w-full h-full">
               <iframe
@@ -543,7 +624,7 @@ export default function HotelDetail() {
             </div>
 
             <div className="px-5 py-3 bg-slate-50 dark:bg-[#13221e] border-t border-slate-200 dark:border-white/10 flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400">
-              <span>{userCoords ? "Displaying route guidance from your current location." : "Map preview for the hotel and nearby area."}</span>
+              <span>Map preview for the hotel and nearby area.</span>
               <button
                 onClick={() => setMapModalOpen(false)}
                 className="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-zinc-200 font-medium hover:bg-slate-300 transition-colors"

@@ -115,26 +115,33 @@ export default function RoomDetail() {
   }, [id, reviews]);
 
   const reviewStats = useMemo(() => {
-    if (!roomReviews.length) return { average: 0, count: 0, countsByStar: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };
     const countsByStar = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    const count = Number(room?.reviewCount ?? roomReviews.length);
+    if (!roomReviews.length) {
+      return {
+        average: Number(room?.avgRating || 0).toFixed(1),
+        count,
+        countsByStar,
+      };
+    }
     let sum = 0;
     roomReviews.forEach((rev) => {
-      const r = Math.min(5, Math.max(1, Math.round(Number(rev.rating) || 5)));
+      const r = Math.min(5, Math.max(1, Math.round(Number(rev.rating))));
       countsByStar[r] = (countsByStar[r] || 0) + 1;
-      sum += Number(rev.rating) || 5;
+      sum += Number(rev.rating);
     });
     return {
-      average: (sum / roomReviews.length).toFixed(1),
-      count: roomReviews.length,
+      average: Number(room?.avgRating ?? (sum / roomReviews.length)).toFixed(1),
+      count,
       countsByStar,
     };
-  }, [roomReviews]);
+  }, [room, roomReviews]);
 
   const filteredReviews = useMemo(() => {
     if (activeFilter === "All") return roomReviews;
     if (activeFilter.includes("Star")) {
       const targetStar = parseInt(activeFilter);
-      return roomReviews.filter((r) => Math.round(Number(r.rating) || 5) === targetStar);
+      return roomReviews.filter((r) => Math.round(Number(r.rating)) === targetStar);
     }
     return roomReviews;
   }, [roomReviews, activeFilter]);
@@ -428,9 +435,8 @@ export default function RoomDetail() {
                   displayedReviews.map((rev) => {
                     const nameInitial = rev.guestName ? rev.guestName[0].toUpperCase() : "G";
                     const displayUsername = maskUsername(rev.guestName);
-                    const reviewDate = rev.createdAt
-                      ? new Date(rev.createdAt).toISOString().replace("T", " ").substring(0, 10)
-                      : "2026-04-12";
+                    const createdAt = rev.createdAt ? new Date(rev.createdAt) : null;
+                    const reviewDate = createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString().slice(0, 10) : "";
                     const currentHelpful = helpfulCounts[rev.id] || { count: 0, active: false };
 
                     return (
@@ -442,7 +448,7 @@ export default function RoomDetail() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
                               <span className="text-[11px] font-semibold text-slate-800 dark:text-zinc-200">{displayUsername}</span>
-                              <span className="text-[10px] text-slate-400">{reviewDate}</span>
+                              {reviewDate ? <span className="text-[10px] text-slate-400">{reviewDate}</span> : null}
                             </div>
 
                             <div className="flex gap-0.5 my-0.5">
@@ -450,15 +456,13 @@ export default function RoomDetail() {
                                 <Star
                                   key={s}
                                   size={10}
-                                  fill={s <= (rev.rating || 5) ? "#1F6F5F" : "transparent"}
-                                  className={s <= (rev.rating || 5) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
+                                  fill={s <= Number(rev.rating) ? "#1F6F5F" : "transparent"}
+                                  className={s <= Number(rev.rating) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
                                 />
                               ))}
                             </div>
 
-                            <p className="text-[11px] text-slate-600 dark:text-zinc-300 leading-normal mb-1.5">
-                              {rev.comment || "Clean facilities, excellent accommodation experience."}
-                            </p>
+                            {rev.comment ? <p className="text-[11px] text-slate-600 dark:text-zinc-300 leading-normal mb-1.5">{rev.comment}</p> : null}
 
                             <button
                               onClick={() => toggleHelpful(rev.id)}
@@ -585,9 +589,8 @@ export default function RoomDetail() {
               {filteredReviews.map((rev) => {
                 const nameInitial = rev.guestName ? rev.guestName[0].toUpperCase() : "G";
                 const displayUsername = maskUsername(rev.guestName);
-                const reviewDate = rev.createdAt
-                  ? new Date(rev.createdAt).toISOString().replace("T", " ").substring(0, 10)
-                  : "2026-04-12";
+                const createdAt = rev.createdAt ? new Date(rev.createdAt) : null;
+                const reviewDate = createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString().slice(0, 10) : "";
                 const currentHelpful = helpfulCounts[rev.id] || { count: 0, active: false };
 
                 return (
@@ -599,7 +602,7 @@ export default function RoomDetail() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200">{displayUsername}</span>
-                          <span className="text-[10px] text-slate-400">{reviewDate}</span>
+                          {reviewDate ? <span className="text-[10px] text-slate-400">{reviewDate}</span> : null}
                         </div>
 
                         <div className="flex gap-0.5 my-1">
@@ -607,15 +610,13 @@ export default function RoomDetail() {
                             <Star
                               key={s}
                               size={11}
-                              fill={s <= (rev.rating || 5) ? "#1F6F5F" : "transparent"}
-                              className={s <= (rev.rating || 5) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
+                              fill={s <= Number(rev.rating) ? "#1F6F5F" : "transparent"}
+                              className={s <= Number(rev.rating) ? "text-[#1F6F5F] dark:text-[#2FA084]" : "text-slate-300 dark:text-zinc-700"}
                             />
                           ))}
                         </div>
 
-                        <p className="text-xs text-slate-600 dark:text-zinc-300 leading-normal mb-2">
-                          {rev.comment || "Clean facilities, excellent accommodation experience."}
-                        </p>
+                        {rev.comment ? <p className="text-xs text-slate-600 dark:text-zinc-300 leading-normal mb-2">{rev.comment}</p> : null}
 
                         <button
                           onClick={() => toggleHelpful(rev.id)}

@@ -12,6 +12,7 @@ import {
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { readManagerSession } from './managerSession';
+import { readOwnerSession } from '../../utils/ownerSession';
 
 const pesoFormatter = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -282,19 +283,20 @@ const ReportTable = ({ report, rows, range, loading, generatedAt }) => {
   );
 };
 
-export default function Reports() {
-  const session = readManagerSession() || {};
-  const managerId = session.id;
+export default function Reports({ audience = 'manager' }) {
+  const session = audience === 'owner' ? readOwnerSession() : readManagerSession() || {};
+  const accountId = session.id;
   const today = getLocalDate();
   const [fromDate, setFromDate] = useState(() => getLocalDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
   const [toDate, setToDate] = useState(today);
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const accountLabel = audience === 'owner' ? 'Owner' : 'Manager';
 
   const loadReports = async (range = { from: fromDate, to: toDate }) => {
-    if (!managerId) {
-      setError('Manager session not found. Please log in again before opening reports.');
+    if (!accountId) {
+      setError(`${accountLabel} session not found. Please log in again before opening reports.`);
       return;
     }
     if (!range.from || !range.to || range.from > range.to) {
@@ -307,7 +309,13 @@ export default function Reports() {
     setReportData(null);
     try {
       const response = await axios.get('/api/manager/reports/manager-data', {
-        params: { manager_id: managerId, from: range.from, to: range.to },
+        params: {
+          ...(audience === 'owner'
+            ? { owner_id: accountId, hotel_id: session.hotelId || session.hotel_id }
+            : { manager_id: accountId }),
+          from: range.from,
+          to: range.to,
+        },
       });
       setReportData(response.data);
     } catch (requestError) {
@@ -319,7 +327,7 @@ export default function Reports() {
 
   useEffect(() => {
     loadReports();
-  }, [managerId]);
+  }, [accountId, audience]);
 
   const data = reportData || {};
   const summary = data.summary || {};
@@ -346,7 +354,7 @@ export default function Reports() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">Manager Control Panel</span>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-bold">{accountLabel} Control Panel</span>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">Revenue & Supply Reports</h1>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                 Actual hotel records and inventory movements for the selected period.

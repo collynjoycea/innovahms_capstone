@@ -14,7 +14,6 @@ import HrPayrollStaffLayout from "./layouts/HrPayrollStaffLayout";
 
 // --- STAFF PAGES (FRONT DESK) ---
 import StaffLogin from "./pages/Staff/StaffLogIn"; 
-import StaffSignUp from "./pages/Staff/StaffSignUp";
 import HotelierHome from "./components/HotelierHome";
 import StaffDashboard from "./pages/Staff/frontdesktop/StaffDashboard";
 import StaffDutySchedule from "./pages/Staff/StaffDutySchedule";
@@ -105,7 +104,6 @@ import OwnerCustomers from "./pages/owner/Customers";
 import OwnerHousekeeping from "./pages/owner/Housekeeping";
 import OwnerInventory from "./pages/owner/Inventory"; 
 import OwnerStaff from "./pages/owner/Staff";
-import OwnerReports from "./pages/owner/Reports";
 import OwnerReviews from "./pages/owner/Reviews";
 import OwnerSubscription from "./pages/owner/Subscription";
 import OwnerProfile from "./pages/owner/Profile";
@@ -257,7 +255,7 @@ function App() {
           <Route path="/manager/signup" element={<Navigate to="/staff/login" replace />} />
           <Route path="/staff/login" element={<StaffLogin />} />
           <Route path="/owner/login" element={<OwnerLogin />} />
-          <Route path="/staff/signup" element={<StaffSignUp />} />
+          <Route path="/staff/signup" element={<Navigate to="/staff/login" replace />} />
           <Route path="/owner/signup" element={<OwnerSignUp />} />
         </Route>
 
@@ -274,7 +272,7 @@ function App() {
           <Route path="inventory" element={<OwnerInventory />} />
           <Route path="suppliers" element={<SupplierPurchaseOrders audience="owner" />} />
           <Route path="staff" element={<OwnerStaff />} />
-          <Route path="reports" element={<OwnerReports />} />
+          <Route path="reports" element={<ManagerReports audience="owner" />} />
           <Route path="reviews" element={<OwnerReviews />} />
         </Route>
 

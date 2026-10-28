@@ -48,7 +48,7 @@ class ManagerReportsDateValidationTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn('manager_id', response.get_json()['error'])
+        self.assertIn('manager_id or owner_id', response.get_json()['error'])
 
     def test_manager_reports_rejects_invalid_date(self):
         with patch.object(app_module, 'get_db_connection') as get_connection:
@@ -108,6 +108,13 @@ class ManagerReportsDateValidationTest(unittest.TestCase):
 
         with patch.object(app_module, 'get_db_connection', return_value=connection), patch.object(
             app_module, '_owner_feature_guard', return_value=(None, None)
+        ), patch.object(
+            app_module,
+            '_table_columns',
+            return_value={
+                'id', 'hotel_id', 'po_number', 'supplier', 'status', 'total_amount',
+                'expected_delivery', 'received_at', 'notes', 'created_at',
+            },
         ):
             response = self.client.get(
                 '/api/manager/reports/manager-data',
@@ -133,6 +140,46 @@ class ManagerReportsDateValidationTest(unittest.TestCase):
         self.assertEqual(len(payload['purchaseOrders']), 1)
         self.assertIn('WHERE r.hotel_id = %s', cursor.statements[1])
         self.assertEqual(cursor.params[1], (12, '2026-10-01', '2026-10-31'))
+        self.assertIn('expected_delivery AS expected_date', cursor.statements[-1])
+        self.assertIn('received_at AS received_date', cursor.statements[-1])
+        self.assertIn('created_at AS created_at', cursor.statements[-1])
+
+    def test_owner_reports_returns_the_same_hotel_scoped_report_tables(self):
+        cursor = FakeCursor(
+            {'id': 12, 'owner_id': 9},
+            [[], [], [], []],
+        )
+        connection = FakeConnection(cursor)
+
+        with patch.object(app_module, 'get_db_connection', return_value=connection), patch.object(
+            app_module, '_owner_feature_guard', return_value=(None, None)
+        ), patch.object(
+            app_module,
+            '_table_columns',
+            return_value={
+                'id', 'hotel_id', 'po_number', 'supplier', 'status', 'total_amount',
+                'expected_delivery', 'received_at', 'notes', 'created_at',
+            },
+        ):
+            response = self.client.get(
+                '/api/manager/reports/manager-data',
+                query_string={
+                    'owner_id': 9,
+                    'from': '2026-10-01',
+                    'to': '2026-10-31',
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload['range'], {'from': '2026-10-01', 'to': '2026-10-31'})
+        self.assertEqual(payload['summary']['inventoryItems'], 0)
+        self.assertEqual(payload['revenue'], [])
+        self.assertEqual(payload['inventory'], [])
+        self.assertEqual(payload['stockMovements'], [])
+        self.assertEqual(payload['purchaseOrders'], [])
+        self.assertIn('WHERE owner_id = %s', cursor.statements[0])
+        self.assertEqual(cursor.params[0], (9,))
 
 
 if __name__ == '__main__':
