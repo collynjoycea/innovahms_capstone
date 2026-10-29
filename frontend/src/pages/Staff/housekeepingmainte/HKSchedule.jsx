@@ -258,27 +258,6 @@ const HKSchedule = () => {
 
           {/* Sidebar - Stats & Memo */}
           <div className="space-y-6">
-            
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm space-y-4">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-3">Performance Stats</h3>
-              <div className="space-y-4 text-xs">
-                {[
-                  { label: "Weekly Efficiency", value: "94%" },
-                  { label: "Rooms Cleaned", value: "128" },
-                  { label: "Performance Rating", value: "4.9 / 5.0" }
-                ].map((stat, i) => (
-                  <div key={i}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-slate-500 font-medium">{stat.label}</span>
-                      <span className="font-bold text-slate-900 dark:text-white">{stat.value}</span>
-                    </div>
-                    <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                      <div className="h-full bg-emerald-700 rounded-full" style={{ width: stat.value.includes('%') ? stat.value : '85%' }}></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
             <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 rounded-lg p-5">
               <div className="flex items-start gap-3">

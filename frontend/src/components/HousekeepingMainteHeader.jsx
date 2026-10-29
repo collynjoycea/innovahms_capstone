@@ -89,7 +89,7 @@ const HousekeepingMainteHeader = ({ isDarkMode, toggleTheme }) => {
                   <User size={16} /> My Profile
                 </button>
                 <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/10 text-red-500 text-xs transition-all font-bold">
-                  <LogOut size={16} /> Logout Portal
+                  <LogOut size={16} /> Logout 
                 </button>
               </div>
               
